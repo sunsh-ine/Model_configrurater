@@ -35,7 +35,7 @@
 | 19 | M17 DP 分摊并发不切权重 | 全局 32 并发 / DP4 → 每副本 8，KV 物理字节恰为 DP1 的 1/4 |
 | 20 | M17 稳定排序 | 同输入两次生成候选列表完全一致（按状态→卡数→余量） |
 | 21 | M18 CLI 离线可用 | 5 个新命令在 `verify_all.sh`（离线）中全部通过 |
-| 22 | M18 报告含来源/假设/公式版本 | Markdown 含边界声明、来源表、待核实字段、逐候选依据、公式版本 `weights-1.0/kv-1.0/memory-1.0` |
+| 22 | M18 报告含来源/假设/公式版本 | Markdown 含边界声明、来源表、**来源性质（measured/operator_estimate/synthetic_example）**、待核实字段、逐候选依据、公式版本 `weights-1.0/kv-1.0/memory-1.0` |
 | 23 | M18 错误输入明确失败 | 模型不存在 → 非零退出 + `模型不存在: nope`；哈希不符 → `ModelSpecError`；目录容量自相矛盾 → `HardwareCatalogError` |
 
 ### 1.2 已修复（本轮定位并修掉的问题）
@@ -105,20 +105,29 @@
 
 ### 2.3 资源规划：Qwen3-32B × H100 SXM × BF16
 
-请求：ctx 8192、全局并发 32、block 16；假设可用显存 76 GiB、运行时合并预留 10%。
+> ⚠️ **本节表格已在 V2.1 整改中更正。** 首版使用的是"可用显存 76 GiB"，
+> 而硬件库把 80GB 标称容量归一化为 80,000,000,000 字节（≈74.51 GiB）——
+> 该假设**超过标称容量**，属输入不自洽，结论无效。
+> 自洽口径（标称 × 0.9 = 72 GB，来源性质 `synthetic_example`）下的结果见下表，
+> 整改细节见文末 **§A.2**。
+
+请求：ctx 8192、全局并发 32、block 16；假设可用显存 72 GB（= 80 GB × 0.9，
+来源性质 `synthetic_example`）、运行时合并预留 10%。
 
 | TP×DP | 卡数 | 权重/卡 | KV/卡 | 合计/卡 | 余量 | 状态 |
 |---|---|---|---|---|---|---|
-| 1×1 | 1 | 61.02 GiB | 64.00 GiB | 132.62 GiB | −56.62 GiB | `infeasible` |
-| 1×2 | 2 | 61.02 GiB | 32.00 GiB | 100.62 GiB | −24.62 GiB | `infeasible` |
-| 2×1 | 2 | 31.96 GiB | 32.00 GiB | 71.56 GiB | 4.44 GiB | `conditional_feasible` |
-| 4×1 | 4 | 17.43 GiB | 16.00 GiB | 41.03 GiB | 34.97 GiB | `conditional_feasible` |
-| 8×1 | 8 | 10.16 GiB | 8.00 GiB | 25.76 GiB | 50.24 GiB | `conditional_feasible` |
-| 8×2 | 16 | 10.16 GiB | 4.00 GiB | 21.76 GiB | 54.24 GiB | `conditional_feasible` |
+| 1×1 | 1 | 65.52 GB | 68.72 GB | 141.44 GB | −69.44 GB | `infeasible` |
+| 2×1 | 2 | 34.32 GB | 34.36 GB | 75.88 GB | −3.88 GB | `infeasible` |
+| 1×2 | 2 | 65.52 GB | 34.36 GB | 107.08 GB | −35.08 GB | `infeasible` |
+| 4×1 | 4 | 18.72 GB | 17.18 GB | 43.10 GB | +28.90 GB | `conditional_feasible` |
+| 2×2 | 4 | 34.32 GB | 17.18 GB | 58.70 GB | +13.30 GB | `conditional_feasible` |
+| 8×1 | 8 | 10.91 GB | 8.59 GB | 26.70 GB | +45.30 GB | `conditional_feasible` |
+| 4×2 | 8 | 18.72 GB | 8.59 GB | 34.51 GB | +37.49 GB | `conditional_feasible` |
+| 8×2 | 16 | 10.91 GB | 4.29 GB | 22.41 GB | +49.59 GB | `conditional_feasible` |
 
-结论口径：**TP1 在 80GB 卡上装不下**（即使不算运行时开销），TP≥2 在给定假设下静态可行；
-但报告同时声明这些数字依赖"可用显存 76 GiB + 运行时预留 10%"两项**假设**，
-落地前必须实测复核。
+结论口径：**TP1 与 TP2 在 80GB 卡上装不下**（TP2 合计 75.88 GB，超预算 3.88 GB），
+**TP4 起静态可行**；所有数字依赖"可用显存 72 GB + 运行时预留 10%"两项
+**演示性假设**（已标注 `synthetic_example`），落地前必须用现场实测替换。
 
 ---
 
