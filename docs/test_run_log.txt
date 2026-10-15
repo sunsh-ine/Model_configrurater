@@ -1,0 +1,593 @@
+
+=== 0. 环境 ===
+Python 3.12.3
+deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
+
+=== 1. 清理旧产物（全新数据库） ===
+
+=== 2. init-db ===
+已初始化数据库: data/local.db
+表: benchmark_record, evidence, hardware_price, import_run, official_benchmark_candidate, pricing_result, token_price
+{
+  "evidence": 0,
+  "hardware_price": 0,
+  "token_price": 0,
+  "benchmark_record": 0,
+  "pricing_result": 0
+}
+
+=== 3. import-excel（第一次） ===
+导入完成: Token产能计算器-0910.xlsx (sha256 ed25cf5493b4…)
+工作表行数: {'GPU价格': 2, '模型价格': 3, '部署效能': 32}
+{
+  "parsed": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32
+  },
+  "counts_before": {
+    "evidence": 0,
+    "hardware_price": 0,
+    "token_price": 0,
+    "benchmark_record": 0,
+    "pricing_result": 0
+  },
+  "counts_after": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32,
+    "pricing_result": 0
+  },
+  "idempotent": false
+}
+
+=== 4. import-excel（第二次，验幂等） ===
+导入完成: Token产能计算器-0910.xlsx (sha256 ed25cf5493b4…)
+工作表行数: {'GPU价格': 2, '模型价格': 3, '部署效能': 32}
+{
+  "parsed": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32
+  },
+  "counts_before": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32,
+    "pricing_result": 0
+  },
+  "counts_after": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32,
+    "pricing_result": 0
+  },
+  "idempotent": true
+}
+
+=== 5. import-excel（第三次，再验幂等） ===
+导入完成: Token产能计算器-0910.xlsx (sha256 ed25cf5493b4…)
+工作表行数: {'GPU价格': 2, '模型价格': 3, '部署效能': 32}
+{
+  "parsed": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32
+  },
+  "counts_before": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32,
+    "pricing_result": 0
+  },
+  "counts_after": {
+    "evidence": 37,
+    "hardware_price": 2,
+    "token_price": 3,
+    "benchmark_record": 32,
+    "pricing_result": 0
+  },
+  "idempotent": true
+}
+
+=== 6. import-sglang / import-vllm（synthetic fixture，测试数据） ===
+{
+  "kind": "sglang",
+  "file": "data/fixtures/sglang_synthetic.jsonl",
+  "metadata": "config/fixture_sglang.yaml",
+  "records": [
+    "fixture_sglang_synthetic_rec"
+  ],
+  "evidence_ids": [
+    "fixture_sglang_synthetic"
+  ],
+  "performance_source_kind": [
+    "synthetic_fixture"
+  ],
+  "verification_status": [
+    "synthetic_fixture"
+  ],
+  "missing_fields": {
+    "fixture_sglang_synthetic_rec": [
+      "model_revision",
+      "framework_version",
+      "driver_version",
+      "hardware_sku",
+      "tp_size",
+      "dp_size",
+      "ep_size",
+      "dataset_name",
+      "dataset_digest",
+      "mean_observed_concurrency",
+      "input_tokens_target",
+      "output_tokens_target"
+    ]
+  }
+}
+已导入 1 条 SGLang 记录
+{
+  "kind": "sglang",
+  "file": "data/fixtures/sglang_renamed_fields.jsonl",
+  "metadata": "config/fixture_sglang_renamed.yaml",
+  "records": [
+    "fixture_sglang_renamed_rec"
+  ],
+  "evidence_ids": [
+    "fixture_sglang_renamed"
+  ],
+  "performance_source_kind": [
+    "synthetic_fixture"
+  ],
+  "verification_status": [
+    "synthetic_fixture"
+  ],
+  "missing_fields": {
+    "fixture_sglang_renamed_rec": [
+      "model_revision",
+      "framework_version",
+      "driver_version",
+      "hardware_sku",
+      "tp_size",
+      "dp_size",
+      "ep_size",
+      "dataset_name",
+      "dataset_digest",
+      "mean_observed_concurrency",
+      "input_tokens_target",
+      "output_tokens_target"
+    ]
+  }
+}
+已导入 1 条 SGLang 记录
+{
+  "kind": "vllm",
+  "file": "data/fixtures/vllm_synthetic.json",
+  "metadata": "config/fixture_vllm.yaml",
+  "records": [
+    "fixture_vllm_synthetic_rec"
+  ],
+  "evidence_ids": [
+    "fixture_vllm_synthetic"
+  ],
+  "performance_source_kind": [
+    "synthetic_fixture"
+  ],
+  "verification_status": [
+    "synthetic_fixture"
+  ],
+  "missing_fields": {
+    "fixture_vllm_synthetic_rec": [
+      "model_revision",
+      "framework_version",
+      "driver_version",
+      "hardware_sku",
+      "tp_size",
+      "dp_size",
+      "ep_size",
+      "dataset_name",
+      "dataset_digest",
+      "tpot_mean_ms",
+      "tpot_p99_ms",
+      "mean_observed_concurrency"
+    ]
+  }
+}
+已导入 1 条 vLLM 记录
+{
+  "kind": "vllm",
+  "file": "data/fixtures/vllm_zero_success.json",
+  "metadata": "config/fixture_vllm_zero_success.yaml",
+  "records": [
+    "fixture_vllm_zero_success_rec"
+  ],
+  "evidence_ids": [
+    "fixture_vllm_zero_success"
+  ],
+  "performance_source_kind": [
+    "synthetic_fixture"
+  ],
+  "verification_status": [
+    "synthetic_fixture"
+  ],
+  "missing_fields": {
+    "fixture_vllm_zero_success_rec": [
+      "model_revision",
+      "framework_version",
+      "driver_version",
+      "hardware_sku",
+      "tp_size",
+      "dp_size",
+      "ep_size",
+      "dataset_name",
+      "dataset_digest",
+      "ttft_p99_ms",
+      "tpot_mean_ms",
+      "tpot_p99_ms",
+      "mean_observed_concurrency",
+      "input_tokens_target",
+      "output_tokens_target"
+    ]
+  }
+}
+已导入 1 条 vLLM 记录
+
+=== 7. import-official（官方候选 partial_evidence） ===
+已导入 6 条官方候选证据（partial_evidence）
+跳过 8 条未入库条目（pending_verification / 非结果数据集）
+{
+  "candidates": [
+    {
+      "candidate_id": "official_vllm_recipes_deepseek_v3_console_output",
+      "publisher": "vllm",
+      "framework": "vllm",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [
+        "8xH200 (FP8)",
+        "8xMI300X (FP8)",
+        "4xB200"
+      ],
+      "is_throughput_benchmark": false,
+      "metric_count": 16,
+      "missing_fields": [
+        "model_revision",
+        "framework_version",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name"
+      ]
+    },
+    {
+      "candidate_id": "official_vllm_ascend_kimi_k2_thinking",
+      "publisher": "vllm",
+      "framework": "vllm-ascend",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [
+        "Atlas 800 A3 (16 x 64G)"
+      ],
+      "is_throughput_benchmark": null,
+      "metric_count": 0,
+      "missing_fields": [
+        "model_revision",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name",
+        "ttft_p99_ms",
+        "tpot_p99_ms"
+      ]
+    },
+    {
+      "candidate_id": "official_lmsys_hpc_ops_sglang",
+      "publisher": "lmsys-sglang",
+      "framework": "sglang",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [
+        "H200",
+        "H20"
+      ],
+      "is_throughput_benchmark": null,
+      "metric_count": 0,
+      "missing_fields": [
+        "model_name",
+        "model_revision",
+        "framework_version",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name",
+        "ttft_p99_ms",
+        "tpot_p99_ms"
+      ]
+    },
+    {
+      "candidate_id": "official_lmsys_epd_elastic_encoder",
+      "publisher": "lmsys-sglang",
+      "framework": "sglang",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [
+        "8x H20 96GB"
+      ],
+      "is_throughput_benchmark": null,
+      "metric_count": 0,
+      "missing_fields": [
+        "model_name",
+        "model_revision",
+        "framework_version",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name",
+        "ttft_p99_ms",
+        "tpot_p99_ms"
+      ]
+    },
+    {
+      "candidate_id": "official_lmsys_hetero_cpu_gpu_epd",
+      "publisher": "lmsys-sglang",
+      "framework": "sglang",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [],
+      "is_throughput_benchmark": null,
+      "metric_count": 0,
+      "missing_fields": [
+        "model_name",
+        "model_revision",
+        "framework_version",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name",
+        "ttft_p99_ms",
+        "tpot_p99_ms"
+      ]
+    },
+    {
+      "candidate_id": "official_lmsys_sglang_llama3",
+      "publisher": "lmsys-sglang",
+      "framework": "sglang",
+      "verification_status": "partial_evidence",
+      "hardware_binding": "unbound",
+      "hardware_candidates": [
+        "H100"
+      ],
+      "is_throughput_benchmark": null,
+      "metric_count": 0,
+      "missing_fields": [
+        "model_revision",
+        "framework_version",
+        "hardware_model",
+        "deployment_gpu_count",
+        "dataset_name",
+        "ttft_p99_ms",
+        "tpot_p99_ms"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "id": "sglang_bench_serving_guide",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    },
+    {
+      "id": "sglang_benchmark_and_profiling",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    },
+    {
+      "id": "vllm_bench_serve_cli",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    },
+    {
+      "id": "vllm_cli_guide",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    },
+    {
+      "id": "candidate_sglang_public_benchmark_result",
+      "status": "pending_verification",
+      "reason": "尚无证据文件，等待补齐"
+    },
+    {
+      "id": "candidate_vllm_public_benchmark_result",
+      "status": "pending_verification",
+      "reason": "尚无证据文件，等待补齐"
+    },
+    {
+      "id": "vllm_performance_dashboard",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    },
+    {
+      "id": "vllm_recipes_index",
+      "status": "not_a_result_dataset",
+      "reason": "非结果数据集（仅工具/格式说明）"
+    }
+  ]
+}
+
+=== 8. official-coverage ===
+{
+  "candidate_count": 6,
+  "verified_count": 0,
+  "by_publisher": {
+    "lmsys-sglang": 4,
+    "vllm": 2
+  },
+  "with_parsed_metrics": 1,
+  "throughput_benchmarks": 0,
+  "single_request_smoke_tests": 1
+}
+
+=== 9. validate-import ===
+校验项: 20，通过 20，失败 0
+  [PASS] count::hardware_price: 期望 2，实际 2
+  [PASS] count::token_price: 期望 3，实际 3
+  [PASS] count::benchmark_record: Excel 来源期望 32，实际 32（库内总记录 36 = Excel 32 + fixture 4 + 其他来源 0）
+  [PASS] source_kinds_separated: fixture 4 条、其他来源 0 条，均不与 Excel 32 条混合计数
+  [PASS] traceable_row_numbers: 无法解析行号的记录: []
+  [PASS] evidence_present: 缺少证据的记录: []
+  [PASS] evidence_has_sheet_and_row: 证据是否都带 source_sheet/source_row
+  [PASS] no_fabricated_zeros: Excel 未提供的字段被填值的记录: {}
+  [PASS] currency_assumption_recorded: 价格币种为空且 currency_assumption 已写明
+  [PASS] legacy_hit_rate_proxy_flagged: 旧表 H 列命中率作为定价代理时必须带 legacy_proxy_for_billable_hit_rate=True
+  [PASS] cache_semantics_not_fabricated: Excel 命中率语义必须保持 unknown，不得宣称为计费命中
+  [PASS] strategy_parse_unverified: 策略解析结果均标记 verified=False
+  [PASS] topology_fields_left_null: tp/dp/ep/pp 均保持空值，未从策略字符串补齐
+  [PASS] source_attribution_inferencex: Excel 效能数据来源标注为 InferenceX（第三方），未冒充 SGLang/vLLM 官方数据
+  [PASS] every_record_has_source: 缺少可追溯来源的记录: []
+  [PASS] every_record_has_quality_flags: 无质量标记的记录: []
+  [PASS] excel_marked_as_historical_external: 被错误标为内部实测的记录: []
+  [PASS] historical_external_flag_present: 缺少 historical_external_source_not_internal_measurement 标记的记录: []
+  [PASS] no_internal_measurement_declared: 库中不存在任何 internal_measurement 声明（本阶段无自有实测数据）
+  [PASS] cluster_throughput_basis_documented: 集群吞吐若存在，必须带 derived_from_per_gpu 归一化说明
+全部校验通过。
+
+=== 10. calculate-all --mode legacy_full_load（默认业务口径） ===
+{
+  "generated_at": "2026-10-15T13:55:29",
+  "pricing_engine_version": "0.1.0",
+  "mode": "legacy_full_load",
+  "utilization": null,
+  "calculation_year_seconds": 31536000,
+  "currency_assumption": "CNY; pending business confirmation",
+  "cost_scope": "gpu_cost_only",
+  "include_test_data": false,
+  "business_record_count": 32,
+  "test_record_count": 0,
+  "excluded_test_records": [
+    "fixture_sglang_renamed_rec",
+    "fixture_sglang_synthetic_rec",
+    "fixture_vllm_synthetic_rec",
+    "fixture_vllm_zero_success_rec"
+  ],
+  "record_count": 32,
+  "status_counts": {
+    "ok": 32,
+    "partial": 0,
+    "not_evaluable": 0
+  }
+}
+已导出 32 条结果 -> data/exports/legacy_results.json
+结果条数: 32（业务 32 + 测试 0）
+
+=== 11. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
+{
+  "generated_at": "2026-10-15T13:55:29",
+  "pricing_engine_version": "0.1.0",
+  "mode": "legacy_full_load",
+  "utilization": null,
+  "calculation_year_seconds": 31536000,
+  "currency_assumption": "CNY; pending business confirmation",
+  "cost_scope": "gpu_cost_only",
+  "include_test_data": true,
+  "business_record_count": 32,
+  "test_record_count": 4,
+  "excluded_test_records": [],
+  "record_count": 36,
+  "status_counts": {
+    "ok": 32,
+    "partial": 0,
+    "not_evaluable": 4
+  }
+}
+已导出 36 条结果 -> data/exports/legacy_results_with_tests.json
+注意: 其中含 4 条人工测试数据（测试口径）
+结果条数: 36（业务 32 + 测试 4）
+
+=== 12. scenario（单条，U=0.30） ===
+{
+  "out": "data/exports/scenario.json",
+  "record_id": "excel_部署效能_2",
+  "utilization": "0.30",
+  "status": "ok",
+  "scope": "business",
+  "result_type": "scenario_sensitivity_estimate",
+  "sla_status": "not_evaluable",
+  "token_price_id": "excel_模型价格_2",
+  "hardware_price_id": "excel_GPU价格_2",
+  "scenario_revenue_10k_per_gpu_year": "53.1480341738880"
+}
+情景结果已写入 data/exports/scenario.json
+
+=== 13. validate-results（结果可追溯 + SLA 口径） ===
+结果条数: 32（含测试数据: False）
+校验项: 9，通过 9，失败 0
+  [PASS] result_linked_to_performance_record: 32 条结果均可回溯到性能记录
+  [PASS] result_linked_to_hardware_price: 有成本的结果均能回溯到同型号硬件价格
+  [PASS] result_linked_to_token_price: 有收入的结果均能回溯到同模型 Token 单价
+  [PASS] result_has_evidence_chain: 每条结果都带证据链 ID
+  [PASS] result_scope_matches_source_kind: 结果 scope 与记录来源一致
+  [PASS] sla_not_evaluable_without_p99: 缺 P99 时 SLA 恒为 not_evaluable
+  [PASS] sla_reasons_recorded: not_evaluable 的结果都写明了原因
+  [PASS] unlinked_inputs_warned: 缺价格关联时给出 linkage_warnings（不静默）
+  [PASS] currency_declared: 每条结果都显式声明币种与成本范围
+全部校验通过。
+
+=== 14. 旧表复算误差摘要 + 敏感性导出 ===
+复算覆盖行数: 32
+最大误差:
+  I_input_revenue: 4.4E-13
+  J_output_revenue: 0
+  K_total_revenue: 4.4E-13
+  L_cost: 0
+  M_revenue_cost_ratio: 5.714285714286E-15
+超容差不匹配数: 0
+默认敏感性情景条数: 160 (应为 32 x 5 = 160)
+含测试数据情景条数: 180 (应为 36 x 5 = 180)
+入库计数: {'evidence': 47, 'hardware_price': 2, 'token_price': 3, 'benchmark_record': 36, 'pricing_result': 196}
+
+=== 15. 回到业务口径并复核库内计数（清理测试态结果行） ===
+最终 pricing_result 总数: 192 (业务口径：32 满载 + 160 情景)
+按 scope 分解: [('business', 192)]
+按 mode  分解: [('legacy_full_load', 32), ('scenario', 160)]
+残留的 synthetic_fixture 结果行: 0 (默认口径下应为 0)
+
+=== 16. report（默认业务口径） ===
+{
+  "bytes": 63717,
+  "records": 36,
+  "business_records": 32,
+  "test_records": 4,
+  "excluded_test_records": [
+    "fixture_sglang_renamed_rec",
+    "fixture_sglang_synthetic_rec",
+    "fixture_vllm_synthetic_rec",
+    "fixture_vllm_zero_success_rec"
+  ],
+  "scenario_results": 160,
+  "legacy_results": 32,
+  "include_test_data": false
+}
+报告已写入 data/exports/overview.md
+
+=== 17. pytest ===
+........................................................................ [ 36%]
+........................................................................ [ 72%]
+........................................................                 [100%]
+200 passed in 43.27s
+
+=== 18. 产物清单 ===
+总计 968
+drwxrwxr-x 2 ssa ssa   4096 10月 15 13:55 .
+drwxrwxr-x 6 ssa ssa   4096 10月 15 13:55 ..
+-rw-rw-r-- 1 ssa ssa 121314 10月 15 13:55 legacy_results.json
+-rw-rw-r-- 1 ssa ssa 132124 10月 15 13:55 legacy_results_with_tests.json
+-rw-rw-r-- 1 ssa ssa  63717 10月 15 13:55 overview.md
+-rw-rw-r-- 1 ssa ssa   5813 10月 15 13:55 scenario.json
+-rw-rw-r-- 1 ssa ssa 649881 10月 15 13:55 scenarios_sensitivity.json
+
+==== 汇总 ====
+步骤 19 项：通过 19，失败 0
+完成时间: 2026-10-15T13:56:22+08:00
+环境: Python 3.12.3
+全部步骤通过。

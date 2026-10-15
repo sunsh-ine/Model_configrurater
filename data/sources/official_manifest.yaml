@@ -1,0 +1,421 @@
+# 官方公开 Benchmark 来源清单（curated source manifest）
+#
+# 采集原则（任务书 §5）：
+#   * 本文件**手工维护**，采集功能不默认联网、不自动爬取；
+#   * 只有"官方实验配置 + 原始指标 + 可追溯来源链接"三者齐备，才能把 status
+#     提升为 verified 并写入 official_benchmark 记录；
+#   * 官方工具文档（--help / 指南类页面）只是**格式与指标口径说明**，不是性能结果
+#     数据集，不能作为 official_benchmark 记录入库。
+#
+# status 取值：
+#   not_a_result_dataset  文档可访问，但只描述工具用法与指标定义，无实测数值
+#   pending_verification  已定位候选来源，尚未取得完整实验配置或原始指标
+#   partial_evidence      已有部分字段，缺口已记录（可入库但不可作完整对比案例）
+#   verified              配置与指标齐备，可入库为 official_benchmark
+#
+# 本次采集结论：0 条 verified、6 条 partial_evidence（含 1 条带机器解析指标）。
+# 详见 docs/official_coverage_gaps.md。
+
+- id: sglang_bench_serving_guide
+  status: not_a_result_dataset
+  publisher: sglang
+  source_url: https://docs.sglang.io/docs/developer_guide/bench_serving
+  requested_url: https://docs.sglang.ai/developer_guide/bench_serving
+  accessed_at: "2026-10-15T09:41:54+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/sglang_bench_serving_guide_2026-10-15.html
+  evidence_sha256: f088caca501a5230bb6f9af9f78afbb76d5163c626cb4c784fef9308ad35e8cb
+  model_revision: null
+  framework_version: null
+  benchmark_name: bench_serving
+  contains_measured_values: false
+  notes: >-
+    该页面为 Bench Serving Guide：说明测试命令行、参数与"Metrics explained"指标定义，
+    全文没有出现任何实测数值（无 TTFT/TPOT/吞吐结果表）。可作为解析器字段口径依据，
+    不可作为 official_benchmark 性能记录。注意 docs.sglang.ai 旧路径已 404，
+    现由 docs.sglang.io 提供。
+
+- id: sglang_benchmark_and_profiling
+  status: not_a_result_dataset
+  publisher: sglang
+  source_url: https://docs.sglang.io/docs/developer_guide/benchmark_and_profiling
+  requested_url: https://docs.sglang.ai/developer_guide/benchmark_and_profiling.html
+  accessed_at: "2026-10-15T09:41:54+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/sglang_benchmark_and_profiling_2026-10-15.html
+  evidence_sha256: 31bab693647ce1631083418e272831635d29cfc0fabada637c62891790516b8a
+  model_revision: null
+  framework_version: null
+  benchmark_name: benchmark_and_profiling
+  contains_measured_values: false
+  notes: >-
+    描述 profiling/benchmark 工具链（nsys、torch profiler 等）的使用方式，
+    未提供可引用的端到端实测性能案例。
+
+- id: vllm_bench_serve_cli
+  status: not_a_result_dataset
+  publisher: vllm
+  source_url: https://docs.vllm.ai/en/stable/cli/bench/serve/
+  accessed_at: "2026-10-15T09:41:54+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/vllm_bench_serve_2026-10-15.html
+  evidence_sha256: 3b38834638658e5f91eec566f4279e1cb5c94ba7076eb1f563d29bf39540e7df
+  model_revision: null
+  framework_version: null
+  benchmark_name: vllm bench serve
+  contains_measured_values: false
+  notes: >-
+    `vllm bench serve` 的 CLI 参考（参数、示例、输出字段）。用于确认结果 JSON 的
+    字段名与统计口径（mean_ttft_ms / p99_ttft_ms / mean_tpot_ms / p99_tpot_ms /
+    mean_itl_ms / p99_itl_ms / mean_e2el_ms / p99_e2el_ms / *_throughput 等），
+    不含任何实测结果数值。
+
+- id: vllm_cli_guide
+  status: not_a_result_dataset
+  publisher: vllm
+  source_url: https://docs.vllm.ai/en/latest/cli/
+  accessed_at: "2026-10-15T09:41:54+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/vllm_cli_guide_2026-10-15.html
+  evidence_sha256: 984ee9413000fe2bc78a742ac40eba04b14fce35ec0a0097510563ce08b2e19b
+  model_revision: null
+  framework_version: null
+  benchmark_name: vllm CLI index
+  contains_measured_values: false
+  notes: >-
+    vLLM CLI 总索引（含 `vllm bench` 子命令列表）。用于确认命令形态，
+    不含实测结果数值。
+
+- id: candidate_sglang_public_benchmark_result
+  status: pending_verification
+  publisher: sglang
+  source_url: null
+  accessed_at: null
+  evidence_file: null
+  evidence_sha256: null
+  model_revision: null
+  framework_version: null
+  benchmark_name: null
+  contains_measured_values: null
+  notes: >-
+    占位条目：需要一个同时给出【模型与 revision、精度、硬件型号与卡数、TP/EP/DP 或
+    PD 拓扑、数据集与输入/输出长度分布、并发或请求到达率、TTFT/TPOT 或吞吐原始指标、
+    版本与日期】的官方实测页/发布说明。目前尚未定位到满足条件的来源；
+    在补齐前不得写入 official_benchmark。
+
+- id: candidate_vllm_public_benchmark_result
+  status: pending_verification
+  publisher: vllm
+  source_url: null
+  accessed_at: null
+  evidence_file: null
+  evidence_sha256: null
+  model_revision: null
+  framework_version: null
+  benchmark_name: null
+  contains_measured_values: null
+  notes: >-
+    占位条目：需要一个来源可追溯、配置较完整的 vLLM 官方实测结果。目前尚未定位到满足
+    条件的来源；在补齐前不得写入 official_benchmark。
+
+# ==========================================================================
+# 第二批采集（2026-10-15，由 codex 检索给出线索 + 人工 curl 复核 HTTP 状态）
+# 说明：以下 6 个页面均已本地存档并记录 sha256。它们**都有实测数值**，但配套部署
+# 配置不完整，因此按 partial_evidence 保存，且**不把候选硬件写成已绑定配置**。
+# 数值呈现方式为图片/散文/非标准表格的页面，不做人工抄录（避免引入无法校验的数字）。
+# ==========================================================================
+
+- id: vllm_recipes_deepseek_v3_console_output
+  status: partial_evidence
+  publisher: vllm
+  source_url: https://docs.vllm.ai/projects/recipes/en/latest/DeepSeek/DeepSeek-V3.html
+  accessed_at: "2026-10-15T10:20:33+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/vllm_recipes_deepseek_v3_2026-10-15.html
+  evidence_sha256: 6ff76f16c0a727995d91791cfd20f61a0b9cd97c3403f45b3d082eddc319866e
+  parse_console_summary: true
+  framework: vllm
+  benchmark_tool: vllm bench serve
+  model_name: DeepSeek-R1 / DeepSeek-V3
+  model_revision: null
+  framework_version: null
+  hardware_candidates:
+    - "8xH200 (FP8)"
+    - "8xMI300X (FP8)"
+    - "4xB200"
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: false
+  fields_present:
+    - benchmark_tool
+    - model_name
+    - ttft_p99_ms
+    - tpot_p99_ms
+    - itl_p99_ms
+    - output_throughput_tok_s
+    - duration_s
+    - total_input_tokens
+    - total_output_tokens
+    - success_count
+  fields_missing:
+    - model_revision
+    - framework_version
+    - hardware_model
+    - deployment_gpu_count
+    - dataset_name
+    - configured_concurrency
+    - request_rate_rps
+  notes: >-
+    页面 "Expected Output" 段给出了 vllm bench serve 的完整控制台汇总（含 P99 TTFT 560.00ms、
+    P99 TPOT 15.85ms、P99 ITL 16.15ms、Output token throughput 61.00 tok/s 等），
+    数值由 scripts 从存档 HTML 机器解析得到（见 importers/console_summary.py），非人工抄录。
+    **关键限制**：Successful requests = 1，说明这是单请求冒烟校验而非吞吐基准，
+    因此 P99 = Median = Mean 不具统计意义，不能作为 SLA 证据。
+    页面本身标注 "kept as a historical reference"，指向 recipes.vllm.ai 为现行版本。
+    页面在 "8xH200 / 8xMI300X (FP8)" 与 "4xB200" 两个小节下分别给出启动命令，
+    但 Expected Output 未声明对应哪一套配置，故 hardware_binding = unbound。
+
+- id: vllm_ascend_kimi_k2_thinking
+  status: partial_evidence
+  publisher: vllm
+  source_url: https://docs.vllm.ai/projects/ascend/en/v0.23.0rc1/tutorials/models/Kimi-K2-Thinking.html
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/vllm_ascend_kimi_k2_thinking_2026-10-15.html
+  evidence_sha256: 486bfd63d0ca32bf796588491c7e515afe05f33101eba47b4ea958b650f6c449
+  parse_console_summary: false
+  framework: vllm-ascend
+  benchmark_tool: vllm bench serve
+  model_name: Kimi-K2-Thinking
+  model_revision: null
+  framework_version: v0.20.2rc1
+  hardware_candidates:
+    - "Atlas 800 A3 (16 x 64G)"
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: true
+  fields_present:
+    - model_name
+    - framework_version
+    - hardware_candidates
+    - benchmark_tool
+    - ttft_p99_ms
+    - tpot_p99_ms
+    - output_throughput_tok_s
+    - input_length
+    - output_length
+    - configured_concurrency
+  fields_missing:
+    - model_revision
+    - tp_size
+    - ep_size
+    - dp_size
+    - dataset_name
+  notes: >-
+    含 TPOT / P99 TTFT / 吞吐等实测数值与较长配置说明，是本次最接近完整的一条。
+    但未给出 TP/EP/DP 拓扑，也未给出 model revision，故仍为 partial_evidence。
+    数值以文档正文/表格形式呈现，未做机器解析，因此不转写为 metrics。
+
+- id: lmsys_hpc_ops_sglang
+  status: partial_evidence
+  publisher: lmsys-sglang
+  source_url: https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/lmsys_hpc_ops_sglang_2026-10-15.html
+  evidence_sha256: 4cdb9daf5409beb718046bb1dad175c0735475d1e8ab39a36aba9fe85717528f
+  parse_console_summary: false
+  framework: sglang
+  benchmark_tool: null
+  model_name: null
+  model_revision: null
+  framework_version: null
+  hardware_candidates:
+    - "H200"
+    - "H20"
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: true
+  fields_present:
+    - hardware_candidates
+    - tp_size
+    - ep_size
+    - output_throughput_tok_s
+    - input_length
+    - output_length
+  fields_missing:
+    - model_name
+    - model_revision
+    - framework_version
+    - deployment_gpu_count
+    - dataset_name
+    - configured_concurrency
+    - request_rate_rps
+    - ttft_p99_ms
+    - tpot_p99_ms
+  notes: >-
+    HPC-Ops x SGLang 算子与推理性能文章，含 H200/H20 型号、TP/EP 与算子时延、
+    跨 batch size 的服务端结果。存在多处实测数值，但散落在正文与图表中，
+    且服务端结果的并发/到达率口径未统一给出，故记录为 partial_evidence 不转写数值。
+
+- id: lmsys_epd_elastic_encoder
+  status: partial_evidence
+  publisher: lmsys-sglang
+  source_url: https://www.lmsys.org/blog/2026-01-12-epd/
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/lmsys_epd_elastic_encoder_2026-10-15.html
+  evidence_sha256: eae2ea69ad16d63ff4d66018fb28484d9f5c3aa5ca8014a4b14c13da7b74d637
+  parse_console_summary: false
+  framework: sglang
+  benchmark_tool: null
+  model_name: null
+  model_revision: null
+  framework_version: null
+  hardware_candidates:
+    - "8x H20 96GB"
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: true
+  fields_present:
+    - hardware_candidates
+    - deployment_strategy_raw
+    - input_length
+    - output_length
+    - request_rate_rps
+  fields_missing:
+    - model_name
+    - model_revision
+    - framework_version
+    - deployment_gpu_count
+    - dataset_name
+    - configured_concurrency
+    - ttft_p99_ms
+    - tpot_p99_ms
+  notes: >-
+    EPD（Encoder-Prefill-Decode）弹性扩展文章，配置侧列出了 8x H20 96GB、
+    P/D 部署变体与 TP 规模、输入输出长度与 QPS 区间，但时延/吞吐结果以图片呈现，
+    正文只有相对提升，故不转写为 metrics。
+
+- id: lmsys_hetero_cpu_gpu_epd
+  status: partial_evidence
+  publisher: lmsys-sglang
+  source_url: https://www.lmsys.org/blog/2026-06-01-hetero-epd/
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/lmsys_hetero_cpu_gpu_epd_2026-10-15.html
+  evidence_sha256: eef667e2baa8b3bc4c89dc78968f4a160d387848d5566aaeaf333f1b421b2206
+  parse_console_summary: false
+  framework: sglang
+  benchmark_tool: null
+  model_name: null
+  model_revision: null
+  framework_version: null
+  hardware_candidates: []
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: true
+  fields_present:
+    - model_name
+    - input_length
+    - output_length
+    - request_rate_rps
+  fields_missing:
+    - hardware_model
+    - deployment_gpu_count
+    - deployment_strategy_raw
+    - model_revision
+    - framework_version
+    - dataset_name
+    - configured_concurrency
+  notes: >-
+    异构 CPU+GPU EPD 分离文章。正文给出模型名、输入输出长度、请求数与 QPS 区间，
+    但硬件型号/卡数与拓扑缺失，且确切时延吞吐值在图片中（正文仅相对提升），
+    因此 configuration 与 metrics 两侧都不完整。
+
+- id: lmsys_sglang_llama3
+  status: partial_evidence
+  publisher: lmsys-sglang
+  source_url: https://www.lmsys.org/blog/2024-07-25-sglang-llama3/
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/lmsys_sglang_llama3_2026-10-15.html
+  evidence_sha256: 1dad2e26b2ef41dc349cbbbe2f1660ea08bed58c8a8e1e317dc8896a38c7b038
+  parse_console_summary: false
+  framework: sglang
+  benchmark_tool: null
+  model_name: Llama-3
+  model_revision: null
+  framework_version: null
+  hardware_candidates:
+    - "H100"
+  hardware_binding: unbound
+  dataset_name: null
+  is_throughput_benchmark: true
+  fields_present:
+    - model_name
+    - hardware_candidates
+    - hardware_model
+    - deployment_gpu_count
+    - request_rate_rps
+    - output_throughput_tok_s
+  fields_missing:
+    - model_revision
+    - framework_version
+    - dataset_name
+    - configured_concurrency
+    - ttft_p99_ms
+    - tpot_p99_ms
+  notes: >-
+    Llama3 服务性能对比文章，含 GPU 型号与卡数、模型名、部分精度设置、
+    vLLM/TensorRT-LLM 版本、负载长度区间与请求率，以及吞吐/时延对比。
+    但缺失 SGLang 版本与 model revision，且各案例的 TP/EP/DP 拓扑未完整给出，
+    故为 partial_evidence。数值未做机器解析，不转写。
+
+- id: vllm_performance_dashboard
+  status: not_a_result_dataset
+  publisher: vllm
+  source_url: https://docs.vllm.ai/en/latest/benchmarking/dashboard/
+  accessed_at: "2026-10-15T10:26:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/vllm_performance_dashboard_2026-10-15.html
+  evidence_sha256: 20d783664dde6b664d5166854d2c32b2d11fb12b15e8bfd5fd783e60512be51b
+  parse_console_summary: false
+  framework: vllm
+  model_revision: null
+  framework_version: null
+  hardware_candidates: []
+  contains_measured_values: false
+  fields_missing:
+    - model_name
+    - model_revision
+    - framework_version
+    - hardware_model
+    - deployment_gpu_count
+    - dataset_name
+  notes: >-
+    描述 vLLM 性能面板（dashboard）这一**工具**的用法与指标字段，
+    不是某次具体实验的结果数据集，故不作为候选性能记录。
+
+- id: vllm_recipes_index
+  status: not_a_result_dataset
+  publisher: vllm
+  # 重新校验时被限流（HTTP 429），未取到一致内容，故不记录为已核实的 source_url。
+  source_url: null
+  requested_url: https://docs.vllm.ai/projects/recipes/en/latest/
+  accessed_at: "2026-10-15T10:20:12+08:00"
+  http_status: 200
+  recheck_http_status: 429
+  evidence_file: data/raw/official/vllm_recipes_index_2026-10-15.html
+  evidence_sha256: cd62f57abcbb0368c5ffbc6ae2cec12e3e130d926255317466c9eb3d14d46ab4
+  parse_console_summary: false
+  framework: vllm
+  model_revision: null
+  framework_version: null
+  hardware_candidates: []
+  contains_measured_values: false
+  notes: >-
+    vLLM Recipes 的导航索引页（标题 "vLLM Recipes"），仅列出各模型配方链接，
+    不含任何实测数值。采集 DeepSeek-V3 配方页时一并存档，用于说明该配方页在站点
+    中的位置。重新校验 URL 时返回 HTTP 429（限流），因此 source_url 记为 null，
+    只有本地存档文件与 sha256 可追溯。

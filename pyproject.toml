@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-capacity-pricing"
+version = "0.1.0"
+description = "离线 LLM 部署基准数据与 Token 定价计算引擎 (MVP)"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic==2.13.4",
+    "SQLAlchemy==2.0.54",
+    "typer==0.27.1",
+    "PyYAML==6.0.1",
+    "openpyxl==3.1.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.2"]
+
+[project.scripts]
+llm-capacity-pricing = "llm_capacity_pricing.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 不在此处设置 -q，避免与命令行 -q 叠加成 -qq 而隐去 "N passed" 汇总行

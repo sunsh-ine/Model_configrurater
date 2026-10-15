@@ -1,0 +1,28 @@
+# SGLang bench_serving 适配器元数据 —— 合成 fixture
+# 严格遵守：本 fixture 为人工构造，performance_source_kind=synthetic_fixture，
+# 仅用于解析器测试，不得纳入官方性能数据库，也不得与真实证据混合到同一级别。
+evidence_id: fixture_sglang_synthetic
+record_id: fixture_sglang_synthetic_rec
+format_version: sglang-bench-serving-jsonl/v1.per_request
+performance_source_kind: synthetic_fixture
+verification_status: synthetic_fixture
+
+# 以下为 fixture 声明的上下文（真实场景下必须来自官方实验配置，不能推测）
+model_name: SYNTHETIC-MODEL-A
+hardware_model: SYNTHETIC-GPU-A
+deployment_gpu_count: 8
+framework_version: null
+model_revision: null
+dataset_name: null
+
+metric_definitions:
+  ttft: "逐请求 ttft 字段，单位 ms（人工构造）"
+  itl: "逐请求 itl 字段；ITL ≠ TPOT，适配器不用于填充 TPOT"
+
+evidence:
+  publisher: synthetic_fixture
+  source_url: null
+  source_version: "synthetic/v1"
+  notes: >-
+    人工构造的合法小型 SGLang bench_serving 逐请求样例，用于验证适配器对
+    缺失字段（无 latency 或无 output_len）与失败请求的处理。不是真实测量结果。

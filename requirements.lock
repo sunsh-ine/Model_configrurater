@@ -1,0 +1,25 @@
+# 依赖锁定文件 —— 由实际安装环境导出
+# 来源命令: .venv/bin/python -m pip freeze | sort
+# 环境: Python 3.12.3 / Linux x86_64
+# 说明: 本项目自身以 editable 方式安装（pip install -e .），故不在本文件中。
+annotated-doc==0.0.5
+annotated-types==0.8.0
+et_xmlfile==2.0.0
+greenlet==3.5.6
+iniconfig==2.3.1
+markdown-it-py==4.2.0
+mdurl==0.1.2
+openpyxl==3.1.5
+packaging==26.3
+pluggy==1.6.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+Pygments==2.21.0
+pytest==8.4.2
+PyYAML==6.0.1
+rich==15.0.0
+shellingham==1.5.4
+SQLAlchemy==2.0.54
+typer==0.27.1
+typing-inspection==0.4.4
+typing_extensions==4.16.0

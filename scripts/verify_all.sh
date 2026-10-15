@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# 一键复现验证：从零建库 -> 导入 -> 官方候选 -> 校验 -> 计算 -> 情景 -> 报告 -> 测试
+#
+# 环境要求：无 GPU、无互联网。仅需 Python 3.11+ 与 requirements.lock 中的依赖。
+#
+#   bash scripts/verify_all.sh
+#
+# 输出约定（为控制 stdout 体积，避免整段日志灌进对话上下文）：
+#   * 完整输出（每步明细、失败堆栈、全部 JSON）逐行写入 $LOG，默认 docs/test_run_log.txt
+#   * stdout 只打印每步一行的 [ok]/[FAIL] 摘要，外加该步的关键行（各步的 SUMMARY_RE）
+#   * 某步失败时额外打印该步输出的末尾 $TAIL_LINES 行，随即停止（与原先的 || exit 1 等价）
+#   * 直接运行即可，不需要重定向；若把 stdout 重定向到 $LOG，脚本会自动改用 *.full.log
+#
+# 可覆盖的环境变量：PY、DB、OUT_DIR、LOG、TAIL_LINES、SUMMARY_MAX
+#   DB=/tmp/vtest/local.db OUT_DIR=/tmp/vtest/exports LOG=/tmp/vtest/log.txt \
+#     bash scripts/verify_all.sh        # 隔离跑一遍，不动 data/ 下的产物
+set -uo pipefail
+
+cd "$(dirname "$0")/.."
+ROOT="$(pwd)"
+PY="${PY:-.venv/bin/python}"
+CLI="$PY -m llm_capacity_pricing.cli"
+
+EXCEL="data/raw/Token产能计算器-0910.xlsx"
+MANIFEST="data/sources/official_manifest.yaml"
+DB="${DB:-data/local.db}"
+OUT_DIR="${OUT_DIR:-data/exports}"
+
+LOG="${LOG:-docs/test_run_log.txt}"
+TAIL_LINES="${TAIL_LINES:-40}"
+SUMMARY_MAX="${SUMMARY_MAX:-12}"
+
+# 调用方若把 stdout 重定向到 $LOG，两边写同一个文件会互相覆盖，这里自动避让。
+# 注意必须用 test -ef 直接比较：在 $( ) 里 /dev/stdout 指向的是命令替换的管道，不是本脚本的 fd 1。
+if [ -e "$LOG" ] && [ /dev/stdout -ef "$LOG" ]; then
+  LOG="${LOG%.log}.full.log"
+fi
+mkdir -p "$(dirname "$LOG")"
+: > "$LOG"
+
+STEPS_TOTAL=0
+STEPS_FAILED=0
+FAILED_LIST=""
+
+print_key_lines() { # <输出文件> <关键行正则>
+  local file="$1" re="$2"
+  [ -n "$re" ] || return 0
+  grep -aE "$re" "$file" 2>/dev/null | head -n "$SUMMARY_MAX" | sed 's/^/       /'
+  return 0
+}
+
+finish() {
+  {
+    printf '\n==== 汇总 ====\n'
+    printf '步骤 %s 项：通过 %s，失败 %s\n' \
+      "$STEPS_TOTAL" "$((STEPS_TOTAL - STEPS_FAILED))" "$STEPS_FAILED"
+    [ -n "$FAILED_LIST" ] && printf '失败步骤: %s\n' "$FAILED_LIST"
+    printf '完成时间: %s\n' "$(date -Iseconds)"
+    printf '环境: %s\n' "$($PY -V 2>&1)"
+    if [ "$STEPS_FAILED" -eq 0 ]; then
+      printf '全部步骤通过。\n'
+    fi
+  } | tee -a "$LOG"
+  return 0
+}
+
+run_step() { # <编号> <名称> <失败即中止 0|1> <关键行正则> <命令...>
+  local no="$1" name="$2" fatal="$3" re="$4"
+  shift 4
+  local tmp st
+  tmp="$(mktemp)"
+  {
+    printf '\n=== %s. %s ===\n' "$no" "$name"
+    "$@"
+  } >"$tmp" 2>&1
+  st=$?
+  cat "$tmp" >>"$LOG"
+
+  STEPS_TOTAL=$((STEPS_TOTAL + 1))
+  if [ "$st" -eq 0 ]; then
+    printf '[ok]   %s. %s\n' "$no" "$name"
+    print_key_lines "$tmp" "$re"
+  else
+    STEPS_FAILED=$((STEPS_FAILED + 1))
+    FAILED_LIST="${FAILED_LIST}${no}. ${name}; "
+    printf '[FAIL] %s. %s (exit %s)\n' "$no" "$name" "$st"
+    print_key_lines "$tmp" "$re"
+    printf '       ---- 该步输出末尾 %s 行（完整日志: %s）----\n' "$TAIL_LINES" "$LOG"
+    tail -n "$TAIL_LINES" "$tmp" | sed 's/^/       /'
+    printf '       %s\n' "----------------------------------------------------------"
+  fi
+
+  rm -f "$tmp"
+
+  if [ "$st" -ne 0 ] && [ "$fatal" = 1 ]; then
+    finish
+    exit "$st"
+  fi
+  return 0
+}
+
+step_env() {
+  $PY -V
+  $PY -c "import pydantic, sqlalchemy, openpyxl, yaml, typer; print('deps ok: pydantic', pydantic.VERSION, '| sqlalchemy', sqlalchemy.__version__)"
+}
+
+step_cleanup() {
+  rm -f "$DB" "$OUT_DIR"/*.json "$OUT_DIR"/*.md
+  mkdir -p "$OUT_DIR"
+}
+
+step_import_fixtures() {
+  $CLI import-sglang --file data/fixtures/sglang_synthetic.jsonl --metadata config/fixture_sglang.yaml --db "$DB" || return 1
+  $CLI import-sglang --file data/fixtures/sglang_renamed_fields.jsonl --metadata config/fixture_sglang_renamed.yaml --db "$DB" || return 1
+  $CLI import-vllm --file data/fixtures/vllm_synthetic.json --metadata config/fixture_vllm.yaml --db "$DB" || return 1
+  $CLI import-vllm --file data/fixtures/vllm_zero_success.json --metadata config/fixture_vllm_zero_success.yaml --db "$DB" || return 1
+}
+
+step_legacy_recompute() {
+  export DB OUT_DIR
+  $PY - <<'PY'
+import os
+
+from llm_capacity_pricing.services import (
+    legacy_recompute_comparison,
+    open_db,
+    export_scenario_results,
+    build_sensitivity,
+)
+
+db_path = os.environ["DB"]
+out_dir = os.environ["OUT_DIR"]
+
+r = legacy_recompute_comparison(db_path)
+print("复算覆盖行数:", r["record_count"])
+print("最大误差:")
+for k, v in r["max_error"].items():
+    print(f"  {k}: {v}")
+print("超容差不匹配数:", r["mismatch_count"])
+
+sens = build_sensitivity(db_path, persist=False)
+print("默认敏感性情景条数:", len(sens), "(应为 32 x 5 = 160)")
+sens_t = build_sensitivity(db_path, persist=False, include_test_data=True)
+print("含测试数据情景条数:", len(sens_t), "(应为 36 x 5 = 180)")
+export_scenario_results(db_path, os.path.join(out_dir, "scenarios_sensitivity.json"))
+
+db, repo = open_db(db_path)
+with db.session() as s:
+    print("入库计数:", repo.counts(s).as_dict())
+db.dispose()
+PY
+}
+
+step_scope_recheck() {
+  # 上面第 11 步刻意跑了"含测试数据"口径，库里因此留下 4 条 fixture 的计算结果。
+  # 这一步回到默认业务口径，验证默认计算会清理遗留的测试态结果行，并打印口径分解，
+  # 让日志里的中间计数与最终计数（业务口径）都能自解释。
+  $CLI calculate-all --mode legacy_full_load --db "$DB" >/dev/null || return 1
+  export DB
+  $PY - <<'PY'
+import os
+
+from sqlalchemy import text
+
+from llm_capacity_pricing.services import open_db
+
+db, _repo = open_db(os.environ["DB"])
+with db.session() as s:
+    total = s.execute(text("select count(*) from pricing_result")).scalar_one()
+    scopes = s.execute(
+        text("select scope, count(*) from pricing_result group by scope order by scope")
+    ).all()
+    modes = s.execute(
+        text("select mode, count(*) from pricing_result group by mode order by mode")
+    ).all()
+    test_left = s.execute(
+        text(
+            "select count(*) from pricing_result pr"
+            " join benchmark_record br on br.record_id = pr.benchmark_record_id"
+            " where br.performance_source_kind = 'synthetic_fixture'"
+        )
+    ).scalar_one()
+print("最终 pricing_result 总数:", total, "(业务口径：32 满载 + 160 情景)")
+print("按 scope 分解:", [(r[0], r[1]) for r in scopes])
+print("按 mode  分解:", [(r[0], r[1]) for r in modes])
+print("残留的 synthetic_fixture 结果行:", test_left, "(默认口径下应为 0)")
+db.dispose()
+PY
+}
+
+run_step 0 "环境" 1 '^(Python|deps ok)' step_env
+
+run_step 1 "清理旧产物（全新数据库）" 1 '' step_cleanup
+
+run_step 2 "init-db" 1 '^(已初始化数据库|表: )' \
+  $CLI init-db --db "$DB"
+
+run_step 3 "import-excel（第一次）" 1 '^(导入完成|工作表行数)|"idempotent"' \
+  $CLI import-excel --file "$EXCEL" --db "$DB"
+
+run_step 4 "import-excel（第二次，验幂等）" 1 '^(导入完成|工作表行数)|"idempotent"' \
+  $CLI import-excel --file "$EXCEL" --db "$DB"
+
+run_step 5 "import-excel（第三次，再验幂等）" 1 '^(导入完成|工作表行数)|"idempotent"' \
+  $CLI import-excel --file "$EXCEL" --db "$DB"
+
+run_step 6 "import-sglang / import-vllm（synthetic fixture，测试数据）" 1 '^已导入 [0-9]+ 条' \
+  step_import_fixtures
+
+run_step 7 "import-official（官方候选 partial_evidence）" 1 '^(已导入 [0-9]+ 条官方候选|跳过 [0-9]+ 条)' \
+  $CLI import-official --manifest "$MANIFEST" --db "$DB" --root "$ROOT"
+
+run_step 8 "official-coverage" 1 '^  "(candidate_count|verified_count|with_parsed_metrics|throughput_benchmarks|single_request_smoke_tests)"' \
+  $CLI official-coverage --db "$DB"
+
+run_step 9 "validate-import" 1 '^(校验项:|全部校验通过)|\[FAIL\]' \
+  $CLI validate-import --db "$DB"
+
+run_step 10 "calculate-all --mode legacy_full_load（默认业务口径）" 1 '^(已导出|结果条数|注意:)' \
+  $CLI calculate-all --mode legacy_full_load --db "$DB" --out "$OUT_DIR/legacy_results.json"
+
+run_step 11 "calculate-all --mode legacy_full_load --include-test-data（测试口径）" 1 '^(已导出|结果条数|注意:)' \
+  $CLI calculate-all --mode legacy_full_load --db "$DB" \
+  --out "$OUT_DIR/legacy_results_with_tests.json" --include-test-data
+
+run_step 12 "scenario（单条，U=0.30）" 1 '^(情景结果已写入)|scenario_revenue_10k_per_gpu_year' \
+  $CLI scenario --record excel_部署效能_2 --utilization 0.30 --db "$DB" --out "$OUT_DIR/scenario.json"
+
+run_step 13 "validate-results（结果可追溯 + SLA 口径）" 1 '^(结果条数:|校验项:|全部校验通过)|\[FAIL\]' \
+  $CLI validate-results --db "$DB"
+
+run_step 14 "旧表复算误差摘要 + 敏感性导出" 1 '^(复算覆盖行数|最大误差|超容差不匹配数|默认敏感性情景条数|含测试数据情景条数|入库计数)' \
+  step_legacy_recompute
+
+run_step 15 "回到业务口径并复核库内计数（清理测试态结果行）" 1 '^(最终 pricing_result 总数|按 scope 分解|按 mode  分解|残留的 synthetic_fixture)' \
+  step_scope_recheck
+
+run_step 16 "report（默认业务口径）" 1 '^(报告已写入)|"(bytes|records|scenario_results|legacy_results)"' \
+  $CLI report --db "$DB" --out "$OUT_DIR/overview.md"
+
+run_step 17 "pytest" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+  $PY -m pytest -q
+
+run_step 18 "产物清单" 1 '\.(json|md)$' \
+  ls -la "$OUT_DIR"
+
+finish

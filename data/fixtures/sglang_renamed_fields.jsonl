@@ -1,0 +1,1 @@
+{"req_count": 64, "ok_count": 64, "dur_sec": 312.5, "conc": 32, "req_rate": 0.2048, "in_tok_total": 131072, "out_tok_total": 16384, "in_tp": 419.43, "out_tp": 52.4288, "ttft_avg_ms": 245.6, "ttft_p99_val": 612.3, "tpot_avg_ms": 30.15, "tpot_p99_val": 47.82, "itl_avg_ms": 29.87, "itl_p99_val": 46.9, "e2e_avg_ms": 4104.2, "e2e_p99_val": 6901.5, "fail_rate": 0.0}

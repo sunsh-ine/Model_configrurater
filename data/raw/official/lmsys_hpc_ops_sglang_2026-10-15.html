@@ -1,0 +1,812 @@
+<!DOCTYPE html><!--jPqlDPNgu0ZLB9K7JJ_UB--><html lang="en" class="__variable_aa6f30"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="preload" href="/_next/static/media/e4af272ccee01ff0-s.p.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="preload" as="image" href="/images/logo-v2.png"/><link rel="stylesheet" href="/_next/static/css/4c9ffbadd23290f9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" data-precedence="next"/><link rel="stylesheet" href="/_next/static/css/b00e444b8fe651d9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" data-precedence="next"/><link rel="preload" as="script" fetchPriority="low" href="/_next/static/chunks/webpack-304a6d2767a6b415.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u"/><script src="/_next/static/chunks/4bd1b696-c023c6e3521b1417.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><script src="/_next/static/chunks/255-f640a836eeed118d.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><script src="/_next/static/chunks/main-app-f9b5d20365cb8be2.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><script src="/_next/static/chunks/619-ba102abea3e3d0e4.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><script src="/_next/static/chunks/app/layout-1b0a3f334c275866.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><script src="/_next/static/chunks/app/blog/%5Bslug%5D/page-064a66d39876b379.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" async=""></script><meta name="next-size-adjust" content=""/><title>HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan - LMSYS Org</title><meta name="description" content="HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent&#x27;s large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ..."/><meta name="robots" content="index, follow"/><link rel="canonical" href="https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/"/><meta property="og:title" content="HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan"/><meta property="og:description" content="HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent&#x27;s large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ..."/><meta property="og:url" content="https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/"/><meta property="og:image:alt" content="LMSYS Blog post"/><meta property="og:image:type" content="image/png"/><meta property="og:image" content="https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/opengraph-image?846984fa349aff93"/><meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:type" content="article"/><meta property="article:published_time" content="August 7, 2026"/><meta property="article:author" content="Tencent Hunyuan AI Infra and the SGLang Team"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan"/><meta name="twitter:description" content="HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent&#x27;s large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ..."/><meta name="twitter:image:alt" content="LMSYS Blog post"/><meta name="twitter:image:type" content="image/png"/><meta name="twitter:image" content="https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/opengraph-image?846984fa349aff93"/><meta name="twitter:image:width" content="1200"/><meta name="twitter:image:height" content="630"/><link rel="icon" href="/icon.png?34f3ccaf20241762" type="image/png" sizes="512x512"/><link rel="apple-touch-icon" href="/apple-icon.png?06944fcedce56b35" type="image/png" sizes="180x180"/><script src="/_next/static/chunks/polyfills-42372ed130431b0a.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" noModule=""></script></head><body><div hidden=""><!--$--><!--/$--></div><script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"LMSYS Org","alternateName":"Large Model Systems Organization","url":"https://www.lmsys.org","logo":"https://www.lmsys.org/images/logo-v2.png","description":"Large Model Systems Organization - developing large models and systems that are open, accessible, and scalable.","sameAs":["https://twitter.com/lmsysorg","https://github.com/lm-sys","https://discord.gg/lmsys"]}</script><nav style="transform:translateY(0);transition:transform 0.3s ease"><div class="nav-inner"><a class="nav-logo" href="/"><img src="/images/logo-v2.png" alt="LMSYS"/></a><ul class="nav-links-group"><li><a href="/projects">Projects</a></li><li><a href="/blog">Blog</a></li><li><a href="/about">About</a></li><li><a href="/donations">Donations</a></li><li><a href="/contact">Contact</a></li></ul><div class="nav-icons"><a href="mailto:contact@lmsys.org" class="nav-icon nav-icon-email" title="Email"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"></path></svg></a><a href="https://twitter.com/lmsysorg" target="_blank" rel="noopener noreferrer" class="nav-icon nav-icon-x" title="X / Twitter"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg></a><a href="https://slack.sglang.io/" target="_blank" rel="noopener noreferrer" class="nav-icon nav-icon-slack" title="Slack"><svg viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.313A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"></path></svg></a><a href="https://youtube.com/@lmsys-org" target="_blank" rel="noopener noreferrer" class="nav-icon nav-icon-youtube" title="YouTube"><svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"></path></svg></a></div><button class="nav-hamburger" aria-label="Toggle menu"><span></span><span></span><span></span></button></div></nav><div class="mobile-menu"><ul class="mobile-menu-links"><li><a href="/projects">Projects</a></li><li><a href="/blog">Blog</a></li><li><a href="/about">About</a></li><li><a href="/donations">Donations</a></li><li><a href="/contact">Contact</a></li></ul><div class="mobile-menu-icons"><a href="mailto:contact@lmsys.org" class="nav-icon" title="Email"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"></path></svg></a><a href="https://twitter.com/lmsysorg" target="_blank" rel="noopener noreferrer" class="nav-icon" title="X / Twitter"><svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg></a><a href="https://slack.sglang.io/" target="_blank" rel="noopener noreferrer" class="nav-icon" title="Slack"><svg viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.313A2.528 2.528 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"></path></svg></a><a href="https://youtube.com/@lmsys-org" target="_blank" rel="noopener noreferrer" class="nav-icon" title="YouTube"><svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"></path></svg></a></div></div><main><div class="blog-post"><a class="blog-post-back blog-post-back-mobile" href="/blog">‹ Back to Blog</a><div class="blog-post-layout"><div class="blog-toc"><a class="blog-post-back" href="/blog">‹ Back to Blog</a><p class="blog-toc-label">Contents</p><ul class="blog-toc-list"><li class="blog-toc-item"><a href="#highlights" class="blog-toc-link">Highlights</a></li><li class="blog-toc-item"><a href="#attention-routing-and-experts-three-hot-paths-in-moe-model-serving" class="blog-toc-link">Attention, routing, and experts: three hot paths in MoE model serving</a></li><li class="blog-toc-item"><a href="#attention-load-balancing-for-mixed-length-decode" class="blog-toc-link">Attention: load balancing for mixed-length decode</a></li><li class="blog-toc-item blog-toc-h3"><a href="#scheduling-around-live-kv-work" class="blog-toc-link">Scheduling around live KV work</a></li><li class="blog-toc-item blog-toc-h3"><a href="#a-fused-attention-prologue" class="blog-toc-link">A fused attention prologue</a></li><li class="blog-toc-item"><a href="#router-gemm-balancing-routing-precision-and-throughput" class="blog-toc-link">Router GEMM: balancing routing precision and throughput</a></li><li class="blog-toc-item blog-toc-h3"><a href="#a-precision-aware-bf16-formulation" class="blog-toc-link">A precision-aware BF16 formulation</a></li><li class="blog-toc-item"><a href="#moe-reducing-overhead-around-small-expert-gemms" class="blog-toc-link">MoE: reducing overhead around small expert GEMMs</a></li><li class="blog-toc-item blog-toc-h3"><a href="#a-fused-latency-oriented-moe-pipeline" class="blog-toc-link">A fused, latency-oriented MoE pipeline</a></li><li class="blog-toc-item"><a href="#from-hpc-ops-kernels-to-sglang" class="blog-toc-link">From HPC-Ops kernels to SGLang</a></li><li class="blog-toc-item"><a href="#getting-started" class="blog-toc-link">Getting started</a></li><li class="blog-toc-item blog-toc-h3"><a href="#install" class="blog-toc-link">Install</a></li><li class="blog-toc-item blog-toc-h3"><a href="#attention-and-moe" class="blog-toc-link">Attention and MoE</a></li><li class="blog-toc-item blog-toc-h3"><a href="#router-gemm" class="blog-toc-link">Router GEMM</a></li><li class="blog-toc-item"><a href="#performance-evaluation" class="blog-toc-link">Performance evaluation</a></li><li class="blog-toc-item blog-toc-h3"><a href="#h20-operator-benchmarks" class="blog-toc-link">H20 operator benchmarks</a></li><li class="blog-toc-item blog-toc-h3"><a href="#h200-operator-validation" class="blog-toc-link">H200 operator validation</a></li><li class="blog-toc-item blog-toc-h3"><a href="#end-to-end-performance" class="blog-toc-link">End-to-end performance</a></li><li class="blog-toc-item blog-toc-h3"><a href="#h200-serving-validation" class="blog-toc-link">H200 serving validation</a></li><li class="blog-toc-item"><a href="#whats-next" class="blog-toc-link">What&#x27;s next</a></li><li class="blog-toc-item"><a href="#acknowledgments" class="blog-toc-link">Acknowledgments</a></li></ul></div><div class="blog-post-content"><h1 class="blog-post-title">HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan</h1><div class="blog-post-meta"><span>Tencent Hunyuan AI Infra and the SGLang Team</span><span>August 7, 2026</span></div><div><p><a href="https://github.com/Tencent/hpc-ops">HPC-Ops</a> is an open-source operator library for LLM inference, deployed in Tencent's large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role in Hunyuan's online inference, reducing TPOT of Hy3 model by up to 48.8%. HPC-Ops Attention, Router GEMM, and MoE are now integrated into SGLang's main branch, bringing these production-proven optimizations to the open-source serving community.</p>
+<p>In this blog, we introduce the design of three important operators in HPC-Ops and their integration with SGLang. We then present operator benchmarks and serving results on H20 together with the H200 validation results. The integrations target NVIDIA Hopper GPUs (SM90) and have been validated with Qwen3, Hy3, and LongCat workloads.</p>
+<h2 id="highlights">Highlights</h2>
+<ul>
+<li><strong>Attention:</strong> On H20, HPC-Ops dynamic scheduling reaches <strong>2.95×</strong> over its static split-KV schedule and is on average <strong>2.25× faster</strong> than the best of FlashInfer and FlashAttention in each measured case. In upstream H200 validation, the integrated Hy3-FP8 path with FP8 KV cache improves output throughput by <strong>3.7–5.9%</strong> over FlashAttention.</li>
+<li><strong>Router GEMM:</strong> On H20, HPC-Ops is <strong>1.30–3.22× faster than FP32 cuBLAS</strong>, while its maximum absolute error relative to FP32 cuBLAS is <strong>0.00177</strong>, versus <strong>0.06464</strong> for TF32 cuBLAS. In the upstream H200 LongCat-Flash kernel validation, it delivers a <strong>4.31× speedup</strong> over the existing FP32 path.</li>
+<li><strong>MoE:</strong> On H20, HPC-Ops delivers mean per-batch speedups of <strong>1.08× at TP8 / EP1</strong> and <strong>1.21× at TP1 / EP8</strong> over the best of the SGLang and vLLM baselines on Hy3. In the upstream Qwen3/H200 kernel benchmark, it reaches up to <strong>4.21× over Triton</strong> at eight tokens.</li>
+<li><strong>End-to-end serving:</strong> On 8× H20 with Hy3-FP8, enabling HPC-Ops Attention and MoE together reduces TPOT by <strong>15.1–48.8% at batch sizes 4–64</strong> and TTFT by <strong>3.3–6.0% at batch sizes 4–16</strong>. On 8× H20 with LongCat-Flash-Lite-FP8, enabling HPC-Ops Router GEMM improves input throughput by <strong>5.5–6.1% at batch sizes 4–64</strong>.</li>
+</ul>
+<h2 id="attention-routing-and-experts-three-hot-paths-in-moe-model-serving">Attention, routing, and experts: three hot paths in MoE model serving</h2>
+<p>Production MoE serving rarely resembles the uniform workloads measured in isolated kernel benchmarks. It combines mixed-length Attention work, precision-sensitive routing, and sparse expert execution within the same latency-sensitive path; long-context, multi-turn, and agentic workloads further widen the distribution of live KV lengths. Serving performance therefore depends not only on raw matrix-multiplication throughput, but also on workload balance, numerical fidelity, and overhead control.</p>
+<p>These constraints surface in three performance-critical stages of MoE model serving. During decode, Attention work scales with each request's live KV length, making mixed-length batches a load-balancing problem. Router GEMM produces the scores used for top-k selection, where small numerical changes can alter expert choices. The selected experts then process small and uneven token groups, allowing metadata construction, token movement, intermediate storage, and launch overhead to rival the expert GEMMs themselves.</p>
+<p>HPC-Ops addresses each stage with a dedicated operator: workload-aware scheduling for Attention, a precision-aware formulation for Router GEMM, and a fused pipeline for MoE that eliminates the standalone gather and reduces launch and intermediate traffic. The upstream integration pairs these operators with SGLang's serving runtime through its native backend and dispatch interfaces. The following sections explain how each operator is designed.</p>
+<h2 id="attention-load-balancing-for-mixed-length-decode">Attention: load balancing for mixed-length decode</h2>
+<p>During decode, each new token attends over the request's full KV cache, so Attention work scales with the live sequence length. A request with 16K cached tokens therefore carries roughly 16× the KV work of one with 1K. In production, prompt and output lengths vary widely, and continuous batching places requests at different stages of generation in the same launch; a batch therefore routinely mixes short KV caches with sequences tens of thousands of tokens long.</p>
+<p>A static split-KV schedule maps work to a fixed launch grid over KV heads, requests, and KV chunks, with one partitioning policy shared across the batch. A static split-KV scheduler generally follows one of two policies, neither of which performs well for mixed-length batches. (1) Fix the split count, and long requests produce much heavier chunks: short-request CTAs finish early while a few long-running CTAs determine the kernel tail. (2) Fix the chunk size instead, and the grid must reserve enough splits for the longest request, leaving shorter requests with empty or nearly empty chunks that still consume scheduling slots. One policy creates uneven work; the other schedules nonexistent work.</p>
+<h3 id="scheduling-around-live-kv-work">Scheduling around live KV work</h3>
+<p>HPC-Ops replaces the static per-request split with a persistent kernel that dynamically balances KV tiles across CTAs according to the batch's actual length distribution. For each decode batch, an assign kernel builds a global task map from live KV lengths: it slices every sequence into uniform 64-token tiles, sums the tile count across all heads and requests, and divides the total by the number of persistent CTAs to set a per-CTA tile budget. The assignment kernel fills each CTA's bin up to that budget before spilling into the next, so long sequences span multiple CTAs in proportion to their length while short sequences contribute only the tiles they actually have. A minimum-work floor prevents over-partitioning when total work is small, keeping the downstream combine inexpensive. The task map is generated once per decode step from device-side sequence lengths and reused across Transformer layers, amortizing its cost.</p>
+<p>At execution time, each CTA drains its assigned bin. For every descriptor, it computes Attention over one or more contiguous KV tiles and writes a partial output with its log-sum-exp statistic; the same resident CTA continues to the next descriptor until its bin is empty. Because each CTA produces only a subset of the partials for a given request, a final combine kernel reads the actual chunk count per request and head and merges the partials under the correct global softmax normalization. The near-equal bin sizes ensure that CTAs finish at roughly the same time, eliminating the kernel tail that a few unusually long requests would otherwise cause.</p>
+<h3 id="a-fused-attention-prologue">A fused attention prologue</h3>
+<p>For Hy3 FP8, HPC-Ops fuses the Attention prologue after the QKV projection: it applies QK-Norm before RoPE, emits Q in FP8 with a per-token, per-head scale, and writes K and V directly into the paged FP8 cache. It passes the quantized Q and its scale directly to the main Attention kernel, avoiding requantization. The fused path eliminates intermediate tensors and their associated HBM round-trips and separate kernel launches in both prefill and decode.</p>
+<h2 id="router-gemm-balancing-routing-precision-and-throughput">Router GEMM: balancing routing precision and throughput</h2>
+<p>Router precision directly affects MoE model quality. At each MoE layer, the router projects hidden states into expert scores, and a top-k selection over these scores determines which experts execute. The score differences between the k-th and (k+1)-th expert can be small, so the arithmetic precision of this projection determines whether the correct experts are selected.</p>
+<p>To preserve router precision, some production models retain FP32 router weights even when hidden states are BF16. Casting those weights to BF16 enables BF16 Tensor Core throughput but discards low-order mantissa bits that can flip a top-k decision. A full FP32 GEMM preserves all weight precision, but with lower Tensor Core throughput.</p>
+<h3 id="a-precision-aware-bf16-formulation">A precision-aware BF16 formulation</h3>
+<p>HPC-Ops resolves this by decomposing the FP32 weight into two BF16 components. It extracts a BF16 high part <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>W</mi><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">h</mi></mrow></msub></mrow><annotation encoding="application/x-tex">W_{\mathrm{high}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">high</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span> by direct truncation, then forms a second BF16 component from the scaled residual <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false">(</mo><mi>W</mi><mo>−</mo><msub><mi>W</mi><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">h</mi></mrow></msub><mo stretchy="false">)</mo><mo>×</mo><mn>256</mn></mrow><annotation encoding="application/x-tex">(W - W_{\mathrm{high}}) \times 256</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0361em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">high</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">256</span></span></span></span>. The original weight is approximated as <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>W</mi><mo>≈</mo><msub><mi>W</mi><mrow><mi mathvariant="normal">h</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">g</mi><mi mathvariant="normal">h</mi></mrow></msub><mo>+</mo><msub><mi>W</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">w</mi></mrow></msub><mi mathvariant="normal">/</mi><mn>256</mn></mrow><annotation encoding="application/x-tex">W \approx W_{\mathrm{high}} + W_{\mathrm{low}} / 256</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">high</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">W</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight" style="margin-right:0.0139em;">low</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mord">/256</span></span></span></span>, so the matrix product becomes two BF16 GEMMs whose results are combined with a scale correction to recover the low-order mantissa contribution. A single kernel executes both BF16 multiplications: it loads activation tiles once from shared memory, accumulates both partial results in FP32 registers, applies the <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mi mathvariant="normal">/</mi><mn>256</mn></mrow><annotation encoding="application/x-tex">1/256</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">1/256</span></span></span></span> scaling in the epilogue, and writes the final FP32 router scores to global memory. This formulation recovers precision close to a full FP32 GEMM while running the main arithmetic on BF16 Tensor Cores.</p>
+<p>On the framework side, SGLang caches the decomposed weight pair at model load time and reuses it across requests and CUDA graph replays. A shape-aware dispatch selects between the HPC-Ops kernel and the default path at measured crossover points. Below these points, the single FP32 path is faster because the two-product overhead exceeds the Tensor Core gain.</p>
+<h2 id="moe-reducing-overhead-around-small-expert-gemms">MoE: reducing overhead around small expert GEMMs</h2>
+<p>During decode, each expert in an MoE layer receives only a handful of tokens. The resulting expert GEMMs are small and memory-bound, and the GPU's SMs are underutilized at these shapes. The problem is compounded by load imbalance: the number of tokens routed to each expert varies across experts and shifts from step to step, making it difficult to spread these small, uneven tiles evenly across the available SMs.</p>
+<p>Beyond the expert GEMMs themselves, the operations surrounding them introduce substantial overhead. A conventional MoE path chains separate kernels for routing, gathering tokens into per-expert buffers, Gate-Up GEMM, activation and quantization, Down GEMM, and top-k weighted reduction back to token positions. The gather step materializes a full token tensor in HBM before any matmul begins, and each subsequent stage pays its own kernel launch and HBM round-trip for intermediates. When the GEMMs are small, this surrounding overhead consumes a comparable fraction of the stage's wall time.</p>
+<h3 id="a-fused-latency-oriented-moe-pipeline">A fused, latency-oriented MoE pipeline</h3>
+<p>For low-batch-size inference, the HPC-Ops MoE backend coordinates routing and index preprocessing, Gate-Up, activation and requantization, Down, and top-k weighted reduction in a low-latency pipeline built around task-map-driven persistent expert GEMMs.</p>
+<ul>
+<li><strong>Routing and index build.</strong> Starting from the selected top-k expert IDs, a shared-memory counting pass organizes token–expert assignments into contiguous per-expert output ranges, reducing global atomic pressure and building the routing indices and per-tile task maps consumed directly by the persistent expert GEMMs.</li>
+<li><strong>Gate-Up and activation.</strong> The Gate-Up GEMM reads original tokens directly through the routing indices, skipping the standalone gather and its extra HBM traffic. SiLU-and-mul and FP8 requantization then run as one fused kernel whose output the Down GEMM reads directly.</li>
+<li><strong>Occupancy-first, without warp specialization.</strong> A single warp group handles both data movement and matrix math rather than reserving separate producer and consumer groups. This raises CTA residency and shifts memory-latency hiding from an intra-CTA software pipeline to cross-CTA hardware scheduling. Persistent grids then consume these task maps and spread the small, uneven expert tiles across the SMs.</li>
+<li><strong>PDL-chained stages.</strong> Programmatic Dependent Launch overlaps each downstream kernel launch with the tail of the preceding stage, reducing gaps across Gate-Up, activation, Down, and the final top-k weighted reduction, which restores expert outputs to token order.</li>
+</ul>
+<p>Together, these optimizations reduce intermediate traffic and kernel-launch overhead on the critical path.</p>
+<h2 id="from-hpc-ops-kernels-to-sglang">From HPC-Ops kernels to SGLang</h2>
+<p>Through SGLang's native backend and dispatch interfaces, HPC-Ops operates directly on the serving runtime's existing state while remaining an independently maintained operator library. Attention consumes paged KV storage and live device-side sequence metadata without an additional layout conversion; Router GEMM reuses preprocessed weights and workspace across requests and CUDA graph replays; and MoE follows SGLang's expert IDs and partitions without additional remapping. These integrations preserve each operator's intended data path while fitting SGLang's existing execution model.</p>
+<p>The three integrated operator paths are summarized below:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>HPC-Ops operator</th><th>What it optimizes</th><th>Precision</th><th>Upstream PRs</th></tr></thead><tbody><tr><td>Attention</td><td>Load-balanced mixed-length decode and a fused QK-Norm, RoPE, quantization, and KV-write prologue</td><td>BF16 activations; BF16 or FP8 E4M3 KV cache</td><td><a href="https://github.com/sgl-project/sglang/pull/30540">#30540</a>, <a href="https://github.com/sgl-project/sglang/pull/32304">#32304</a></td></tr><tr><td>Router GEMM</td><td>Precision-aware router projection using BF16 Tensor Cores while retaining FP32 weight information</td><td>BF16 activations × FP32 weights → FP32 scores</td><td><a href="https://github.com/sgl-project/sglang/pull/30247">#30247</a>, <a href="https://github.com/sgl-project/sglang/pull/31943">#31943</a></td></tr><tr><td>MoE</td><td>Low-overhead execution around small and uneven expert GEMMs</td><td>BF16 hidden states; FP8 E4M3 expert weights</td><td><a href="https://github.com/sgl-project/sglang/pull/30541">#30541</a></td></tr></tbody></table>
+<h2 id="getting-started">Getting started</h2>
+<p>This guide describes how to use the <a href="https://github.com/Tencent/hpc-ops">HPC-Ops</a> Attention, Router GEMM, and MoE operators in SGLang.</p>
+<h3 id="install">Install</h3>
+<p>To install HPC-Ops from source:</p>
+<div class="code-block"><button class="code-copy" type="button" aria-label="Copy code"><svg class="code-copy-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6"/></svg><svg class="code-copy-icon-done" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7 9.5 16.5 5 12"/></svg></button><pre><code class="hljs language-bash">git <span class="hljs-built_in">clone</span> https://github.com/Tencent/hpc-ops.git
+<span class="hljs-built_in">cd</span> hpc-ops
+make wheel
+python3 -m pip install dist/*.whl
+</code></pre></div>
+<p>HPC-Ops is already included in SGLang's official <code>x86_64</code> development images (<code>lmsysorg/sglang:dev</code>, or <code>lmsysorg/sglang:dev-cu12</code> for CUDA 12.9), so no separate installation is required when using these images.</p>
+<h3 id="attention-and-moe">Attention and MoE</h3>
+<p>Attention and MoE are independent backend choices in SGLang and can be enabled separately or together for compatible models such as Qwen3 and Hy3. The following example selects both HPC-Ops backends and enables the FP8 KV-cache Attention path:</p>
+<div class="code-block"><button class="code-copy" type="button" aria-label="Copy code"><svg class="code-copy-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6"/></svg><svg class="code-copy-icon-done" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7 9.5 16.5 5 12"/></svg></button><pre><code class="hljs language-bash">python3 -m sglang.launch_server \
+  --model tencent/Hy3-FP8 \
+  --tp-size 8 \
+  --attention-backend hpc_ops \
+  --kv-cache-dtype fp8_e4m3 \
+  --page-size 64 \
+  --moe-runner-backend hpc_ops
+</code></pre></div>
+<p>For BF16 KV cache, omit <code>--kv-cache-dtype fp8_e4m3</code>. To use only one HPC-Ops operator, specify only the corresponding backend option.</p>
+<h3 id="router-gemm">Router GEMM</h3>
+<p>In SGLang, HPC-Ops Router GEMM retains low-order information from FP32 router weights while executing the matrix math on BF16 Tensor Cores. The integrated path has been validated on LongCat-Flash Chat and Lite and is selected automatically for supported model and router shapes. Once HPC-Ops is installed, a standard LongCat-Flash launch can use it:</p>
+<div class="code-block"><button class="code-copy" type="button" aria-label="Copy code"><svg class="code-copy-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6"/></svg><svg class="code-copy-icon-done" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7 9.5 16.5 5 12"/></svg></button><pre><code class="hljs language-bash">python3 -m sglang.launch_server \
+  --model meituan-longcat/LongCat-Flash-Lite-FP8
+</code></pre></div>
+<h2 id="performance-evaluation">Performance evaluation</h2>
+<p>The HPC-Ops backends currently support NVIDIA Hopper-architecture GPUs and deliver their best performance on H20. The evaluation below covers operator benchmarks on H20, end-to-end SGLang serving on 8× H20, and the H200 results reported in the upstream SGLang pull requests.</p>
+<h3 id="h20-operator-benchmarks">H20 operator benchmarks</h3>
+<p><strong>Attention.</strong></p>
+<p>The Attention scheduler's headline benefit appears in mixed-length decode, where requests in the same batch can have very different KV-cache lengths. We evaluate FP8 KV-cache decode from uniform to highly skewed distributions; in the table, A×B denotes A requests with KV length B. To isolate the scheduling effect, we compare HPC-Ops dynamic scheduling with its static split-KV counterpart, while FlashInfer and FlashAttention provide additional baselines. The dynamic-vs-static gain grows with skew, from parity on the uniform 64×0.5K batch to <strong>2.95×</strong> on the 1×128K + 31×4K mix. Across all six cases, dynamic scheduling is on average <strong>2.25× faster</strong> than the best of FlashInfer and FlashAttention in each case.</p>
+<p><em>Table 1: Decode latency across KV-length distributions on H20. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Decode scenario</th><th>HPC-Ops dynamic</th><th>HPC-Ops static</th><th>FlashInfer</th><th>FlashAttention</th><th>Dynamic vs. static</th></tr></thead><tbody><tr><td>64×0.5K</td><td>0.013 ms</td><td>0.013 ms</td><td>0.050 ms</td><td>0.025 ms</td><td>1.00×</td></tr><tr><td>64×4K</td><td>0.033 ms</td><td>0.043 ms</td><td>0.221 ms</td><td>0.095 ms</td><td><strong>1.32×</strong></td></tr><tr><td>32×0.125K + 32×4K</td><td>0.020 ms</td><td>0.033 ms</td><td>0.119 ms</td><td>0.053 ms</td><td><strong>1.59×</strong></td></tr><tr><td>2×32K + 30×4K</td><td>0.032 ms</td><td>0.056 ms</td><td>0.169 ms</td><td>0.094 ms</td><td><strong>1.76×</strong></td></tr><tr><td>1×64K + 15×4K</td><td>0.042 ms</td><td>0.097 ms</td><td>0.118 ms</td><td>0.065 ms</td><td><strong>2.32×</strong></td></tr><tr><td>1×128K + 31×4K</td><td>0.063 ms</td><td>0.186 ms</td><td>0.220 ms</td><td>0.097 ms</td><td><strong>2.95×</strong></td></tr></tbody></table>
+<p><img src="/images/blog/hpc-ops-sglang/h20-attention-dynamic-scheduling.png" alt="H20 mixed-length Attention decode latency"></p>
+<p><em>Figure 1: Dynamic scheduling becomes increasingly effective as live KV work grows more skewed. Lower is better.</em></p>
+<p><strong>Router GEMM.</strong></p>
+<p>We evaluate Router GEMM first with a generic <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>=</mo><mn>4096</mn><mo separator="true">,</mo><mi>N</mi><mo>=</mo><mn>192</mn></mrow><annotation encoding="application/x-tex">K = 4096, N = 192</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.0715em;">K</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.8778em;vertical-align:-0.1944em;"></span><span class="mord">4096</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.109em;">N</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">192</span></span></span></span> sweep. Across the measured M values, HPC-Ops is <strong>1.30–3.22× faster than FP32 cuBLAS</strong> and <strong>1.25–1.78× faster than TF32 cuBLAS</strong>. Using FP32 cuBLAS as the numerical reference, the maximum absolute error remains at or below <strong>0.00177</strong>, compared with <strong>0.06464</strong> for TF32.</p>
+<p><em>Table 2: BF16 × FP32 Router GEMM latency at K = 4096, N = 192 on H20. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>M</th><th>HPC-Ops</th><th>FP32 cuBLAS</th><th>TF32 cuBLAS</th><th>Speedup vs. FP32</th><th>Speedup vs. TF32</th></tr></thead><tbody><tr><td>1</td><td>11.200 µs</td><td>14.576 µs</td><td>14.048 µs</td><td><strong>1.30×</strong></td><td><strong>1.25×</strong></td></tr><tr><td>16</td><td>11.744 µs</td><td>23.808 µs</td><td>18.752 µs</td><td><strong>2.03×</strong></td><td><strong>1.60×</strong></td></tr><tr><td>48</td><td>12.144 µs</td><td>31.008 µs</td><td>20.064 µs</td><td><strong>2.55×</strong></td><td><strong>1.65×</strong></td></tr><tr><td>96</td><td>13.904 µs</td><td>31.760 µs</td><td>24.720 µs</td><td><strong>2.28×</strong></td><td><strong>1.78×</strong></td></tr><tr><td>208</td><td>17.088 µs</td><td>39.280 µs</td><td>28.928 µs</td><td><strong>2.30×</strong></td><td><strong>1.69×</strong></td></tr><tr><td>512</td><td>26.992 µs</td><td>86.976 µs</td><td>44.736 µs</td><td><strong>3.22×</strong></td><td><strong>1.66×</strong></td></tr><tr><td>1024</td><td>50.640 µs</td><td>110.480 µs</td><td>68.544 µs</td><td><strong>2.18×</strong></td><td><strong>1.35×</strong></td></tr><tr><td>2048</td><td>76.688 µs</td><td>198.576 µs</td><td>100.800 µs</td><td><strong>2.59×</strong></td><td><strong>1.31×</strong></td></tr><tr><td>4096</td><td>141.120 µs</td><td>403.728 µs</td><td>205.760 µs</td><td><strong>2.86×</strong></td><td><strong>1.46×</strong></td></tr></tbody></table>
+<p><img src="/images/blog/hpc-ops-sglang/h20-router-gemm-cublas.png" alt="H20 Router GEMM numerical error and cuBLAS latency"></p>
+<p><em>Figure 2: Router GEMM numerical error relative to FP32 cuBLAS (left) and latency versus FP32 and TF32 cuBLAS (right). Lower is better.</em></p>
+<p>We then retest the two router shapes used by LongCat-Flash. Within SGLang's model-aware dispatch ranges, HPC-Ops delivers <strong>1.06–2.83×</strong> speedup for the Chat shape and <strong>1.09–2.46×</strong> for the Lite shape over the SGLang default.</p>
+<p><em>Table 3: LongCat-Flash Router GEMM latency over the SGLang dispatch ranges on H20. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>M</th><th>Chat default</th><th>Chat HPC-Ops</th><th>Speedup</th><th>Lite default</th><th>Lite HPC-Ops</th><th>Speedup</th></tr></thead><tbody><tr><td>64</td><td>39.19 µs</td><td>37.01 µs</td><td><strong>1.06×</strong></td><td>—</td><td>—</td><td>—</td></tr><tr><td>128</td><td>74.18 µs</td><td>59.36 µs</td><td><strong>1.25×</strong></td><td>25.83 µs</td><td>23.72 µs</td><td><strong>1.09×</strong></td></tr><tr><td>256</td><td>100.03 µs</td><td>82.47 µs</td><td><strong>1.21×</strong></td><td>41.87 µs</td><td>34.01 µs</td><td><strong>1.23×</strong></td></tr><tr><td>512</td><td>190.37 µs</td><td>141.73 µs</td><td><strong>1.34×</strong></td><td>71.89 µs</td><td>41.95 µs</td><td><strong>1.71×</strong></td></tr><tr><td>1024</td><td>380.68 µs</td><td>207.00 µs</td><td><strong>1.84×</strong></td><td>108.64 µs</td><td>74.09 µs</td><td><strong>1.47×</strong></td></tr><tr><td>2048</td><td>961.15 µs</td><td>339.04 µs</td><td><strong>2.83×</strong></td><td>235.81 µs</td><td>106.81 µs</td><td><strong>2.21×</strong></td></tr><tr><td>4096</td><td>1469.70 µs</td><td>670.14 µs</td><td><strong>2.19×</strong></td><td>423.52 µs</td><td>172.44 µs</td><td><strong>2.46×</strong></td></tr><tr><td>8192</td><td>2881.00 µs</td><td>1333.84 µs</td><td><strong>2.16×</strong></td><td>835.22 µs</td><td>339.66 µs</td><td><strong>2.46×</strong></td></tr></tbody></table>
+<p><img src="/images/blog/hpc-ops-sglang/h20-router-gemm-longcat.png" alt="H20 LongCat-Flash Router GEMM latency"></p>
+<p><em>Figure 3: Router GEMM latency on the LongCat-Flash Chat (left) and Lite (right) shapes over SGLang's dispatch ranges. Lower is better.</em></p>
+<p><strong>MoE.</strong></p>
+<p>For MoE, we benchmark the full fused operation under Hy3 shapes at TP8 / EP1 and TP1 / EP8 against SGLang, vLLM Triton, and vLLM CUTLASS. Taking the lowest latency among the three baselines in each row, HPC-Ops delivers a mean per-batch speedup of <strong>1.08× at TP8 / EP1</strong> and <strong>1.21× at TP1 / EP8</strong>, with the largest gains at the small-to-mid batch sizes common in low-latency decode.</p>
+<p><em>Table 4: Hy3 MoE latency at TP8 / EP1 on H20. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Batch</th><th>HPC-Ops</th><th>SGLang</th><th>vLLM Triton</th><th>vLLM CUTLASS</th><th>Speedup vs. best</th></tr></thead><tbody><tr><td>16</td><td>85.7 µs</td><td>88.6 µs</td><td>124.2 µs</td><td>209.2 µs</td><td><strong>1.03×</strong></td></tr><tr><td>32</td><td>124.0 µs</td><td>137.2 µs</td><td>184.3 µs</td><td>275.6 µs</td><td><strong>1.11×</strong></td></tr><tr><td>64</td><td>147.2 µs</td><td>164.4 µs</td><td>374.9 µs</td><td>330.3 µs</td><td><strong>1.12×</strong></td></tr><tr><td>128</td><td>161.5 µs</td><td>179.9 µs</td><td>302.9 µs</td><td>345.3 µs</td><td><strong>1.11×</strong></td></tr><tr><td>256</td><td>170.1 µs</td><td>191.5 µs</td><td>310.9 µs</td><td>351.6 µs</td><td><strong>1.13×</strong></td></tr><tr><td>512</td><td>194.5 µs</td><td>230.1 µs</td><td>331.6 µs</td><td>369.2 µs</td><td><strong>1.18×</strong></td></tr><tr><td>1024</td><td>281.4 µs</td><td>300.5 µs</td><td>652.7 µs</td><td>438.3 µs</td><td><strong>1.07×</strong></td></tr><tr><td>2048</td><td>491.8 µs</td><td>522.5 µs</td><td>731.5 µs</td><td>794.4 µs</td><td><strong>1.06×</strong></td></tr><tr><td>4096</td><td>872.0 µs</td><td>899.2 µs</td><td>1366.0 µs</td><td>1230.7 µs</td><td><strong>1.03×</strong></td></tr><tr><td>8192</td><td>1695.0 µs</td><td>1712.7 µs</td><td>2216.8 µs</td><td>2362.9 µs</td><td><strong>1.01×</strong></td></tr><tr><td>16384</td><td>3241.9 µs</td><td>3257.1 µs</td><td>4329.1 µs</td><td>4364.4 µs</td><td><strong>1.00×</strong></td></tr></tbody></table>
+<p><em>Table 5: Hy3 MoE latency at TP1 / EP8 on H20. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Batch</th><th>HPC-Ops</th><th>SGLang</th><th>vLLM Triton</th><th>vLLM CUTLASS</th><th>Speedup vs. best</th></tr></thead><tbody><tr><td>4</td><td>118.6 µs</td><td>183.1 µs</td><td>147.4 µs</td><td>140.4 µs</td><td><strong>1.18×</strong></td></tr><tr><td>8</td><td>136.7 µs</td><td>231.5 µs</td><td>192.8 µs</td><td>170.7 µs</td><td><strong>1.25×</strong></td></tr><tr><td>16</td><td>149.8 µs</td><td>234.2 µs</td><td>198.4 µs</td><td>263.5 µs</td><td><strong>1.32×</strong></td></tr><tr><td>32</td><td>153.6 µs</td><td>475.3 µs</td><td>214.6 µs</td><td>264.4 µs</td><td><strong>1.40×</strong></td></tr><tr><td>64</td><td>166.5 µs</td><td>477.3 µs</td><td>358.1 µs</td><td>266.8 µs</td><td><strong>1.60×</strong></td></tr><tr><td>128</td><td>213.5 µs</td><td>482.3 µs</td><td>251.7 µs</td><td>272.6 µs</td><td><strong>1.18×</strong></td></tr><tr><td>256</td><td>386.2 µs</td><td>494.3 µs</td><td>454.9 µs</td><td>493.5 µs</td><td><strong>1.18×</strong></td></tr><tr><td>512</td><td>705.5 µs</td><td>970.7 µs</td><td>691.7 µs</td><td>741.7 µs</td><td>0.98×</td></tr><tr><td>1024</td><td>1342.6 µs</td><td>1476.8 µs</td><td>1369.1 µs</td><td>1359.1 µs</td><td><strong>1.01×</strong></td></tr><tr><td>2048</td><td>2513.9 µs</td><td>2871.2 µs</td><td>2668.7 µs</td><td>2530.4 µs</td><td><strong>1.01×</strong></td></tr></tbody></table>
+<p><img src="/images/blog/hpc-ops-sglang/h20-hy3-moe.png" alt="H20 Hy3 MoE latency"></p>
+<p><em>Figure 4: Hy3 MoE latency across TP8 / EP1 and TP1 / EP8 configurations. Lower is better.</em></p>
+<h3 id="h200-operator-validation">H200 operator validation</h3>
+<p>The upstream PRs also include H200 serving results, confirming that the performance gains generalize across Hopper GPUs.</p>
+<p><em>Table 6: Operator validation reported in the upstream SGLang pull requests.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Operator</th><th>Upstream validation workload</th><th>Comparison</th><th>Result</th></tr></thead><tbody><tr><td>FP8 Attention</td><td>Hy3-FP8 with FP8 KV cache; mixed-length decode</td><td>HPC-Ops dynamic scheduling vs. HPC-Ops static split-KV</td><td>Output throughput <strong>+2.0%</strong>; total throughput <strong>+2.0%</strong>; median TTFT <strong>−5.3%</strong></td></tr><tr><td>BF16 Attention</td><td>Qwen3 with BF16 KV cache; mixed-length decode</td><td>HPC-Ops dynamic scheduling vs. HPC-Ops static split-KV</td><td>Output throughput <strong>+3.0%</strong>; mean E2E latency <strong>−2.8%</strong>; mean TPOT <strong>−2.8%</strong></td></tr><tr><td>Router GEMM</td><td>LongCat-Flash Chat and Lite router shapes</td><td>HPC-Ops Router GEMM vs. SGLang default</td><td>Kernel speedup: <strong>1.56–4.31×</strong></td></tr><tr><td>MoE</td><td>Qwen3 FP8 MoE workloads from 1 to 4,096 tokens</td><td>HPC-Ops MoE vs. SGLang Triton fused experts</td><td>Kernel speedup: <strong>0.89–4.21×</strong></td></tr></tbody></table>
+<h3 id="end-to-end-performance">End-to-end performance</h3>
+<p>The end-to-end evaluation runs on 8× NVIDIA H20 GPUs against the corresponding default SGLang implementations. On Hy3-FP8 at TP8 with FP8 KV cache, we measure the combined serving impact by enabling HPC-Ops Attention and MoE together. On LongCat-Flash-Lite-FP8, only Router GEMM is measured. We also summarize the H200 serving validation reported in the upstream SGLang pull requests.</p>
+<p><strong>Hy3-FP8: Attention and MoE.</strong></p>
+<p>With an 8K input and 4K output, HPC-Ops reduces TPOT by <strong>3.3% at batch size 1</strong>. Across batch sizes 4–64, the reduction grows to <strong>15.1–48.8%</strong>.</p>
+<p><em>Table 7: Hy3-FP8 TPOT with FP8 KV cache and HPC-Ops Attention and MoE enabled together. Lower is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Batch</th><th>SGLang default</th><th>HPC-Ops</th><th>Improvement</th></tr></thead><tbody><tr><td>1</td><td>7.56 ms</td><td>7.31 ms</td><td><strong>3.3%</strong></td></tr><tr><td>4</td><td>11.10 ms</td><td>9.42 ms</td><td><strong>15.1%</strong></td></tr><tr><td>8</td><td>14.29 ms</td><td>10.76 ms</td><td><strong>24.7%</strong></td></tr><tr><td>16</td><td>22.90 ms</td><td>13.09 ms</td><td><strong>42.8%</strong></td></tr><tr><td>32</td><td>35.33 ms</td><td>18.09 ms</td><td><strong>48.8%</strong></td></tr><tr><td>64</td><td>40.70 ms</td><td>23.81 ms</td><td><strong>41.5%</strong></td></tr></tbody></table>
+<p>With an 8K input, HPC-Ops improves TTFT by <strong>3.3–9.0% across batch sizes 1–16</strong>.</p>
+<p><em>Table 8: Hy3-FP8 TTFT with FP8 KV cache for an 8K input. Positive improvements mean lower latency.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Batch</th><th>SGLang default</th><th>HPC-Ops</th><th>Improvement</th></tr></thead><tbody><tr><td>1</td><td>460.67 ms</td><td>419.43 ms</td><td><strong>9.0%</strong></td></tr><tr><td>4</td><td>1612.47 ms</td><td>1533.66 ms</td><td><strong>4.9%</strong></td></tr><tr><td>8</td><td>3210.93 ms</td><td>3018.68 ms</td><td><strong>6.0%</strong></td></tr><tr><td>16</td><td>5810.53 ms</td><td>5619.48 ms</td><td><strong>3.3%</strong></td></tr></tbody></table>
+<p>At batch size 16, we also sweep the input length from 2K to 8K with chunked prefill and prefix caching disabled. HPC-Ops improves TTFT by <strong>2.3–8.9%</strong> across the three input lengths.</p>
+<p><em>Table 9: Hy3-FP8 TTFT with FP8 KV cache across input lengths at batch size 16. Positive improvements mean lower latency.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Input length</th><th>SGLang default</th><th>HPC-Ops</th><th>Improvement</th></tr></thead><tbody><tr><td>2K</td><td>1509.98 ms</td><td>1375.95 ms</td><td><strong>8.9%</strong></td></tr><tr><td>4K</td><td>2779.46 ms</td><td>2715.18 ms</td><td><strong>2.3%</strong></td></tr><tr><td>8K</td><td>5810.53 ms</td><td>5619.48 ms</td><td><strong>3.3%</strong></td></tr></tbody></table>
+<p><strong>LongCat-Flash-Lite-FP8: Router GEMM.</strong></p>
+<p>Router GEMM is evaluated separately with a 1,024-token input and a 128-token output. Input throughput remains near parity at batch size 1, with a <strong>0.5% improvement</strong>, and improves by <strong>5.5–6.1%</strong> across batch sizes 4–64.</p>
+<p><em>Table 10: LongCat-Flash-Lite-FP8 input throughput with HPC-Ops Router GEMM. Higher is better.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Batch</th><th>SGLang default</th><th>HPC-Ops Router GEMM</th><th>Improvement</th></tr></thead><tbody><tr><td>1</td><td>16,612.11 tok/s</td><td>16,695.77 tok/s</td><td><strong>0.5%</strong></td></tr><tr><td>4</td><td>54,466.27 tok/s</td><td>57,810.27 tok/s</td><td><strong>6.1%</strong></td></tr><tr><td>8</td><td>60,425.93 tok/s</td><td>63,833.96 tok/s</td><td><strong>5.6%</strong></td></tr><tr><td>16</td><td>61,995.23 tok/s</td><td>65,539.10 tok/s</td><td><strong>5.7%</strong></td></tr><tr><td>32</td><td>62,833.85 tok/s</td><td>66,306.52 tok/s</td><td><strong>5.5%</strong></td></tr><tr><td>64</td><td>62,841.93 tok/s</td><td>66,422.92 tok/s</td><td><strong>5.7%</strong></td></tr></tbody></table>
+<p><img src="/images/blog/hpc-ops-sglang/h20-sglang-end-to-end.png" alt="H20 SGLang end-to-end performance"></p>
+<p><em>Figure 5: End-to-end SGLang results. The three Hy3-FP8 panels use FP8 KV cache with HPC-Ops Attention and MoE enabled together; the bottom-right panel isolates Router GEMM.</em></p>
+<h3 id="h200-serving-validation">H200 serving validation</h3>
+<p>The upstream pull requests also evaluated the integrated operators in the SGLang serving loop on H200, providing a model-level integration check beyond the primary H20 tuning target.</p>
+<p><em>Table 11: Model-level serving validation reported in the upstream SGLang pull requests.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Operator</th><th>Upstream validation workload</th><th>Comparison</th><th>Result</th></tr></thead><tbody><tr><td>Attention</td><td>Hy3-FP8 with FP8 KV cache serving workloads</td><td>HPC-Ops Attention vs. FlashAttention</td><td>Output throughput: <strong>+3.7–5.9%</strong></td></tr><tr><td>Router GEMM</td><td>LongCat-Flash Lite prefill serving workloads</td><td>HPC-Ops Router GEMM vs. SGLang default</td><td>Input throughput: <strong>+2.8–5.4%</strong></td></tr><tr><td>MoE</td><td>Qwen3 and Hy3 FP8 MoE serving workloads</td><td>HPC-Ops MoE vs. SGLang default</td><td>Output throughput: Qwen3 from parity to <strong>+2.7%</strong>; Hy3 <strong>−4.2% to +6.3%</strong></td></tr></tbody></table>
+<p>The upstream integrations were also checked for numerical and model-level fidelity. Attention tests passed across BF16 and FP8, and the evaluated Hy3 FP8 greedy outputs matched the BF16 path token for token. Router GEMM passed comparisons against the FP32 reference and preserved greedy outputs. For Qwen3, the HPC-Ops MoE path matched Triton's error against FP32, with a cosine similarity of <strong>0.99974</strong> and a maximum relative error of <strong>0.024</strong>. Full configurations and per-case results are available in the upstream PRs.</p>
+<h2 id="whats-next">What's next</h2>
+<p>This work is part of a broader collaboration between HPC-Ops and the SGLang community. We will continue working with SGLang maintainers and contributors to improve and extend these operators and upstream additional HPC-Ops capabilities as they mature. Feedback, issues, and benchmarks are very welcome, and we look forward to advancing open, high-performance LLM inference together.</p>
+<h2 id="acknowledgments">Acknowledgments</h2>
+<p>We would like to thank the many people across teams who worked together to bring these operators to SGLang:</p>
+<ul>
+<li><strong>Tencent Hunyuan AI Infra</strong> — for building and optimizing the HPC-Ops Attention, Router GEMM, and MoE operators and contributing them to SGLang. Sethran Liu, Chase Shao, Shengy Wei, Theo Cheng, Ryann Xue, Lando Jiang, Looper Zhao, Haank Lin, Aiden Ren, Lehua Ding, Chengv Jiang, Steven Kuang, Liqi He, Kipper Gong, Reedlau Liu, Raccoon Liu, Dick Zhu.</li>
+<li><strong>Tencent Network Platform Department</strong> — for the close collaboration on communication optimization. Xuan Zhang, Haoran Zhao, Yuanyuan Gong, Yadong Liu, Jinzhu Wang, Yinben Xia, Xiang Li, Quan Wen, Zekun He.</li>
+<li><strong>SGLang</strong> — for the open backend interfaces, reviews, and design discussions. Xiaoyu Zhang (BBuf), Xinyuan Tong, Ke Bao, and the entire SGLang team.</li>
+<li><strong>NVIDIA</strong> — for the close collaboration on kernel and performance optimization. Yuanhang Sun, Perkz Zheng, Yuxi Chi, Jiang Shao, Jun Gu, Meng Wang, River Liu, Gary Ji, Chandler Zhou.</li>
+</ul>
+<p>We also thank the broader open-source kernel community whose work this builds on and measures against, including NVIDIA CUTLASS/CuTe, TensorRT-LLM, FlashInfer, FlashAttention, and Triton.</p></div></div></div></div><!--$--><!--/$--></main><script src="/_next/static/chunks/webpack-304a6d2767a6b415.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u" id="_R_" async=""></script><script>(self.__next_f=self.__next_f||[]).push([0])</script><script>self.__next_f.push([1,"1:\"$Sreact.fragment\"\n2:I[4420,[\"619\",\"static/chunks/619-ba102abea3e3d0e4.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"177\",\"static/chunks/app/layout-1b0a3f334c275866.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\"],\"default\"]\n3:I[9766,[],\"\"]\n4:I[8924,[],\"\"]\n6:I[4431,[],\"OutletBoundary\"]\n8:I[5278,[],\"AsyncMetadataOutlet\"]\na:I[4431,[],\"ViewportBoundary\"]\nc:I[4431,[],\"MetadataBoundary\"]\nd:\"$Sreact.suspense\"\nf:I[7150,[],\"\"]\n:HL[\"/_next/static/media/e4af272ccee01ff0-s.p.woff2\",\"font\",{\"crossOrigin\":\"\",\"type\":\"font/woff2\"}]\n:HL[\"/_next/static/css/4c9ffbadd23290f9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"style\"]\n:HL[\"/_next/static/css/b00e444b8fe651d9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"style\"]\n"])</script><script>self.__next_f.push([1,"0:{\"P\":null,\"b\":\"jPqlDPNgu0ZLB9K7JJ_UB\",\"p\":\"\",\"c\":[\"\",\"blog\",\"2026-08-07-hpc-ops-sglang\",\"\"],\"i\":false,\"f\":[[[\"\",{\"children\":[\"blog\",{\"children\":[[\"slug\",\"2026-08-07-hpc-ops-sglang\",\"d\"],{\"children\":[\"__PAGE__\",{}]}]}]},\"$undefined\",\"$undefined\",true],[\"\",[\"$\",\"$1\",\"c\",{\"children\":[[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/css/4c9ffbadd23290f9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"html\",null,{\"lang\":\"en\",\"className\":\"__variable_aa6f30\",\"children\":[\"$\",\"body\",null,{\"children\":[[\"$\",\"script\",null,{\"type\":\"application/ld+json\",\"dangerouslySetInnerHTML\":{\"__html\":\"{\\\"@context\\\":\\\"https://schema.org\\\",\\\"@type\\\":\\\"Organization\\\",\\\"name\\\":\\\"LMSYS Org\\\",\\\"alternateName\\\":\\\"Large Model Systems Organization\\\",\\\"url\\\":\\\"https://www.lmsys.org\\\",\\\"logo\\\":\\\"https://www.lmsys.org/images/logo-v2.png\\\",\\\"description\\\":\\\"Large Model Systems Organization - developing large models and systems that are open, accessible, and scalable.\\\",\\\"sameAs\\\":[\\\"https://twitter.com/lmsysorg\\\",\\\"https://github.com/lm-sys\\\",\\\"https://discord.gg/lmsys\\\"]}\"}}],[\"$\",\"$L2\",null,{}],[\"$\",\"main\",null,{\"children\":[\"$\",\"$L3\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L4\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":[[[\"$\",\"title\",null,{\"children\":\"404: This page could not be found.\"}],[\"$\",\"div\",null,{\"style\":{\"fontFamily\":\"system-ui,\\\"Segoe UI\\\",Roboto,Helvetica,Arial,sans-serif,\\\"Apple Color Emoji\\\",\\\"Segoe UI Emoji\\\"\",\"height\":\"100vh\",\"textAlign\":\"center\",\"display\":\"flex\",\"flexDirection\":\"column\",\"alignItems\":\"center\",\"justifyContent\":\"center\"},\"children\":[\"$\",\"div\",null,{\"children\":[[\"$\",\"style\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}\"}}],[\"$\",\"h1\",null,{\"className\":\"next-error-h1\",\"style\":{\"display\":\"inline-block\",\"margin\":\"0 20px 0 0\",\"padding\":\"0 23px 0 0\",\"fontSize\":24,\"fontWeight\":500,\"verticalAlign\":\"top\",\"lineHeight\":\"49px\"},\"children\":404}],[\"$\",\"div\",null,{\"style\":{\"display\":\"inline-block\"},\"children\":[\"$\",\"h2\",null,{\"style\":{\"fontSize\":14,\"fontWeight\":400,\"lineHeight\":\"49px\",\"margin\":0},\"children\":\"This page could not be found.\"}]}]]}]}]],[]],\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]}]]}]}]]}],{\"children\":[\"blog\",[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L3\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L4\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[[\"slug\",\"2026-08-07-hpc-ops-sglang\",\"d\"],[\"$\",\"$1\",\"c\",{\"children\":[null,[\"$\",\"$L3\",null,{\"parallelRouterKey\":\"children\",\"error\":\"$undefined\",\"errorStyles\":\"$undefined\",\"errorScripts\":\"$undefined\",\"template\":[\"$\",\"$L4\",null,{}],\"templateStyles\":\"$undefined\",\"templateScripts\":\"$undefined\",\"notFound\":\"$undefined\",\"forbidden\":\"$undefined\",\"unauthorized\":\"$undefined\"}]]}],{\"children\":[\"__PAGE__\",[\"$\",\"$1\",\"c\",{\"children\":[\"$L5\",[[\"$\",\"link\",\"0\",{\"rel\":\"stylesheet\",\"href\":\"/_next/static/css/b00e444b8fe651d9.css?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"precedence\":\"next\",\"crossOrigin\":\"$undefined\",\"nonce\":\"$undefined\"}]],[\"$\",\"$L6\",null,{\"children\":[\"$L7\",[\"$\",\"$L8\",null,{\"promise\":\"$@9\"}]]}]]}],{},null,false]},null,false]},null,false]},null,false],[\"$\",\"$1\",\"h\",{\"children\":[null,[[\"$\",\"$La\",null,{\"children\":\"$Lb\"}],[\"$\",\"meta\",null,{\"name\":\"next-size-adjust\",\"content\":\"\"}]],[\"$\",\"$Lc\",null,{\"children\":[\"$\",\"div\",null,{\"hidden\":true,\"children\":[\"$\",\"$d\",null,{\"fallback\":null,\"children\":\"$Le\"}]}]}]]}],false]],\"m\":\"$undefined\",\"G\":[\"$f\",[]],\"s\":false,\"S\":true}\n"])</script><script>self.__next_f.push([1,"10:I[2619,[\"619\",\"static/chunks/619-ba102abea3e3d0e4.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"953\",\"static/chunks/app/blog/%5Bslug%5D/page-064a66d39876b379.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\"],\"\"]\n11:I[709,[\"619\",\"static/chunks/619-ba102abea3e3d0e4.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"953\",\"static/chunks/app/blog/%5Bslug%5D/page-064a66d39876b379.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\"],\"default\"]\n12:Tb497,"])</script><script>self.__next_f.push([1,"\u003cp\u003e\u003ca href=\"https://github.com/Tencent/hpc-ops\"\u003eHPC-Ops\u003c/a\u003e is an open-source operator library for LLM inference, deployed in Tencent's large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role in Hunyuan's online inference, reducing TPOT of Hy3 model by up to 48.8%. HPC-Ops Attention, Router GEMM, and MoE are now integrated into SGLang's main branch, bringing these production-proven optimizations to the open-source serving community.\u003c/p\u003e\n\u003cp\u003eIn this blog, we introduce the design of three important operators in HPC-Ops and their integration with SGLang. We then present operator benchmarks and serving results on H20 together with the H200 validation results. The integrations target NVIDIA Hopper GPUs (SM90) and have been validated with Qwen3, Hy3, and LongCat workloads.\u003c/p\u003e\n\u003ch2 id=\"highlights\"\u003eHighlights\u003c/h2\u003e\n\u003cul\u003e\n\u003cli\u003e\u003cstrong\u003eAttention:\u003c/strong\u003e On H20, HPC-Ops dynamic scheduling reaches \u003cstrong\u003e2.95×\u003c/strong\u003e over its static split-KV schedule and is on average \u003cstrong\u003e2.25× faster\u003c/strong\u003e than the best of FlashInfer and FlashAttention in each measured case. In upstream H200 validation, the integrated Hy3-FP8 path with FP8 KV cache improves output throughput by \u003cstrong\u003e3.7–5.9%\u003c/strong\u003e over FlashAttention.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eRouter GEMM:\u003c/strong\u003e On H20, HPC-Ops is \u003cstrong\u003e1.30–3.22× faster than FP32 cuBLAS\u003c/strong\u003e, while its maximum absolute error relative to FP32 cuBLAS is \u003cstrong\u003e0.00177\u003c/strong\u003e, versus \u003cstrong\u003e0.06464\u003c/strong\u003e for TF32 cuBLAS. In the upstream H200 LongCat-Flash kernel validation, it delivers a \u003cstrong\u003e4.31× speedup\u003c/strong\u003e over the existing FP32 path.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eMoE:\u003c/strong\u003e On H20, HPC-Ops delivers mean per-batch speedups of \u003cstrong\u003e1.08× at TP8 / EP1\u003c/strong\u003e and \u003cstrong\u003e1.21× at TP1 / EP8\u003c/strong\u003e over the best of the SGLang and vLLM baselines on Hy3. In the upstream Qwen3/H200 kernel benchmark, it reaches up to \u003cstrong\u003e4.21× over Triton\u003c/strong\u003e at eight tokens.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eEnd-to-end serving:\u003c/strong\u003e On 8× H20 with Hy3-FP8, enabling HPC-Ops Attention and MoE together reduces TPOT by \u003cstrong\u003e15.1–48.8% at batch sizes 4–64\u003c/strong\u003e and TTFT by \u003cstrong\u003e3.3–6.0% at batch sizes 4–16\u003c/strong\u003e. On 8× H20 with LongCat-Flash-Lite-FP8, enabling HPC-Ops Router GEMM improves input throughput by \u003cstrong\u003e5.5–6.1% at batch sizes 4–64\u003c/strong\u003e.\u003c/li\u003e\n\u003c/ul\u003e\n\u003ch2 id=\"attention-routing-and-experts-three-hot-paths-in-moe-model-serving\"\u003eAttention, routing, and experts: three hot paths in MoE model serving\u003c/h2\u003e\n\u003cp\u003eProduction MoE serving rarely resembles the uniform workloads measured in isolated kernel benchmarks. It combines mixed-length Attention work, precision-sensitive routing, and sparse expert execution within the same latency-sensitive path; long-context, multi-turn, and agentic workloads further widen the distribution of live KV lengths. Serving performance therefore depends not only on raw matrix-multiplication throughput, but also on workload balance, numerical fidelity, and overhead control.\u003c/p\u003e\n\u003cp\u003eThese constraints surface in three performance-critical stages of MoE model serving. During decode, Attention work scales with each request's live KV length, making mixed-length batches a load-balancing problem. Router GEMM produces the scores used for top-k selection, where small numerical changes can alter expert choices. The selected experts then process small and uneven token groups, allowing metadata construction, token movement, intermediate storage, and launch overhead to rival the expert GEMMs themselves.\u003c/p\u003e\n\u003cp\u003eHPC-Ops addresses each stage with a dedicated operator: workload-aware scheduling for Attention, a precision-aware formulation for Router GEMM, and a fused pipeline for MoE that eliminates the standalone gather and reduces launch and intermediate traffic. The upstream integration pairs these operators with SGLang's serving runtime through its native backend and dispatch interfaces. The following sections explain how each operator is designed.\u003c/p\u003e\n\u003ch2 id=\"attention-load-balancing-for-mixed-length-decode\"\u003eAttention: load balancing for mixed-length decode\u003c/h2\u003e\n\u003cp\u003eDuring decode, each new token attends over the request's full KV cache, so Attention work scales with the live sequence length. A request with 16K cached tokens therefore carries roughly 16× the KV work of one with 1K. In production, prompt and output lengths vary widely, and continuous batching places requests at different stages of generation in the same launch; a batch therefore routinely mixes short KV caches with sequences tens of thousands of tokens long.\u003c/p\u003e\n\u003cp\u003eA static split-KV schedule maps work to a fixed launch grid over KV heads, requests, and KV chunks, with one partitioning policy shared across the batch. A static split-KV scheduler generally follows one of two policies, neither of which performs well for mixed-length batches. (1) Fix the split count, and long requests produce much heavier chunks: short-request CTAs finish early while a few long-running CTAs determine the kernel tail. (2) Fix the chunk size instead, and the grid must reserve enough splits for the longest request, leaving shorter requests with empty or nearly empty chunks that still consume scheduling slots. One policy creates uneven work; the other schedules nonexistent work.\u003c/p\u003e\n\u003ch3 id=\"scheduling-around-live-kv-work\"\u003eScheduling around live KV work\u003c/h3\u003e\n\u003cp\u003eHPC-Ops replaces the static per-request split with a persistent kernel that dynamically balances KV tiles across CTAs according to the batch's actual length distribution. For each decode batch, an assign kernel builds a global task map from live KV lengths: it slices every sequence into uniform 64-token tiles, sums the tile count across all heads and requests, and divides the total by the number of persistent CTAs to set a per-CTA tile budget. The assignment kernel fills each CTA's bin up to that budget before spilling into the next, so long sequences span multiple CTAs in proportion to their length while short sequences contribute only the tiles they actually have. A minimum-work floor prevents over-partitioning when total work is small, keeping the downstream combine inexpensive. The task map is generated once per decode step from device-side sequence lengths and reused across Transformer layers, amortizing its cost.\u003c/p\u003e\n\u003cp\u003eAt execution time, each CTA drains its assigned bin. For every descriptor, it computes Attention over one or more contiguous KV tiles and writes a partial output with its log-sum-exp statistic; the same resident CTA continues to the next descriptor until its bin is empty. Because each CTA produces only a subset of the partials for a given request, a final combine kernel reads the actual chunk count per request and head and merges the partials under the correct global softmax normalization. The near-equal bin sizes ensure that CTAs finish at roughly the same time, eliminating the kernel tail that a few unusually long requests would otherwise cause.\u003c/p\u003e\n\u003ch3 id=\"a-fused-attention-prologue\"\u003eA fused attention prologue\u003c/h3\u003e\n\u003cp\u003eFor Hy3 FP8, HPC-Ops fuses the Attention prologue after the QKV projection: it applies QK-Norm before RoPE, emits Q in FP8 with a per-token, per-head scale, and writes K and V directly into the paged FP8 cache. It passes the quantized Q and its scale directly to the main Attention kernel, avoiding requantization. The fused path eliminates intermediate tensors and their associated HBM round-trips and separate kernel launches in both prefill and decode.\u003c/p\u003e\n\u003ch2 id=\"router-gemm-balancing-routing-precision-and-throughput\"\u003eRouter GEMM: balancing routing precision and throughput\u003c/h2\u003e\n\u003cp\u003eRouter precision directly affects MoE model quality. At each MoE layer, the router projects hidden states into expert scores, and a top-k selection over these scores determines which experts execute. The score differences between the k-th and (k+1)-th expert can be small, so the arithmetic precision of this projection determines whether the correct experts are selected.\u003c/p\u003e\n\u003cp\u003eTo preserve router precision, some production models retain FP32 router weights even when hidden states are BF16. Casting those weights to BF16 enables BF16 Tensor Core throughput but discards low-order mantissa bits that can flip a top-k decision. A full FP32 GEMM preserves all weight precision, but with lower Tensor Core throughput.\u003c/p\u003e\n\u003ch3 id=\"a-precision-aware-bf16-formulation\"\u003eA precision-aware BF16 formulation\u003c/h3\u003e\n\u003cp\u003eHPC-Ops resolves this by decomposing the FP32 weight into two BF16 components. It extracts a BF16 high part \u003cspan class=\"katex\"\u003e\u003cspan class=\"katex-mathml\"\u003e\u003cmath xmlns=\"http://www.w3.org/1998/Math/MathML\"\u003e\u003csemantics\u003e\u003cmrow\u003e\u003cmsub\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmrow\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003ei\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eg\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003c/mrow\u003e\u003c/msub\u003e\u003c/mrow\u003e\u003cannotation encoding=\"application/x-tex\"\u003eW_{\\mathrm{high}}\u003c/annotation\u003e\u003c/semantics\u003e\u003c/math\u003e\u003c/span\u003e\u003cspan class=\"katex-html\" aria-hidden=\"true\"\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.9694em;vertical-align:-0.2861em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"msupsub\"\u003e\u003cspan class=\"vlist-t vlist-t2\"\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.3361em;\"\u003e\u003cspan style=\"top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;\"\u003e\u003cspan class=\"pstrut\" style=\"height:2.7em;\"\u003e\u003c/span\u003e\u003cspan class=\"sizing reset-size6 size3 mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mathrm mtight\"\u003ehigh\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-s\"\u003e​\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.2861em;\"\u003e\u003cspan\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e by direct truncation, then forms a second BF16 component from the scaled residual \u003cspan class=\"katex\"\u003e\u003cspan class=\"katex-mathml\"\u003e\u003cmath xmlns=\"http://www.w3.org/1998/Math/MathML\"\u003e\u003csemantics\u003e\u003cmrow\u003e\u003cmo stretchy=\"false\"\u003e(\u003c/mo\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmo\u003e−\u003c/mo\u003e\u003cmsub\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmrow\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003ei\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eg\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003c/mrow\u003e\u003c/msub\u003e\u003cmo stretchy=\"false\"\u003e)\u003c/mo\u003e\u003cmo\u003e×\u003c/mo\u003e\u003cmn\u003e256\u003c/mn\u003e\u003c/mrow\u003e\u003cannotation encoding=\"application/x-tex\"\u003e(W - W_{\\mathrm{high}}) \\times 256\u003c/annotation\u003e\u003c/semantics\u003e\u003c/math\u003e\u003c/span\u003e\u003cspan class=\"katex-html\" aria-hidden=\"true\"\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:1em;vertical-align:-0.25em;\"\u003e\u003c/span\u003e\u003cspan class=\"mopen\"\u003e(\u003c/span\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003cspan class=\"mbin\"\u003e−\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:1.0361em;vertical-align:-0.2861em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"msupsub\"\u003e\u003cspan class=\"vlist-t vlist-t2\"\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.3361em;\"\u003e\u003cspan style=\"top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;\"\u003e\u003cspan class=\"pstrut\" style=\"height:2.7em;\"\u003e\u003c/span\u003e\u003cspan class=\"sizing reset-size6 size3 mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mathrm mtight\"\u003ehigh\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-s\"\u003e​\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.2861em;\"\u003e\u003cspan\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"mclose\"\u003e)\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003cspan class=\"mbin\"\u003e×\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.6444em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e256\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e. The original weight is approximated as \u003cspan class=\"katex\"\u003e\u003cspan class=\"katex-mathml\"\u003e\u003cmath xmlns=\"http://www.w3.org/1998/Math/MathML\"\u003e\u003csemantics\u003e\u003cmrow\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmo\u003e≈\u003c/mo\u003e\u003cmsub\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmrow\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003ei\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eg\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eh\u003c/mi\u003e\u003c/mrow\u003e\u003c/msub\u003e\u003cmo\u003e+\u003c/mo\u003e\u003cmsub\u003e\u003cmi\u003eW\u003c/mi\u003e\u003cmrow\u003e\u003cmi mathvariant=\"normal\"\u003el\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003eo\u003c/mi\u003e\u003cmi mathvariant=\"normal\"\u003ew\u003c/mi\u003e\u003c/mrow\u003e\u003c/msub\u003e\u003cmi mathvariant=\"normal\"\u003e/\u003c/mi\u003e\u003cmn\u003e256\u003c/mn\u003e\u003c/mrow\u003e\u003cannotation encoding=\"application/x-tex\"\u003eW \\approx W_{\\mathrm{high}} + W_{\\mathrm{low}} / 256\u003c/annotation\u003e\u003c/semantics\u003e\u003c/math\u003e\u003c/span\u003e\u003cspan class=\"katex-html\" aria-hidden=\"true\"\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.6833em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003cspan class=\"mrel\"\u003e≈\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.9694em;vertical-align:-0.2861em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"msupsub\"\u003e\u003cspan class=\"vlist-t vlist-t2\"\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.3361em;\"\u003e\u003cspan style=\"top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;\"\u003e\u003cspan class=\"pstrut\" style=\"height:2.7em;\"\u003e\u003c/span\u003e\u003cspan class=\"sizing reset-size6 size3 mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mathrm mtight\"\u003ehigh\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-s\"\u003e​\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.2861em;\"\u003e\u003cspan\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003cspan class=\"mbin\"\u003e+\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2222em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:1em;vertical-align:-0.25em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.1389em;\"\u003eW\u003c/span\u003e\u003cspan class=\"msupsub\"\u003e\u003cspan class=\"vlist-t vlist-t2\"\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.3361em;\"\u003e\u003cspan style=\"top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;\"\u003e\u003cspan class=\"pstrut\" style=\"height:2.7em;\"\u003e\u003c/span\u003e\u003cspan class=\"sizing reset-size6 size3 mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mtight\"\u003e\u003cspan class=\"mord mathrm mtight\" style=\"margin-right:0.0139em;\"\u003elow\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-s\"\u003e​\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"vlist-r\"\u003e\u003cspan class=\"vlist\" style=\"height:0.15em;\"\u003e\u003cspan\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e/256\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e, so the matrix product becomes two BF16 GEMMs whose results are combined with a scale correction to recover the low-order mantissa contribution. A single kernel executes both BF16 multiplications: it loads activation tiles once from shared memory, accumulates both partial results in FP32 registers, applies the \u003cspan class=\"katex\"\u003e\u003cspan class=\"katex-mathml\"\u003e\u003cmath xmlns=\"http://www.w3.org/1998/Math/MathML\"\u003e\u003csemantics\u003e\u003cmrow\u003e\u003cmn\u003e1\u003c/mn\u003e\u003cmi mathvariant=\"normal\"\u003e/\u003c/mi\u003e\u003cmn\u003e256\u003c/mn\u003e\u003c/mrow\u003e\u003cannotation encoding=\"application/x-tex\"\u003e1/256\u003c/annotation\u003e\u003c/semantics\u003e\u003c/math\u003e\u003c/span\u003e\u003cspan class=\"katex-html\" aria-hidden=\"true\"\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:1em;vertical-align:-0.25em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e1/256\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e scaling in the epilogue, and writes the final FP32 router scores to global memory. This formulation recovers precision close to a full FP32 GEMM while running the main arithmetic on BF16 Tensor Cores.\u003c/p\u003e\n\u003cp\u003eOn the framework side, SGLang caches the decomposed weight pair at model load time and reuses it across requests and CUDA graph replays. A shape-aware dispatch selects between the HPC-Ops kernel and the default path at measured crossover points. Below these points, the single FP32 path is faster because the two-product overhead exceeds the Tensor Core gain.\u003c/p\u003e\n\u003ch2 id=\"moe-reducing-overhead-around-small-expert-gemms\"\u003eMoE: reducing overhead around small expert GEMMs\u003c/h2\u003e\n\u003cp\u003eDuring decode, each expert in an MoE layer receives only a handful of tokens. The resulting expert GEMMs are small and memory-bound, and the GPU's SMs are underutilized at these shapes. The problem is compounded by load imbalance: the number of tokens routed to each expert varies across experts and shifts from step to step, making it difficult to spread these small, uneven tiles evenly across the available SMs.\u003c/p\u003e\n\u003cp\u003eBeyond the expert GEMMs themselves, the operations surrounding them introduce substantial overhead. A conventional MoE path chains separate kernels for routing, gathering tokens into per-expert buffers, Gate-Up GEMM, activation and quantization, Down GEMM, and top-k weighted reduction back to token positions. The gather step materializes a full token tensor in HBM before any matmul begins, and each subsequent stage pays its own kernel launch and HBM round-trip for intermediates. When the GEMMs are small, this surrounding overhead consumes a comparable fraction of the stage's wall time.\u003c/p\u003e\n\u003ch3 id=\"a-fused-latency-oriented-moe-pipeline\"\u003eA fused, latency-oriented MoE pipeline\u003c/h3\u003e\n\u003cp\u003eFor low-batch-size inference, the HPC-Ops MoE backend coordinates routing and index preprocessing, Gate-Up, activation and requantization, Down, and top-k weighted reduction in a low-latency pipeline built around task-map-driven persistent expert GEMMs.\u003c/p\u003e\n\u003cul\u003e\n\u003cli\u003e\u003cstrong\u003eRouting and index build.\u003c/strong\u003e Starting from the selected top-k expert IDs, a shared-memory counting pass organizes token–expert assignments into contiguous per-expert output ranges, reducing global atomic pressure and building the routing indices and per-tile task maps consumed directly by the persistent expert GEMMs.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eGate-Up and activation.\u003c/strong\u003e The Gate-Up GEMM reads original tokens directly through the routing indices, skipping the standalone gather and its extra HBM traffic. SiLU-and-mul and FP8 requantization then run as one fused kernel whose output the Down GEMM reads directly.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eOccupancy-first, without warp specialization.\u003c/strong\u003e A single warp group handles both data movement and matrix math rather than reserving separate producer and consumer groups. This raises CTA residency and shifts memory-latency hiding from an intra-CTA software pipeline to cross-CTA hardware scheduling. Persistent grids then consume these task maps and spread the small, uneven expert tiles across the SMs.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003ePDL-chained stages.\u003c/strong\u003e Programmatic Dependent Launch overlaps each downstream kernel launch with the tail of the preceding stage, reducing gaps across Gate-Up, activation, Down, and the final top-k weighted reduction, which restores expert outputs to token order.\u003c/li\u003e\n\u003c/ul\u003e\n\u003cp\u003eTogether, these optimizations reduce intermediate traffic and kernel-launch overhead on the critical path.\u003c/p\u003e\n\u003ch2 id=\"from-hpc-ops-kernels-to-sglang\"\u003eFrom HPC-Ops kernels to SGLang\u003c/h2\u003e\n\u003cp\u003eThrough SGLang's native backend and dispatch interfaces, HPC-Ops operates directly on the serving runtime's existing state while remaining an independently maintained operator library. Attention consumes paged KV storage and live device-side sequence metadata without an additional layout conversion; Router GEMM reuses preprocessed weights and workspace across requests and CUDA graph replays; and MoE follows SGLang's expert IDs and partitions without additional remapping. These integrations preserve each operator's intended data path while fitting SGLang's existing execution model.\u003c/p\u003e\n\u003cp\u003eThe three integrated operator paths are summarized below:\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eHPC-Ops operator\u003c/th\u003e\u003cth\u003eWhat it optimizes\u003c/th\u003e\u003cth\u003ePrecision\u003c/th\u003e\u003cth\u003eUpstream PRs\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003eAttention\u003c/td\u003e\u003ctd\u003eLoad-balanced mixed-length decode and a fused QK-Norm, RoPE, quantization, and KV-write prologue\u003c/td\u003e\u003ctd\u003eBF16 activations; BF16 or FP8 E4M3 KV cache\u003c/td\u003e\u003ctd\u003e\u003ca href=\"https://github.com/sgl-project/sglang/pull/30540\"\u003e#30540\u003c/a\u003e, \u003ca href=\"https://github.com/sgl-project/sglang/pull/32304\"\u003e#32304\u003c/a\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eRouter GEMM\u003c/td\u003e\u003ctd\u003ePrecision-aware router projection using BF16 Tensor Cores while retaining FP32 weight information\u003c/td\u003e\u003ctd\u003eBF16 activations × FP32 weights → FP32 scores\u003c/td\u003e\u003ctd\u003e\u003ca href=\"https://github.com/sgl-project/sglang/pull/30247\"\u003e#30247\u003c/a\u003e, \u003ca href=\"https://github.com/sgl-project/sglang/pull/31943\"\u003e#31943\u003c/a\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eMoE\u003c/td\u003e\u003ctd\u003eLow-overhead execution around small and uneven expert GEMMs\u003c/td\u003e\u003ctd\u003eBF16 hidden states; FP8 E4M3 expert weights\u003c/td\u003e\u003ctd\u003e\u003ca href=\"https://github.com/sgl-project/sglang/pull/30541\"\u003e#30541\u003c/a\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003ch2 id=\"getting-started\"\u003eGetting started\u003c/h2\u003e\n\u003cp\u003eThis guide describes how to use the \u003ca href=\"https://github.com/Tencent/hpc-ops\"\u003eHPC-Ops\u003c/a\u003e Attention, Router GEMM, and MoE operators in SGLang.\u003c/p\u003e\n\u003ch3 id=\"install\"\u003eInstall\u003c/h3\u003e\n\u003cp\u003eTo install HPC-Ops from source:\u003c/p\u003e\n\u003cdiv class=\"code-block\"\u003e\u003cbutton class=\"code-copy\" type=\"button\" aria-label=\"Copy code\"\u003e\u003csvg class=\"code-copy-icon\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003crect x=\"8.5\" y=\"8.5\" width=\"12\" height=\"12\" rx=\"2.5\"/\u003e\u003cpath d=\"M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6\"/\u003e\u003c/svg\u003e\u003csvg class=\"code-copy-icon-done\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003cpath d=\"M19 7 9.5 16.5 5 12\"/\u003e\u003c/svg\u003e\u003c/button\u003e\u003cpre\u003e\u003ccode class=\"hljs language-bash\"\u003egit \u003cspan class=\"hljs-built_in\"\u003eclone\u003c/span\u003e https://github.com/Tencent/hpc-ops.git\n\u003cspan class=\"hljs-built_in\"\u003ecd\u003c/span\u003e hpc-ops\nmake wheel\npython3 -m pip install dist/*.whl\n\u003c/code\u003e\u003c/pre\u003e\u003c/div\u003e\n\u003cp\u003eHPC-Ops is already included in SGLang's official \u003ccode\u003ex86_64\u003c/code\u003e development images (\u003ccode\u003elmsysorg/sglang:dev\u003c/code\u003e, or \u003ccode\u003elmsysorg/sglang:dev-cu12\u003c/code\u003e for CUDA 12.9), so no separate installation is required when using these images.\u003c/p\u003e\n\u003ch3 id=\"attention-and-moe\"\u003eAttention and MoE\u003c/h3\u003e\n\u003cp\u003eAttention and MoE are independent backend choices in SGLang and can be enabled separately or together for compatible models such as Qwen3 and Hy3. The following example selects both HPC-Ops backends and enables the FP8 KV-cache Attention path:\u003c/p\u003e\n\u003cdiv class=\"code-block\"\u003e\u003cbutton class=\"code-copy\" type=\"button\" aria-label=\"Copy code\"\u003e\u003csvg class=\"code-copy-icon\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003crect x=\"8.5\" y=\"8.5\" width=\"12\" height=\"12\" rx=\"2.5\"/\u003e\u003cpath d=\"M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6\"/\u003e\u003c/svg\u003e\u003csvg class=\"code-copy-icon-done\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003cpath d=\"M19 7 9.5 16.5 5 12\"/\u003e\u003c/svg\u003e\u003c/button\u003e\u003cpre\u003e\u003ccode class=\"hljs language-bash\"\u003epython3 -m sglang.launch_server \\\n  --model tencent/Hy3-FP8 \\\n  --tp-size 8 \\\n  --attention-backend hpc_ops \\\n  --kv-cache-dtype fp8_e4m3 \\\n  --page-size 64 \\\n  --moe-runner-backend hpc_ops\n\u003c/code\u003e\u003c/pre\u003e\u003c/div\u003e\n\u003cp\u003eFor BF16 KV cache, omit \u003ccode\u003e--kv-cache-dtype fp8_e4m3\u003c/code\u003e. To use only one HPC-Ops operator, specify only the corresponding backend option.\u003c/p\u003e\n\u003ch3 id=\"router-gemm\"\u003eRouter GEMM\u003c/h3\u003e\n\u003cp\u003eIn SGLang, HPC-Ops Router GEMM retains low-order information from FP32 router weights while executing the matrix math on BF16 Tensor Cores. The integrated path has been validated on LongCat-Flash Chat and Lite and is selected automatically for supported model and router shapes. Once HPC-Ops is installed, a standard LongCat-Flash launch can use it:\u003c/p\u003e\n\u003cdiv class=\"code-block\"\u003e\u003cbutton class=\"code-copy\" type=\"button\" aria-label=\"Copy code\"\u003e\u003csvg class=\"code-copy-icon\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003crect x=\"8.5\" y=\"8.5\" width=\"12\" height=\"12\" rx=\"2.5\"/\u003e\u003cpath d=\"M15.5 5.5v-.75A2.25 2.25 0 0 0 13.25 2.5h-8A2.25 2.25 0 0 0 3 4.75v8A2.25 2.25 0 0 0 5.25 15H6\"/\u003e\u003c/svg\u003e\u003csvg class=\"code-copy-icon-done\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"\u003e\u003cpath d=\"M19 7 9.5 16.5 5 12\"/\u003e\u003c/svg\u003e\u003c/button\u003e\u003cpre\u003e\u003ccode class=\"hljs language-bash\"\u003epython3 -m sglang.launch_server \\\n  --model meituan-longcat/LongCat-Flash-Lite-FP8\n\u003c/code\u003e\u003c/pre\u003e\u003c/div\u003e\n\u003ch2 id=\"performance-evaluation\"\u003ePerformance evaluation\u003c/h2\u003e\n\u003cp\u003eThe HPC-Ops backends currently support NVIDIA Hopper-architecture GPUs and deliver their best performance on H20. The evaluation below covers operator benchmarks on H20, end-to-end SGLang serving on 8× H20, and the H200 results reported in the upstream SGLang pull requests.\u003c/p\u003e\n\u003ch3 id=\"h20-operator-benchmarks\"\u003eH20 operator benchmarks\u003c/h3\u003e\n\u003cp\u003e\u003cstrong\u003eAttention.\u003c/strong\u003e\u003c/p\u003e\n\u003cp\u003eThe Attention scheduler's headline benefit appears in mixed-length decode, where requests in the same batch can have very different KV-cache lengths. We evaluate FP8 KV-cache decode from uniform to highly skewed distributions; in the table, A×B denotes A requests with KV length B. To isolate the scheduling effect, we compare HPC-Ops dynamic scheduling with its static split-KV counterpart, while FlashInfer and FlashAttention provide additional baselines. The dynamic-vs-static gain grows with skew, from parity on the uniform 64×0.5K batch to \u003cstrong\u003e2.95×\u003c/strong\u003e on the 1×128K + 31×4K mix. Across all six cases, dynamic scheduling is on average \u003cstrong\u003e2.25× faster\u003c/strong\u003e than the best of FlashInfer and FlashAttention in each case.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 1: Decode latency across KV-length distributions on H20. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eDecode scenario\u003c/th\u003e\u003cth\u003eHPC-Ops dynamic\u003c/th\u003e\u003cth\u003eHPC-Ops static\u003c/th\u003e\u003cth\u003eFlashInfer\u003c/th\u003e\u003cth\u003eFlashAttention\u003c/th\u003e\u003cth\u003eDynamic vs. static\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e64×0.5K\u003c/td\u003e\u003ctd\u003e0.013 ms\u003c/td\u003e\u003ctd\u003e0.013 ms\u003c/td\u003e\u003ctd\u003e0.050 ms\u003c/td\u003e\u003ctd\u003e0.025 ms\u003c/td\u003e\u003ctd\u003e1.00×\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e64×4K\u003c/td\u003e\u003ctd\u003e0.033 ms\u003c/td\u003e\u003ctd\u003e0.043 ms\u003c/td\u003e\u003ctd\u003e0.221 ms\u003c/td\u003e\u003ctd\u003e0.095 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.32×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e32×0.125K + 32×4K\u003c/td\u003e\u003ctd\u003e0.020 ms\u003c/td\u003e\u003ctd\u003e0.033 ms\u003c/td\u003e\u003ctd\u003e0.119 ms\u003c/td\u003e\u003ctd\u003e0.053 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.59×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2×32K + 30×4K\u003c/td\u003e\u003ctd\u003e0.032 ms\u003c/td\u003e\u003ctd\u003e0.056 ms\u003c/td\u003e\u003ctd\u003e0.169 ms\u003c/td\u003e\u003ctd\u003e0.094 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.76×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1×64K + 15×4K\u003c/td\u003e\u003ctd\u003e0.042 ms\u003c/td\u003e\u003ctd\u003e0.097 ms\u003c/td\u003e\u003ctd\u003e0.118 ms\u003c/td\u003e\u003ctd\u003e0.065 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.32×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1×128K + 31×4K\u003c/td\u003e\u003ctd\u003e0.063 ms\u003c/td\u003e\u003ctd\u003e0.186 ms\u003c/td\u003e\u003ctd\u003e0.220 ms\u003c/td\u003e\u003ctd\u003e0.097 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.95×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cimg src=\"/images/blog/hpc-ops-sglang/h20-attention-dynamic-scheduling.png\" alt=\"H20 mixed-length Attention decode latency\"\u003e\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eFigure 1: Dynamic scheduling becomes increasingly effective as live KV work grows more skewed. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\u003cp\u003e\u003cstrong\u003eRouter GEMM.\u003c/strong\u003e\u003c/p\u003e\n\u003cp\u003eWe evaluate Router GEMM first with a generic \u003cspan class=\"katex\"\u003e\u003cspan class=\"katex-mathml\"\u003e\u003cmath xmlns=\"http://www.w3.org/1998/Math/MathML\"\u003e\u003csemantics\u003e\u003cmrow\u003e\u003cmi\u003eK\u003c/mi\u003e\u003cmo\u003e=\u003c/mo\u003e\u003cmn\u003e4096\u003c/mn\u003e\u003cmo separator=\"true\"\u003e,\u003c/mo\u003e\u003cmi\u003eN\u003c/mi\u003e\u003cmo\u003e=\u003c/mo\u003e\u003cmn\u003e192\u003c/mn\u003e\u003c/mrow\u003e\u003cannotation encoding=\"application/x-tex\"\u003eK = 4096, N = 192\u003c/annotation\u003e\u003c/semantics\u003e\u003c/math\u003e\u003c/span\u003e\u003cspan class=\"katex-html\" aria-hidden=\"true\"\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.6833em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.0715em;\"\u003eK\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003cspan class=\"mrel\"\u003e=\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.8778em;vertical-align:-0.1944em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e4096\u003c/span\u003e\u003cspan class=\"mpunct\"\u003e,\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.1667em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord mathnormal\" style=\"margin-right:0.109em;\"\u003eN\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003cspan class=\"mrel\"\u003e=\u003c/span\u003e\u003cspan class=\"mspace\" style=\"margin-right:0.2778em;\"\u003e\u003c/span\u003e\u003c/span\u003e\u003cspan class=\"base\"\u003e\u003cspan class=\"strut\" style=\"height:0.6444em;\"\u003e\u003c/span\u003e\u003cspan class=\"mord\"\u003e192\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e\u003c/span\u003e sweep. Across the measured M values, HPC-Ops is \u003cstrong\u003e1.30–3.22× faster than FP32 cuBLAS\u003c/strong\u003e and \u003cstrong\u003e1.25–1.78× faster than TF32 cuBLAS\u003c/strong\u003e. Using FP32 cuBLAS as the numerical reference, the maximum absolute error remains at or below \u003cstrong\u003e0.00177\u003c/strong\u003e, compared with \u003cstrong\u003e0.06464\u003c/strong\u003e for TF32.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 2: BF16 × FP32 Router GEMM latency at K = 4096, N = 192 on H20. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eM\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eFP32 cuBLAS\u003c/th\u003e\u003cth\u003eTF32 cuBLAS\u003c/th\u003e\u003cth\u003eSpeedup vs. FP32\u003c/th\u003e\u003cth\u003eSpeedup vs. TF32\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd\u003e11.200 µs\u003c/td\u003e\u003ctd\u003e14.576 µs\u003c/td\u003e\u003ctd\u003e14.048 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.30×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.25×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e11.744 µs\u003c/td\u003e\u003ctd\u003e23.808 µs\u003c/td\u003e\u003ctd\u003e18.752 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.03×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.60×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e48\u003c/td\u003e\u003ctd\u003e12.144 µs\u003c/td\u003e\u003ctd\u003e31.008 µs\u003c/td\u003e\u003ctd\u003e20.064 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.55×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.65×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e96\u003c/td\u003e\u003ctd\u003e13.904 µs\u003c/td\u003e\u003ctd\u003e31.760 µs\u003c/td\u003e\u003ctd\u003e24.720 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.28×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.78×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e208\u003c/td\u003e\u003ctd\u003e17.088 µs\u003c/td\u003e\u003ctd\u003e39.280 µs\u003c/td\u003e\u003ctd\u003e28.928 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.30×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.69×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e512\u003c/td\u003e\u003ctd\u003e26.992 µs\u003c/td\u003e\u003ctd\u003e86.976 µs\u003c/td\u003e\u003ctd\u003e44.736 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e3.22×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.66×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1024\u003c/td\u003e\u003ctd\u003e50.640 µs\u003c/td\u003e\u003ctd\u003e110.480 µs\u003c/td\u003e\u003ctd\u003e68.544 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.18×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.35×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2048\u003c/td\u003e\u003ctd\u003e76.688 µs\u003c/td\u003e\u003ctd\u003e198.576 µs\u003c/td\u003e\u003ctd\u003e100.800 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.59×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.31×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4096\u003c/td\u003e\u003ctd\u003e141.120 µs\u003c/td\u003e\u003ctd\u003e403.728 µs\u003c/td\u003e\u003ctd\u003e205.760 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.86×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.46×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cimg src=\"/images/blog/hpc-ops-sglang/h20-router-gemm-cublas.png\" alt=\"H20 Router GEMM numerical error and cuBLAS latency\"\u003e\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eFigure 2: Router GEMM numerical error relative to FP32 cuBLAS (left) and latency versus FP32 and TF32 cuBLAS (right). Lower is better.\u003c/em\u003e\u003c/p\u003e\n\u003cp\u003eWe then retest the two router shapes used by LongCat-Flash. Within SGLang's model-aware dispatch ranges, HPC-Ops delivers \u003cstrong\u003e1.06–2.83×\u003c/strong\u003e speedup for the Chat shape and \u003cstrong\u003e1.09–2.46×\u003c/strong\u003e for the Lite shape over the SGLang default.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 3: LongCat-Flash Router GEMM latency over the SGLang dispatch ranges on H20. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eM\u003c/th\u003e\u003cth\u003eChat default\u003c/th\u003e\u003cth\u003eChat HPC-Ops\u003c/th\u003e\u003cth\u003eSpeedup\u003c/th\u003e\u003cth\u003eLite default\u003c/th\u003e\u003cth\u003eLite HPC-Ops\u003c/th\u003e\u003cth\u003eSpeedup\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e64\u003c/td\u003e\u003ctd\u003e39.19 µs\u003c/td\u003e\u003ctd\u003e37.01 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.06×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e—\u003c/td\u003e\u003ctd\u003e—\u003c/td\u003e\u003ctd\u003e—\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e128\u003c/td\u003e\u003ctd\u003e74.18 µs\u003c/td\u003e\u003ctd\u003e59.36 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.25×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e25.83 µs\u003c/td\u003e\u003ctd\u003e23.72 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.09×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e256\u003c/td\u003e\u003ctd\u003e100.03 µs\u003c/td\u003e\u003ctd\u003e82.47 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.21×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e41.87 µs\u003c/td\u003e\u003ctd\u003e34.01 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.23×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e512\u003c/td\u003e\u003ctd\u003e190.37 µs\u003c/td\u003e\u003ctd\u003e141.73 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.34×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e71.89 µs\u003c/td\u003e\u003ctd\u003e41.95 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.71×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1024\u003c/td\u003e\u003ctd\u003e380.68 µs\u003c/td\u003e\u003ctd\u003e207.00 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.84×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e108.64 µs\u003c/td\u003e\u003ctd\u003e74.09 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.47×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2048\u003c/td\u003e\u003ctd\u003e961.15 µs\u003c/td\u003e\u003ctd\u003e339.04 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.83×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e235.81 µs\u003c/td\u003e\u003ctd\u003e106.81 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.21×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4096\u003c/td\u003e\u003ctd\u003e1469.70 µs\u003c/td\u003e\u003ctd\u003e670.14 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.19×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e423.52 µs\u003c/td\u003e\u003ctd\u003e172.44 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.46×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8192\u003c/td\u003e\u003ctd\u003e2881.00 µs\u003c/td\u003e\u003ctd\u003e1333.84 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.16×\u003c/strong\u003e\u003c/td\u003e\u003ctd\u003e835.22 µs\u003c/td\u003e\u003ctd\u003e339.66 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.46×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cimg src=\"/images/blog/hpc-ops-sglang/h20-router-gemm-longcat.png\" alt=\"H20 LongCat-Flash Router GEMM latency\"\u003e\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eFigure 3: Router GEMM latency on the LongCat-Flash Chat (left) and Lite (right) shapes over SGLang's dispatch ranges. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\u003cp\u003e\u003cstrong\u003eMoE.\u003c/strong\u003e\u003c/p\u003e\n\u003cp\u003eFor MoE, we benchmark the full fused operation under Hy3 shapes at TP8 / EP1 and TP1 / EP8 against SGLang, vLLM Triton, and vLLM CUTLASS. Taking the lowest latency among the three baselines in each row, HPC-Ops delivers a mean per-batch speedup of \u003cstrong\u003e1.08× at TP8 / EP1\u003c/strong\u003e and \u003cstrong\u003e1.21× at TP1 / EP8\u003c/strong\u003e, with the largest gains at the small-to-mid batch sizes common in low-latency decode.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 4: Hy3 MoE latency at TP8 / EP1 on H20. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eBatch\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eSGLang\u003c/th\u003e\u003cth\u003evLLM Triton\u003c/th\u003e\u003cth\u003evLLM CUTLASS\u003c/th\u003e\u003cth\u003eSpeedup vs. best\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e85.7 µs\u003c/td\u003e\u003ctd\u003e88.6 µs\u003c/td\u003e\u003ctd\u003e124.2 µs\u003c/td\u003e\u003ctd\u003e209.2 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.03×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e32\u003c/td\u003e\u003ctd\u003e124.0 µs\u003c/td\u003e\u003ctd\u003e137.2 µs\u003c/td\u003e\u003ctd\u003e184.3 µs\u003c/td\u003e\u003ctd\u003e275.6 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.11×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e64\u003c/td\u003e\u003ctd\u003e147.2 µs\u003c/td\u003e\u003ctd\u003e164.4 µs\u003c/td\u003e\u003ctd\u003e374.9 µs\u003c/td\u003e\u003ctd\u003e330.3 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.12×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e128\u003c/td\u003e\u003ctd\u003e161.5 µs\u003c/td\u003e\u003ctd\u003e179.9 µs\u003c/td\u003e\u003ctd\u003e302.9 µs\u003c/td\u003e\u003ctd\u003e345.3 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.11×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e256\u003c/td\u003e\u003ctd\u003e170.1 µs\u003c/td\u003e\u003ctd\u003e191.5 µs\u003c/td\u003e\u003ctd\u003e310.9 µs\u003c/td\u003e\u003ctd\u003e351.6 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.13×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e512\u003c/td\u003e\u003ctd\u003e194.5 µs\u003c/td\u003e\u003ctd\u003e230.1 µs\u003c/td\u003e\u003ctd\u003e331.6 µs\u003c/td\u003e\u003ctd\u003e369.2 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.18×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1024\u003c/td\u003e\u003ctd\u003e281.4 µs\u003c/td\u003e\u003ctd\u003e300.5 µs\u003c/td\u003e\u003ctd\u003e652.7 µs\u003c/td\u003e\u003ctd\u003e438.3 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.07×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2048\u003c/td\u003e\u003ctd\u003e491.8 µs\u003c/td\u003e\u003ctd\u003e522.5 µs\u003c/td\u003e\u003ctd\u003e731.5 µs\u003c/td\u003e\u003ctd\u003e794.4 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.06×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4096\u003c/td\u003e\u003ctd\u003e872.0 µs\u003c/td\u003e\u003ctd\u003e899.2 µs\u003c/td\u003e\u003ctd\u003e1366.0 µs\u003c/td\u003e\u003ctd\u003e1230.7 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.03×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8192\u003c/td\u003e\u003ctd\u003e1695.0 µs\u003c/td\u003e\u003ctd\u003e1712.7 µs\u003c/td\u003e\u003ctd\u003e2216.8 µs\u003c/td\u003e\u003ctd\u003e2362.9 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.01×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16384\u003c/td\u003e\u003ctd\u003e3241.9 µs\u003c/td\u003e\u003ctd\u003e3257.1 µs\u003c/td\u003e\u003ctd\u003e4329.1 µs\u003c/td\u003e\u003ctd\u003e4364.4 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.00×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cem\u003eTable 5: Hy3 MoE latency at TP1 / EP8 on H20. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eBatch\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eSGLang\u003c/th\u003e\u003cth\u003evLLM Triton\u003c/th\u003e\u003cth\u003evLLM CUTLASS\u003c/th\u003e\u003cth\u003eSpeedup vs. best\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e4\u003c/td\u003e\u003ctd\u003e118.6 µs\u003c/td\u003e\u003ctd\u003e183.1 µs\u003c/td\u003e\u003ctd\u003e147.4 µs\u003c/td\u003e\u003ctd\u003e140.4 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.18×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8\u003c/td\u003e\u003ctd\u003e136.7 µs\u003c/td\u003e\u003ctd\u003e231.5 µs\u003c/td\u003e\u003ctd\u003e192.8 µs\u003c/td\u003e\u003ctd\u003e170.7 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.25×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e149.8 µs\u003c/td\u003e\u003ctd\u003e234.2 µs\u003c/td\u003e\u003ctd\u003e198.4 µs\u003c/td\u003e\u003ctd\u003e263.5 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.32×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e32\u003c/td\u003e\u003ctd\u003e153.6 µs\u003c/td\u003e\u003ctd\u003e475.3 µs\u003c/td\u003e\u003ctd\u003e214.6 µs\u003c/td\u003e\u003ctd\u003e264.4 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.40×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e64\u003c/td\u003e\u003ctd\u003e166.5 µs\u003c/td\u003e\u003ctd\u003e477.3 µs\u003c/td\u003e\u003ctd\u003e358.1 µs\u003c/td\u003e\u003ctd\u003e266.8 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.60×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e128\u003c/td\u003e\u003ctd\u003e213.5 µs\u003c/td\u003e\u003ctd\u003e482.3 µs\u003c/td\u003e\u003ctd\u003e251.7 µs\u003c/td\u003e\u003ctd\u003e272.6 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.18×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e256\u003c/td\u003e\u003ctd\u003e386.2 µs\u003c/td\u003e\u003ctd\u003e494.3 µs\u003c/td\u003e\u003ctd\u003e454.9 µs\u003c/td\u003e\u003ctd\u003e493.5 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.18×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e512\u003c/td\u003e\u003ctd\u003e705.5 µs\u003c/td\u003e\u003ctd\u003e970.7 µs\u003c/td\u003e\u003ctd\u003e691.7 µs\u003c/td\u003e\u003ctd\u003e741.7 µs\u003c/td\u003e\u003ctd\u003e0.98×\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1024\u003c/td\u003e\u003ctd\u003e1342.6 µs\u003c/td\u003e\u003ctd\u003e1476.8 µs\u003c/td\u003e\u003ctd\u003e1369.1 µs\u003c/td\u003e\u003ctd\u003e1359.1 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.01×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2048\u003c/td\u003e\u003ctd\u003e2513.9 µs\u003c/td\u003e\u003ctd\u003e2871.2 µs\u003c/td\u003e\u003ctd\u003e2668.7 µs\u003c/td\u003e\u003ctd\u003e2530.4 µs\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e1.01×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cimg src=\"/images/blog/hpc-ops-sglang/h20-hy3-moe.png\" alt=\"H20 Hy3 MoE latency\"\u003e\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eFigure 4: Hy3 MoE latency across TP8 / EP1 and TP1 / EP8 configurations. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\u003ch3 id=\"h200-operator-validation\"\u003eH200 operator validation\u003c/h3\u003e\n\u003cp\u003eThe upstream PRs also include H200 serving results, confirming that the performance gains generalize across Hopper GPUs.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 6: Operator validation reported in the upstream SGLang pull requests.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eOperator\u003c/th\u003e\u003cth\u003eUpstream validation workload\u003c/th\u003e\u003cth\u003eComparison\u003c/th\u003e\u003cth\u003eResult\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003eFP8 Attention\u003c/td\u003e\u003ctd\u003eHy3-FP8 with FP8 KV cache; mixed-length decode\u003c/td\u003e\u003ctd\u003eHPC-Ops dynamic scheduling vs. HPC-Ops static split-KV\u003c/td\u003e\u003ctd\u003eOutput throughput \u003cstrong\u003e+2.0%\u003c/strong\u003e; total throughput \u003cstrong\u003e+2.0%\u003c/strong\u003e; median TTFT \u003cstrong\u003e−5.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eBF16 Attention\u003c/td\u003e\u003ctd\u003eQwen3 with BF16 KV cache; mixed-length decode\u003c/td\u003e\u003ctd\u003eHPC-Ops dynamic scheduling vs. HPC-Ops static split-KV\u003c/td\u003e\u003ctd\u003eOutput throughput \u003cstrong\u003e+3.0%\u003c/strong\u003e; mean E2E latency \u003cstrong\u003e−2.8%\u003c/strong\u003e; mean TPOT \u003cstrong\u003e−2.8%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eRouter GEMM\u003c/td\u003e\u003ctd\u003eLongCat-Flash Chat and Lite router shapes\u003c/td\u003e\u003ctd\u003eHPC-Ops Router GEMM vs. SGLang default\u003c/td\u003e\u003ctd\u003eKernel speedup: \u003cstrong\u003e1.56–4.31×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eMoE\u003c/td\u003e\u003ctd\u003eQwen3 FP8 MoE workloads from 1 to 4,096 tokens\u003c/td\u003e\u003ctd\u003eHPC-Ops MoE vs. SGLang Triton fused experts\u003c/td\u003e\u003ctd\u003eKernel speedup: \u003cstrong\u003e0.89–4.21×\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003ch3 id=\"end-to-end-performance\"\u003eEnd-to-end performance\u003c/h3\u003e\n\u003cp\u003eThe end-to-end evaluation runs on 8× NVIDIA H20 GPUs against the corresponding default SGLang implementations. On Hy3-FP8 at TP8 with FP8 KV cache, we measure the combined serving impact by enabling HPC-Ops Attention and MoE together. On LongCat-Flash-Lite-FP8, only Router GEMM is measured. We also summarize the H200 serving validation reported in the upstream SGLang pull requests.\u003c/p\u003e\n\u003cp\u003e\u003cstrong\u003eHy3-FP8: Attention and MoE.\u003c/strong\u003e\u003c/p\u003e\n\u003cp\u003eWith an 8K input and 4K output, HPC-Ops reduces TPOT by \u003cstrong\u003e3.3% at batch size 1\u003c/strong\u003e. Across batch sizes 4–64, the reduction grows to \u003cstrong\u003e15.1–48.8%\u003c/strong\u003e.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 7: Hy3-FP8 TPOT with FP8 KV cache and HPC-Ops Attention and MoE enabled together. Lower is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eBatch\u003c/th\u003e\u003cth\u003eSGLang default\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eImprovement\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd\u003e7.56 ms\u003c/td\u003e\u003ctd\u003e7.31 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e3.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4\u003c/td\u003e\u003ctd\u003e11.10 ms\u003c/td\u003e\u003ctd\u003e9.42 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e15.1%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8\u003c/td\u003e\u003ctd\u003e14.29 ms\u003c/td\u003e\u003ctd\u003e10.76 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e24.7%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e22.90 ms\u003c/td\u003e\u003ctd\u003e13.09 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e42.8%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e32\u003c/td\u003e\u003ctd\u003e35.33 ms\u003c/td\u003e\u003ctd\u003e18.09 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e48.8%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e64\u003c/td\u003e\u003ctd\u003e40.70 ms\u003c/td\u003e\u003ctd\u003e23.81 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e41.5%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003eWith an 8K input, HPC-Ops improves TTFT by \u003cstrong\u003e3.3–9.0% across batch sizes 1–16\u003c/strong\u003e.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 8: Hy3-FP8 TTFT with FP8 KV cache for an 8K input. Positive improvements mean lower latency.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eBatch\u003c/th\u003e\u003cth\u003eSGLang default\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eImprovement\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd\u003e460.67 ms\u003c/td\u003e\u003ctd\u003e419.43 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e9.0%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4\u003c/td\u003e\u003ctd\u003e1612.47 ms\u003c/td\u003e\u003ctd\u003e1533.66 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e4.9%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8\u003c/td\u003e\u003ctd\u003e3210.93 ms\u003c/td\u003e\u003ctd\u003e3018.68 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e6.0%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e5810.53 ms\u003c/td\u003e\u003ctd\u003e5619.48 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e3.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003eAt batch size 16, we also sweep the input length from 2K to 8K with chunked prefill and prefix caching disabled. HPC-Ops improves TTFT by \u003cstrong\u003e2.3–8.9%\u003c/strong\u003e across the three input lengths.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 9: Hy3-FP8 TTFT with FP8 KV cache across input lengths at batch size 16. Positive improvements mean lower latency.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eInput length\u003c/th\u003e\u003cth\u003eSGLang default\u003c/th\u003e\u003cth\u003eHPC-Ops\u003c/th\u003e\u003cth\u003eImprovement\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e2K\u003c/td\u003e\u003ctd\u003e1509.98 ms\u003c/td\u003e\u003ctd\u003e1375.95 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e8.9%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4K\u003c/td\u003e\u003ctd\u003e2779.46 ms\u003c/td\u003e\u003ctd\u003e2715.18 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e2.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8K\u003c/td\u003e\u003ctd\u003e5810.53 ms\u003c/td\u003e\u003ctd\u003e5619.48 ms\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e3.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cstrong\u003eLongCat-Flash-Lite-FP8: Router GEMM.\u003c/strong\u003e\u003c/p\u003e\n\u003cp\u003eRouter GEMM is evaluated separately with a 1,024-token input and a 128-token output. Input throughput remains near parity at batch size 1, with a \u003cstrong\u003e0.5% improvement\u003c/strong\u003e, and improves by \u003cstrong\u003e5.5–6.1%\u003c/strong\u003e across batch sizes 4–64.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 10: LongCat-Flash-Lite-FP8 input throughput with HPC-Ops Router GEMM. Higher is better.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eBatch\u003c/th\u003e\u003cth\u003eSGLang default\u003c/th\u003e\u003cth\u003eHPC-Ops Router GEMM\u003c/th\u003e\u003cth\u003eImprovement\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd\u003e16,612.11 tok/s\u003c/td\u003e\u003ctd\u003e16,695.77 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e0.5%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e4\u003c/td\u003e\u003ctd\u003e54,466.27 tok/s\u003c/td\u003e\u003ctd\u003e57,810.27 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e6.1%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e8\u003c/td\u003e\u003ctd\u003e60,425.93 tok/s\u003c/td\u003e\u003ctd\u003e63,833.96 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e5.6%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e16\u003c/td\u003e\u003ctd\u003e61,995.23 tok/s\u003c/td\u003e\u003ctd\u003e65,539.10 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e5.7%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e32\u003c/td\u003e\u003ctd\u003e62,833.85 tok/s\u003c/td\u003e\u003ctd\u003e66,306.52 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e5.5%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e64\u003c/td\u003e\u003ctd\u003e62,841.93 tok/s\u003c/td\u003e\u003ctd\u003e66,422.92 tok/s\u003c/td\u003e\u003ctd\u003e\u003cstrong\u003e5.7%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003e\u003cimg src=\"/images/blog/hpc-ops-sglang/h20-sglang-end-to-end.png\" alt=\"H20 SGLang end-to-end performance\"\u003e\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eFigure 5: End-to-end SGLang results. The three Hy3-FP8 panels use FP8 KV cache with HPC-Ops Attention and MoE enabled together; the bottom-right panel isolates Router GEMM.\u003c/em\u003e\u003c/p\u003e\n\u003ch3 id=\"h200-serving-validation\"\u003eH200 serving validation\u003c/h3\u003e\n\u003cp\u003eThe upstream pull requests also evaluated the integrated operators in the SGLang serving loop on H200, providing a model-level integration check beyond the primary H20 tuning target.\u003c/p\u003e\n\u003cp\u003e\u003cem\u003eTable 11: Model-level serving validation reported in the upstream SGLang pull requests.\u003c/em\u003e\u003c/p\u003e\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u003ctable\u003e\u003cthead\u003e\u003ctr\u003e\u003cth\u003eOperator\u003c/th\u003e\u003cth\u003eUpstream validation workload\u003c/th\u003e\u003cth\u003eComparison\u003c/th\u003e\u003cth\u003eResult\u003c/th\u003e\u003c/tr\u003e\u003c/thead\u003e\u003ctbody\u003e\u003ctr\u003e\u003ctd\u003eAttention\u003c/td\u003e\u003ctd\u003eHy3-FP8 with FP8 KV cache serving workloads\u003c/td\u003e\u003ctd\u003eHPC-Ops Attention vs. FlashAttention\u003c/td\u003e\u003ctd\u003eOutput throughput: \u003cstrong\u003e+3.7–5.9%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eRouter GEMM\u003c/td\u003e\u003ctd\u003eLongCat-Flash Lite prefill serving workloads\u003c/td\u003e\u003ctd\u003eHPC-Ops Router GEMM vs. SGLang default\u003c/td\u003e\u003ctd\u003eInput throughput: \u003cstrong\u003e+2.8–5.4%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eMoE\u003c/td\u003e\u003ctd\u003eQwen3 and Hy3 FP8 MoE serving workloads\u003c/td\u003e\u003ctd\u003eHPC-Ops MoE vs. SGLang default\u003c/td\u003e\u003ctd\u003eOutput throughput: Qwen3 from parity to \u003cstrong\u003e+2.7%\u003c/strong\u003e; Hy3 \u003cstrong\u003e−4.2% to +6.3%\u003c/strong\u003e\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\n\u003cp\u003eThe upstream integrations were also checked for numerical and model-level fidelity. Attention tests passed across BF16 and FP8, and the evaluated Hy3 FP8 greedy outputs matched the BF16 path token for token. Router GEMM passed comparisons against the FP32 reference and preserved greedy outputs. For Qwen3, the HPC-Ops MoE path matched Triton's error against FP32, with a cosine similarity of \u003cstrong\u003e0.99974\u003c/strong\u003e and a maximum relative error of \u003cstrong\u003e0.024\u003c/strong\u003e. Full configurations and per-case results are available in the upstream PRs.\u003c/p\u003e\n\u003ch2 id=\"whats-next\"\u003eWhat's next\u003c/h2\u003e\n\u003cp\u003eThis work is part of a broader collaboration between HPC-Ops and the SGLang community. We will continue working with SGLang maintainers and contributors to improve and extend these operators and upstream additional HPC-Ops capabilities as they mature. Feedback, issues, and benchmarks are very welcome, and we look forward to advancing open, high-performance LLM inference together.\u003c/p\u003e\n\u003ch2 id=\"acknowledgments\"\u003eAcknowledgments\u003c/h2\u003e\n\u003cp\u003eWe would like to thank the many people across teams who worked together to bring these operators to SGLang:\u003c/p\u003e\n\u003cul\u003e\n\u003cli\u003e\u003cstrong\u003eTencent Hunyuan AI Infra\u003c/strong\u003e — for building and optimizing the HPC-Ops Attention, Router GEMM, and MoE operators and contributing them to SGLang. Sethran Liu, Chase Shao, Shengy Wei, Theo Cheng, Ryann Xue, Lando Jiang, Looper Zhao, Haank Lin, Aiden Ren, Lehua Ding, Chengv Jiang, Steven Kuang, Liqi He, Kipper Gong, Reedlau Liu, Raccoon Liu, Dick Zhu.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eTencent Network Platform Department\u003c/strong\u003e — for the close collaboration on communication optimization. Xuan Zhang, Haoran Zhao, Yuanyuan Gong, Yadong Liu, Jinzhu Wang, Yinben Xia, Xiang Li, Quan Wen, Zekun He.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eSGLang\u003c/strong\u003e — for the open backend interfaces, reviews, and design discussions. Xiaoyu Zhang (BBuf), Xinyuan Tong, Ke Bao, and the entire SGLang team.\u003c/li\u003e\n\u003cli\u003e\u003cstrong\u003eNVIDIA\u003c/strong\u003e — for the close collaboration on kernel and performance optimization. Yuanhang Sun, Perkz Zheng, Yuxi Chi, Jiang Shao, Jun Gu, Meng Wang, River Liu, Gary Ji, Chandler Zhou.\u003c/li\u003e\n\u003c/ul\u003e\n\u003cp\u003eWe also thank the broader open-source kernel community whose work this builds on and measures against, including NVIDIA CUTLASS/CuTe, TensorRT-LLM, FlashInfer, FlashAttention, and Triton.\u003c/p\u003e"])</script><script>self.__next_f.push([1,"5:[\"$\",\"div\",null,{\"className\":\"blog-post\",\"children\":[[\"$\",\"$L10\",null,{\"href\":\"/blog\",\"className\":\"blog-post-back blog-post-back-mobile\",\"children\":\"‹ Back to Blog\"}],[\"$\",\"div\",null,{\"className\":\"blog-post-layout\",\"children\":[[\"$\",\"$L11\",null,{\"items\":[{\"id\":\"highlights\",\"text\":\"Highlights\",\"level\":2},{\"id\":\"attention-routing-and-experts-three-hot-paths-in-moe-model-serving\",\"text\":\"Attention, routing, and experts: three hot paths in MoE model serving\",\"level\":2},{\"id\":\"attention-load-balancing-for-mixed-length-decode\",\"text\":\"Attention: load balancing for mixed-length decode\",\"level\":2},{\"id\":\"scheduling-around-live-kv-work\",\"text\":\"Scheduling around live KV work\",\"level\":3},{\"id\":\"a-fused-attention-prologue\",\"text\":\"A fused attention prologue\",\"level\":3},{\"id\":\"router-gemm-balancing-routing-precision-and-throughput\",\"text\":\"Router GEMM: balancing routing precision and throughput\",\"level\":2},{\"id\":\"a-precision-aware-bf16-formulation\",\"text\":\"A precision-aware BF16 formulation\",\"level\":3},{\"id\":\"moe-reducing-overhead-around-small-expert-gemms\",\"text\":\"MoE: reducing overhead around small expert GEMMs\",\"level\":2},{\"id\":\"a-fused-latency-oriented-moe-pipeline\",\"text\":\"A fused, latency-oriented MoE pipeline\",\"level\":3},{\"id\":\"from-hpc-ops-kernels-to-sglang\",\"text\":\"From HPC-Ops kernels to SGLang\",\"level\":2},{\"id\":\"getting-started\",\"text\":\"Getting started\",\"level\":2},{\"id\":\"install\",\"text\":\"Install\",\"level\":3},{\"id\":\"attention-and-moe\",\"text\":\"Attention and MoE\",\"level\":3},{\"id\":\"router-gemm\",\"text\":\"Router GEMM\",\"level\":3},{\"id\":\"performance-evaluation\",\"text\":\"Performance evaluation\",\"level\":2},{\"id\":\"h20-operator-benchmarks\",\"text\":\"H20 operator benchmarks\",\"level\":3},{\"id\":\"h200-operator-validation\",\"text\":\"H200 operator validation\",\"level\":3},{\"id\":\"end-to-end-performance\",\"text\":\"End-to-end performance\",\"level\":3},{\"id\":\"h200-serving-validation\",\"text\":\"H200 serving validation\",\"level\":3},{\"id\":\"whats-next\",\"text\":\"What's next\",\"level\":2},{\"id\":\"acknowledgments\",\"text\":\"Acknowledgments\",\"level\":2}],\"backLink\":[\"$\",\"$L10\",null,{\"href\":\"/blog\",\"className\":\"blog-post-back\",\"children\":\"‹ Back to Blog\"}]}],[\"$\",\"div\",null,{\"className\":\"blog-post-content\",\"children\":[[\"$\",\"h1\",null,{\"className\":\"blog-post-title\",\"children\":\"HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan\"}],[\"$\",\"div\",null,{\"className\":\"blog-post-meta\",\"children\":[[\"$\",\"span\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"Tencent Hunyuan AI Infra and the SGLang Team\"}}],[\"$\",\"span\",null,{\"children\":\"August 7, 2026\"}]]}],[\"$\",\"div\",null,{\"dangerouslySetInnerHTML\":{\"__html\":\"$12\"}}]]}]]}],\"$L13\"]}]\n"])</script><script>self.__next_f.push([1,"14:I[3317,[\"619\",\"static/chunks/619-ba102abea3e3d0e4.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\",\"953\",\"static/chunks/app/blog/%5Bslug%5D/page-064a66d39876b379.js?dpl=dpl_4ytiebRzQfesUK9rKNb7r75wvN6u\"],\"default\"]\n13:[\"$\",\"$L14\",null,{}]\n"])</script><script>self.__next_f.push([1,"b:[[\"$\",\"meta\",\"0\",{\"charSet\":\"utf-8\"}],[\"$\",\"meta\",\"1\",{\"name\":\"viewport\",\"content\":\"width=device-width, initial-scale=1\"}]]\n7:null\n"])</script><script>self.__next_f.push([1,"15:I[622,[],\"IconMark\"]\n"])</script><script>self.__next_f.push([1,"9:{\"metadata\":[[\"$\",\"title\",\"0\",{\"children\":\"HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan - LMSYS Org\"}],[\"$\",\"meta\",\"1\",{\"name\":\"description\",\"content\":\"HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent's large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ...\"}],[\"$\",\"meta\",\"2\",{\"name\":\"robots\",\"content\":\"index, follow\"}],[\"$\",\"link\",\"3\",{\"rel\":\"canonical\",\"href\":\"https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/\"}],[\"$\",\"meta\",\"4\",{\"property\":\"og:title\",\"content\":\"HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan\"}],[\"$\",\"meta\",\"5\",{\"property\":\"og:description\",\"content\":\"HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent's large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ...\"}],[\"$\",\"meta\",\"6\",{\"property\":\"og:url\",\"content\":\"https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/\"}],[\"$\",\"meta\",\"7\",{\"property\":\"og:image:alt\",\"content\":\"LMSYS Blog post\"}],[\"$\",\"meta\",\"8\",{\"property\":\"og:image:type\",\"content\":\"image/png\"}],[\"$\",\"meta\",\"9\",{\"property\":\"og:image\",\"content\":\"https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/opengraph-image?846984fa349aff93\"}],[\"$\",\"meta\",\"10\",{\"property\":\"og:image:width\",\"content\":\"1200\"}],[\"$\",\"meta\",\"11\",{\"property\":\"og:image:height\",\"content\":\"630\"}],[\"$\",\"meta\",\"12\",{\"property\":\"og:type\",\"content\":\"article\"}],[\"$\",\"meta\",\"13\",{\"property\":\"article:published_time\",\"content\":\"August 7, 2026\"}],[\"$\",\"meta\",\"14\",{\"property\":\"article:author\",\"content\":\"Tencent Hunyuan AI Infra and the SGLang Team\"}],[\"$\",\"meta\",\"15\",{\"name\":\"twitter:card\",\"content\":\"summary_large_image\"}],[\"$\",\"meta\",\"16\",{\"name\":\"twitter:title\",\"content\":\"HPC-Ops × SGLang: High-Performance Attention, Router GEMM, and MoE Kernels from Tencent Hunyuan\"}],[\"$\",\"meta\",\"17\",{\"name\":\"twitter:description\",\"content\":\"HPC-Ops is an open-source operator library for LLM inference, deployed in Tencent's large-scale production serving. Its core operators, including Dynamic Attention and Fused MoE, play a critical role ...\"}],[\"$\",\"meta\",\"18\",{\"name\":\"twitter:image:alt\",\"content\":\"LMSYS Blog post\"}],[\"$\",\"meta\",\"19\",{\"name\":\"twitter:image:type\",\"content\":\"image/png\"}],[\"$\",\"meta\",\"20\",{\"name\":\"twitter:image\",\"content\":\"https://www.lmsys.org/blog/2026-08-07-hpc-ops-sglang/opengraph-image?846984fa349aff93\"}],[\"$\",\"meta\",\"21\",{\"name\":\"twitter:image:width\",\"content\":\"1200\"}],[\"$\",\"meta\",\"22\",{\"name\":\"twitter:image:height\",\"content\":\"630\"}],[\"$\",\"link\",\"23\",{\"rel\":\"icon\",\"href\":\"/icon.png?34f3ccaf20241762\",\"type\":\"image/png\",\"sizes\":\"512x512\"}],[\"$\",\"link\",\"24\",{\"rel\":\"apple-touch-icon\",\"href\":\"/apple-icon.png?06944fcedce56b35\",\"type\":\"image/png\",\"sizes\":\"180x180\"}],[\"$\",\"$L15\",\"25\",{}]],\"error\":null,\"digest\":\"$undefined\"}\n"])</script><script>self.__next_f.push([1,"e:\"$9:metadata\"\n"])</script></body></html>

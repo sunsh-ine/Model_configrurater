@@ -1,0 +1,22 @@
+# 运行配置样例。复制为 config/settings.yaml 后按需修改。
+storage:
+  db_path: data/local.db
+
+source:
+  excel_path: data/raw/Token产能计算器-0910.xlsx
+  official_manifest: data/sources/official_manifest.yaml
+
+calculation:
+  # 年度秒数：默认 365 天，不允许用"扣除维护日"的时间替代（见 §9 强制测试清单）
+  calculation_year_seconds: 31536000
+  # 金额单位转换：Token 价格单位 / 万元
+  token_price_unit: 1000000
+  ten_thousand: 10000
+  # 币种假设：Excel 未写明币种，必须显式记录悬而未决状态
+  currency_assumption: "CNY; pending business confirmation"
+  # 成本边界：本系统只覆盖 GPU 成本，不是完整 TCO
+  cost_scope: gpu_cost_only
+
+# 联网采集默认关闭。任何官方数据采集必须人工显式触发。
+network:
+  allow_fetch: false

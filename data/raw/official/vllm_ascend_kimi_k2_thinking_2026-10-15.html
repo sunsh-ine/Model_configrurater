@@ -1,0 +1,1291 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Kimi-K2-Thinking &#8212; vllm-ascend</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=4ec14770"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../_static/togglebutton.js?v=b8b12719"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/models/Kimi-K2-Thinking';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Kimi-K2.5" href="Kimi-K2.5.html" />
+    <link rel="prev" title="GLM-5.2" href="GLM5.2.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  <script async type="text/javascript" src="/_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="vllm-ascend" /><meta name="readthedocs-version-slug" content="v0.23.0rc1" /><meta name="readthedocs-resolver-filename" content="/tutorials/models/Kimi-K2-Thinking.html" /><meta name="readthedocs-http-status" content="200" /></head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/vllm-ascend-logo-text-light.png" class="logo__image only-light" alt="vllm-ascend - Home"/>
+    <img src="../../_static/vllm-ascend-logo-text-light.png" class="logo__image only-dark pst-js-only" alt="vllm-ascend - Home"/>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../quick_start.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Model Tutorials</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-Dense.html">Qwen3-Dense (Qwen3-0.6B/1.7B/4B/8B/14B/32B, W8A8, W4A8, W4A4, W8A8SC-310)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen-VL-Dense.html">Qwen-VL-Dense(Qwen3-VL-2B/4B/8B/32B)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-30B-A3B.html">Qwen3-30B-A3B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-235B-A22B.html">Qwen3-235B-A22B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-VL-30B-A3B-Instruct.html">Qwen3-VL-30B-A3B-Instruct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-VL-235B-A22B-Instruct.html">Qwen3-VL-235B-A22B-Instruct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-Coder-30B-A3B.html">Qwen3-Coder-30B-A3B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3_embedding.html">Qwen3-Embedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-VL-Embedding.html">Qwen3-VL-Embedding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3_reranker.html">Qwen3-Reranker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-VL-Reranker.html">Qwen3-VL-Reranker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-Next.html">Qwen3-Next</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-Omni-30B-A3B-Thinking.html">Qwen3-Omni-30B-A3B-Thinking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3.5-27B-Qwen3.6-27B.html">Qwen3.5-27B/Qwen3.6-27B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3.5-Dense.html">Qwen3.5-Dense (Qwen3.5-2B/4B/9B)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3.5-397B-A17B.html">Qwen3.5-397B-A17B Deployment Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3.6-35B-A3B.html">Qwen3.6-35B-A3B Deployment Tutorial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeek-V3.1.html">DeepSeek-V3/3.1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeek-V3.2.html">DeepSeek-V3.2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeek-V4-Flash.html">DeepSeek-V4-Flash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeek-V4-Pro.html">DeepSeek-V4-Pro</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeek-R1.html">DeepSeek-R1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="DeepSeekOCR2.html">DeepSeek-OCR-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="GLM4.x.html">GLM-4.5/4.6/4.7</a></li>
+<li class="toctree-l2"><a class="reference internal" href="GLM5.html">GLM-5/GLM-5.1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="GLM5.2.html">GLM-5.2</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Kimi-K2-Thinking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Kimi-K2.5.html">Kimi-K2.5</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Kimi-K2.6.html">Kimi-K2.6</a></li>
+<li class="toctree-l2"><a class="reference internal" href="PaddleOCR-VL.html">PaddleOCR-VL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="MiniMax-M2.html">MiniMax-M2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Hunyuan-A13B-Instruct.html">Hunyuan-A13B-Instruct</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Hy3-preview.html">Hy3-preview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Minitron-8B-Base.html">Minitron-8B-Base</a></li>
+<li class="toctree-l2"><a class="reference internal" href="LLaVA-OneVision-Qwen2-0.5B-OV.html">LLaVA-OneVision-Qwen2-0.5B-OV</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gpt-oss-120b.html">gpt-oss-120b</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Mixtral-8x7B-Instruct-v0.1.html">Mixtral-8x7B-Instruct-v0.1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen3-ASR-1.7B.html">Qwen3-ASR-1.7B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Qwen2.5-Math-RM-72B.html">Qwen2.5-Math-RM-72B</a></li>
+<li class="toctree-l2"><a class="reference internal" href="InternVL3.5.html">InternVL3.5(InternVL3_5-38B/241B-A28B)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../features/index.html">Feature Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../features/pd_colocated_mooncake_multi_instance.html">PD-Colocated with Mooncake Multi-Instance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/pd_disaggregation_mooncake_single_node.html">Prefill-Decode Disaggregation (Qwen2.5-VL)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/pd_disaggregation_mooncake_multi_node.html">Prefill-Decode Disaggregation (Deepseek)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/long_sequence_context_parallel_single_node.html">Long-Sequence Context Parallel (Qwen3-235B-A22B)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/long_sequence_context_parallel_multi_node.html">Long-Sequence Context Parallel (Deepseek)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/dynamic_chunked_pipeline_parallel.html">Dynamic Chunked Pipeline Parallel (DeepSeek-V3.1)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/suffix_speculative_decoding.html">Suffix Speculative Decoding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../features/ray.html">Ray Distributed (Qwen3-235B-A22B)</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../hardwares/index.html">Hardware Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../hardwares/310p.html">Atlas 300I DUO / Atlas 200I Pro</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">FAQs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../user_guide/support_matrix/index.html">Features and Models</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/support_matrix/supported_models.html">Supported Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/support_matrix/supported_features.html">Supported Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/support_matrix/feature_matrix.html">Feature × Feature</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../user_guide/configuration/index.html">Configuration Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/configuration/env_vars.html">Environment Variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/configuration/additional_config.html">Additional Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../user_guide/feature_guide/index.html">Feature Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/graph_mode.html">Graph Mode Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/cpu_binding.html">CPU Binding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/Ai_QoS_introduction_en.html">AI QoS Feature</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/quantization.html">Quantization Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/sleep_mode.html">Sleep Mode Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/structured_output.html">Structured Output Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/lora.html">LoRA Adapters Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/expert_parallelism_load_balancer.html">Expert Parallelism Load Balancer (EPLB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/netloader.html">Netloader Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/rfork.html">RFork Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/dynamic_batch.html">Dynamic Batch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/epd_disaggregation.html">Disaggregated-encoder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/kv_pool.html">KV Cache Pool（Ascend Store）Deployment Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/layerwise_kv_pool.html">Layerwise KV Pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/kv_cache_cpu_offload.html">KV Cache CPU Offload Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/recompute_cpu_offload.html">Recompute CPU Offload Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/external_dp.html">External DP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/large_scale_ep.html">Distributed DP Server With Large-Scale Expert Parallelism</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/ucm_deployment.html">UCM Store Deployment Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/Fine_grained_TP.html">Fine-Grained Tensor Parallelism (Fine-grained TP)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/layer_sharding.html">Layer Sharding Linear Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/speculative_decoding.html">Speculative Decoding Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/context_parallel.html">Context Parallel Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/weight_prefetch.html">Weight Prefetch Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/sequence_parallelism.html">Sequence Parallelism</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/batch_invariance.html">Batch Invariance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/lmcache_ascend_deployment.html">LMCache-Ascend Deployment Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/dynamic_chunk_pipeline_parallel.html">Dynamic Chunked Pipeline Parallel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/feature_guide/flash_attention.html">Flash Attention 3</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../user_guide/deployment_guide/index.html">Deployment Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/deployment_guide/using_volcano_kthena.html">Using Volcano Kthena</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../user_guide/deployment_guide/using_mindie_motor.html">Deploy vLLM-Ascend with MindIE-Motor</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/release_notes.html">Release Notes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../developer_guide/contribution/index.html">Contributing</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/contribution/testing.html">Testing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/contribution/doc_writing.html">Doc writing guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/contribution/multi_node_test.html">Multi Node Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/contribution/nightly_ci_test.html">Nightly CI Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/contribution/e2e_ci_test.html">E2E CI Test</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../developer_guide/Design_Documents/index.html">Design Documents</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/patch.html">Patch in vLLM Ascend</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/cpu_binding.html">CPU Binding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/ModelRunner_prepare_inputs.html">Prepare inputs for model forwarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/disaggregated_prefill.html">Disaggregated-prefill</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/eplb_swift_balancer.html">Expert Parallelism Load Balancer (EPLB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/ACL_Graph.html">ACL Graph</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/KV_Cache_Pool_Guide.html">KV Cache Pool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/add_custom_aclnn_op.html">Adding a custom aclnn operation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/context_parallel.html">Context Parallel (CP)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/dynamic_chunked_pipeline_parallel.html">Dynamic Chunked Pipeline Parallel (CPP)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/quantization.html">Quantization Adaptation Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/Design_Documents/npugraph_ex.html">Npugraph_ex</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../developer_guide/evaluation/index.html">Accuracy</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/evaluation/using_evalscope.html">Using EvalScope</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/evaluation/using_lm_eval.html">Using lm-eval</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/evaluation/using_ais_bench.html">Using AISBench</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/evaluation/using_opencompass.html">Using OpenCompass</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../developer_guide/performance_and_debug/index.html">Performance and Debug</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/performance_and_debug/performance_benchmark.html">Performance Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/performance_and_debug/optimization_and_tuning.html">Optimization and Tuning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/performance_and_debug/service_profiling_guide.html">Service Profiling Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../developer_guide/performance_and_debug/msprobe_guide.html">MSProbe Debugging Guide</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../community/governance.html">Governance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../community/contributors.html">Committers and Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../community/issue-workflow-guidelines.html">Issue Workflow Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../community/slash-commands.html">Slash Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../community/versioning_policy.html">Versioning Policy</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../community/user_stories/index.html">User Stories</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../community/user_stories/llamafactory.html">LLaMA-Factory</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/vllm-project/vllm-ascend" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/vllm-project/vllm-ascend/edit/main/docs/source/tutorials/models/Kimi-K2-Thinking.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/tutorials/models/Kimi-K2-Thinking.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Kimi-K2-Thinking</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#introduction">1 Introduction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-features">2 Supported Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">3 Prerequisites</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#model-weight">3.1 Model Weight</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">4 Installation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-image-installation">4.1 Docker Image Installation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#source-code-installation">4.2 Source Code Installation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#online-service-deployment">5 Online Service Deployment</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#single-node-online-deployment">5.1 Single-Node Online Deployment</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functional-verification">6 Functional Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-evaluation">7 Accuracy Evaluation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-aisbench">Using AISBench</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-lm-eval">Using lm-eval</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-evaluation">8 Performance Evaluation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-tuning">9 Performance Tuning</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-configurations">9.1 Recommended Configurations</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#table-1-scenario-overview">Table 1: Scenario Overview</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#table-2-detailed-recommendations">Table 2: Detailed Recommendations</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tuning-guidelines">9.2 Tuning Guidelines</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#general-tuning-reference">9.2.1 General Tuning Reference</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#faq">10 FAQ</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="kimi-k2-thinking">
+<h1>Kimi-K2-Thinking<a class="headerlink" href="#kimi-k2-thinking" title="Link to this heading">#</a></h1>
+<section id="introduction">
+<h2>1 Introduction<a class="headerlink" href="#introduction" title="Link to this heading">#</a></h2>
+<p>Kimi-K2-Thinking is a large-scale Mixture-of-Experts (MoE) model developed by Moonshot AI. It features a hybrid thinking architecture that excels in complex reasoning and problem-solving tasks.</p>
+<p>This document will demonstrate the main verification steps of the model, including supported features, environment preparation, installation, online service deployment, functional verification, accuracy evaluation, performance evaluation, performance tuning, and FAQ.</p>
+<p>This document is recommended to use the latest release candidate or official version.</p>
+</section>
+<section id="supported-features">
+<h2>2 Supported Features<a class="headerlink" href="#supported-features" title="Link to this heading">#</a></h2>
+<p>Refer to <a class="reference internal" href="../../user_guide/support_matrix/supported_models.html"><span class="std std-doc">supported features</span></a> to get the model’s supported feature matrix.</p>
+<p>Refer to <a class="reference internal" href="../../user_guide/feature_guide/index.html"><span class="std std-doc">feature guide</span></a> to get the feature’s configuration.</p>
+</section>
+<section id="prerequisites">
+<h2>3 Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<section id="model-weight">
+<h3>3.1 Model Weight<a class="headerlink" href="#model-weight" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Kimi-K2-Thinking</span></code> (bfloat16): requires 1 Atlas 800 A3 (64G x 16) node. <a class="reference external" href="https://huggingface.co/moonshotai/Kimi-K2-Thinking">Download model weight</a>.</p></li>
+</ul>
+<p>It is recommended to download the model weight to the shared directory, such as <code class="docutils literal notranslate"><span class="pre">/mnt/sfs_turbo/.cache/</span></code>.</p>
+<p>After downloading the model weights, please edit the value of <code class="docutils literal notranslate"><span class="pre">&quot;quantization_config.config_groups.group_0.targets&quot;</span></code> from <code class="docutils literal notranslate"><span class="pre">[&quot;Linear&quot;]</span></code> to <code class="docutils literal notranslate"><span class="pre">[&quot;MoE&quot;]</span></code> in <code class="docutils literal notranslate"><span class="pre">config.json</span></code> of the original model to verify the quantized model.</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;quantization_config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;config_groups&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;group_0&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;targets&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">          </span><span class="s2">&quot;MoE&quot;</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Your model files should look like:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>.
+<span class="p">|</span>--<span class="w"> </span>chat_template.jinja
+<span class="p">|</span>--<span class="w"> </span>config.json
+<span class="p">|</span>--<span class="w"> </span>configuration_deepseek.py
+<span class="p">|</span>--<span class="w"> </span>configuration.json
+<span class="p">|</span>--<span class="w"> </span>generation_config.json
+<span class="p">|</span>--<span class="w"> </span>model-00001-of-000062.safetensors
+<span class="p">|</span>--<span class="w"> </span>...
+<span class="p">|</span>--<span class="w"> </span>model-00062-of-000062.safetensors
+<span class="p">|</span>--<span class="w"> </span>model.safetensors.index.json
+<span class="p">|</span>--<span class="w"> </span>modeling_deepseek.py
+<span class="p">|</span>--<span class="w"> </span>tiktoken.model
+<span class="p">|</span>--<span class="w"> </span>tokenization_kimi.py
+<span class="p">|</span>--<span class="w"> </span>tokenizer_config.json
+</pre></div>
+</div>
+</section>
+</section>
+<section id="installation">
+<h2>4 Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<section id="docker-image-installation">
+<h3>4.1 Docker Image Installation<a class="headerlink" href="#docker-image-installation" title="Link to this heading">#</a></h3>
+<p>You can use the official Docker image to run <code class="docutils literal notranslate"><span class="pre">Kimi-K2-Thinking</span></code> directly.</p>
+<p>Select an image based on your machine type and start the Docker image on your node, refer to <a class="reference internal" href="../../installation.html#set-up-using-docker"><span class="std std-ref">using docker</span></a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">   </span><span class="c1"># Update the vllm-ascend image according to your environment.</span>
+<span class="w">   </span><span class="nb">export</span><span class="w"> </span><span class="nv">IMAGE</span><span class="o">=</span>quay.io/ascend/vllm-ascend:v0.23.0rc1-a3
+
+<span class="c1"># Run the container using the defined variables</span>
+<span class="c1"># Note: If you are running bridge network with docker, please expose available ports for multiple nodes communication in advance</span>
+docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+--name<span class="w"> </span><span class="nv">$NAME</span><span class="w"> </span><span class="se">\</span>
+--net<span class="o">=</span>host<span class="w"> </span><span class="se">\</span>
+--shm-size<span class="o">=</span>1g<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci0<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci1<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci2<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci3<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci4<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci5<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci6<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci7<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci8<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci9<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci10<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci11<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci12<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci13<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci14<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci15<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/davinci_manager<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/devmm_svm<span class="w"> </span><span class="se">\</span>
+--device<span class="w"> </span>/dev/hisi_hdc<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/usr/local/dcmi:/usr/local/dcmi<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/usr/local/Ascend/driver/tools/hccn_tool:/usr/local/Ascend/driver/tools/hccn_tool<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/usr/local/bin/npu-smi:/usr/local/bin/npu-smi<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/etc/ascend_install.info:/etc/ascend_install.info<span class="w"> </span><span class="se">\</span>
+-v<span class="w"> </span>/mnt/sfs_turbo/.cache:/home/cache<span class="w"> </span><span class="se">\</span>
+-it<span class="w"> </span><span class="nv">$IMAGE</span><span class="w"> </span>bash
+</pre></div>
+</div>
+<p><strong>Parameter Descriptions:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">IMAGE</span></code>: specifies the <code class="docutils literal notranslate"><span class="pre">vllm-ascend</span></code> image. The <code class="docutils literal notranslate"><span class="pre">-a3</span></code> suffix selects the Atlas A3 image.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NAME</span></code>: specifies the container name.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--net=host</span></code>: uses host networking, so the vLLM service port is exposed on the host directly.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--shm-size=1g</span></code>: configures container shared memory.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">/dev/davinci[0-15]</span></code>: exposes 16 Ascend NPU devices to the container.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">/dev/davinci_manager</span></code>, <code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">/dev/devmm_svm</span></code>, and <code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">/dev/hisi_hdc</span></code>: expose required Ascend runtime device files.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/usr/local/dcmi:/usr/local/dcmi</span></code>: mounts DCMI tools for device management.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/usr/local/bin/npu-smi:/usr/local/bin/npu-smi</span></code>: mounts the NPU monitoring command.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/usr/local/Ascend/driver/*</span></code>: mounts Ascend driver libraries and version files.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/etc/ascend_install.info:/etc/ascend_install.info</span></code>: mounts Ascend installation metadata.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/mnt/sfs_turbo/.cache:/home/cache</span></code>: mounts the shared model cache directory. Update it if you store model weights elsewhere.</p></li>
+</ul>
+<p>After the container starts, run the following command on the host to verify the container status:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>ps<span class="w"> </span>--filter<span class="w"> </span><span class="nv">name</span><span class="o">=</span>vllm-ascend<span class="w"> </span>--format<span class="w"> </span><span class="s2">&quot;table {{.Names}}\t{{.Status}}&quot;</span>
+</pre></div>
+</div>
+<p>Expected Status:</p>
+<ul class="simple">
+<li><p>The container name is <code class="docutils literal notranslate"><span class="pre">vllm-ascend</span></code>.</p></li>
+<li><p>The status is <code class="docutils literal notranslate"><span class="pre">Up</span> <span class="pre">...</span></code>.</p></li>
+<li><p>The container does not exit immediately.</p></li>
+</ul>
+<p>Run the following command in the container to verify that Ascend devices are visible:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>npu-smi<span class="w"> </span>info
+</pre></div>
+</div>
+<p>Expected Status:</p>
+<ul class="simple">
+<li><p>The command exits successfully.</p></li>
+<li><p>The output lists the expected NPU devices.</p></li>
+<li><p>Device health status is normal.</p></li>
+</ul>
+</section>
+<section id="source-code-installation">
+<h3>4.2 Source Code Installation<a class="headerlink" href="#source-code-installation" title="Link to this heading">#</a></h3>
+<p>If you do not want to use the Docker image, you can also build from source:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install vLLM.</span>
+git<span class="w"> </span>clone<span class="w"> </span>--depth<span class="w"> </span><span class="m">1</span><span class="w"> </span>--branch<span class="w"> </span>v0.23.0<span class="w"> </span>https://github.com/vllm-project/vllm
+<span class="nb">cd</span><span class="w"> </span>vllm
+<span class="nv">VLLM_TARGET_DEVICE</span><span class="o">=</span>empty<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<span class="nb">cd</span><span class="w"> </span>..
+
+<span class="c1"># Install vLLM Ascend.</span>
+git<span class="w"> </span>clone<span class="w"> </span>--depth<span class="w"> </span><span class="m">1</span><span class="w"> </span>--branch<span class="w"> </span>v0.23.0rc1<span class="w"> </span>https://github.com/vllm-project/vllm-ascend.git
+<span class="nb">cd</span><span class="w"> </span>vllm-ascend
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>To verify the source installation, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import vllm; import vllm_ascend; print(&#39;vllm and vllm_ascend import ok&#39;)&quot;</span>
+</pre></div>
+</div>
+<p>Expected Status:</p>
+<ul class="simple">
+<li><p>The command exits successfully.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">vllm</span> <span class="pre">and</span> <span class="pre">vllm_ascend</span> <span class="pre">import</span> <span class="pre">ok</span></code> is printed.</p></li>
+</ul>
+<p>If you want to deploy a multi-node environment, set up the same software environment on each node.</p>
+</section>
+</section>
+<section id="online-service-deployment">
+<h2>5 Online Service Deployment<a class="headerlink" href="#online-service-deployment" title="Link to this heading">#</a></h2>
+<section id="single-node-online-deployment">
+<h3>5.1 Single-Node Online Deployment<a class="headerlink" href="#single-node-online-deployment" title="Link to this heading">#</a></h3>
+<p>Single-node deployment completes both Prefill and Decode within the same node, suitable for online inference scenarios with moderate concurrency requirements.</p>
+<p>For an Atlas 800 A3 (64G x 16) node, <code class="docutils literal notranslate"><span class="pre">tensor-parallel-size</span></code> should be at least 16.</p>
+<p>Run the following script to start the vLLM server:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">HCCL_BUFFSIZE</span><span class="o">=</span><span class="m">1024</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TASK_QUEUE_ENABLE</span><span class="o">=</span><span class="m">1</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">OMP_PROC_BIND</span><span class="o">=</span><span class="nb">false</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">HCCL_OP_EXPANSION_MODE</span><span class="o">=</span>AIV
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTORCH_NPU_ALLOC_CONF</span><span class="o">=</span>expandable_segments:True
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_PORT</span><span class="o">=</span><span class="m">8000</span>
+
+vllm<span class="w"> </span>serve<span class="w"> </span>moonshotai/Kimi-K2-Thinking<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tensor-parallel-size<span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--port<span class="w"> </span><span class="nv">$SERVER_PORT</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-model-len<span class="w"> </span><span class="m">8192</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-num-batched-tokens<span class="w"> </span><span class="m">8192</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-num-seqs<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--gpu-memory-utilization<span class="w"> </span><span class="m">0</span>.9<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--trust-remote-code<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--enable-expert-parallel<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--no-enable-prefix-caching
+</pre></div>
+</div>
+<p><strong>Parameter and Environment Variable Descriptions:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">HCCL_BUFFSIZE=1024</span></code>: configures the HCCL buffer size.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">TASK_QUEUE_ENABLE=1</span></code>: enables task queue scheduling.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">OMP_PROC_BIND=false</span></code>: avoids overly strict OpenMP CPU binding.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">HCCL_OP_EXPANSION_MODE=AIV</span></code>: enables the AIV communication path.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PYTORCH_NPU_ALLOC_CONF=expandable_segments:True</span></code>: reduces NPU memory fragmentation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SERVER_PORT</span></code>: sets the service port. The generated script maps <code class="docutils literal notranslate"><span class="pre">DEFAULT_PORT</span></code> to <code class="docutils literal notranslate"><span class="pre">8000</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--tensor-parallel-size</span> <span class="pre">16</span></code>: uses 16-way tensor parallelism on the A3 node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-model-len</span> <span class="pre">8192</span></code>: sets the maximum model context length.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-num-batched-tokens</span> <span class="pre">8192</span></code>: sets the maximum number of batched tokens.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span> <span class="pre">12</span></code>: sets the maximum number of concurrent sequences.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--gpu-memory-utilization</span> <span class="pre">0.9</span></code>: controls the memory ratio used by vLLM.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--trust-remote-code</span></code>: allows loading model-specific remote code.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--enable-expert-parallel</span></code>: enables expert parallelism for MoE layers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--no-enable-prefix-caching</span></code>: disables prefix caching for a stable baseline.</p></li>
+</ul>
+<p><strong>Service Verification:</strong></p>
+<p>After the service starts, you should see logs similar to:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>INFO:<span class="w">     </span>Started<span class="w"> </span>server<span class="w"> </span>process<span class="w"> </span><span class="o">[</span>...<span class="o">]</span>
+INFO:<span class="w">     </span>Waiting<span class="w"> </span><span class="k">for</span><span class="w"> </span>application<span class="w"> </span>startup.
+INFO:<span class="w">     </span>Application<span class="w"> </span>startup<span class="w"> </span>complete.
+</pre></div>
+</div>
+<p>Expected Status:</p>
+<ul class="simple">
+<li><p>The server process starts successfully.</p></li>
+<li><p>No error logs related to HCCL or NPU initialization.</p></li>
+<li><p>The container does not exit immediately.</p></li>
+</ul>
+</section>
+</section>
+<section id="functional-verification">
+<h2>6 Functional Verification<a class="headerlink" href="#functional-verification" title="Link to this heading">#</a></h2>
+<p>After the service is started, the model can be invoked by sending a prompt:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>http://localhost:8000/v1/chat/completions<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">  &quot;model&quot;: &quot;moonshotai/Kimi-K2-Thinking&quot;,</span>
+<span class="s1">  &quot;messages&quot;: [</span>
+<span class="s1">    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Who are you?&quot;}</span>
+<span class="s1">  ],</span>
+<span class="s1">  &quot;temperature&quot;: 1.0</span>
+<span class="s1">}&#39;</span>
+</pre></div>
+</div>
+<p>Expected Result:</p>
+<ul class="simple">
+<li><p>The HTTP status code is <code class="docutils literal notranslate"><span class="pre">200</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">choices[0].message.content</span></code> contains the generated assistant response.</p></li>
+</ul>
+</section>
+<section id="accuracy-evaluation">
+<h2>7 Accuracy Evaluation<a class="headerlink" href="#accuracy-evaluation" title="Link to this heading">#</a></h2>
+<section id="using-aisbench">
+<h3>Using AISBench<a class="headerlink" href="#using-aisbench" title="Link to this heading">#</a></h3>
+<p>For details, please refer to <a class="reference internal" href="../../developer_guide/evaluation/using_ais_bench.html"><span class="std std-doc">Using AISBench</span></a>.</p>
+</section>
+<section id="using-lm-eval">
+<h3>Using lm-eval<a class="headerlink" href="#using-lm-eval" title="Link to this heading">#</a></h3>
+<p>You can use <a class="reference external" href="https://github.com/EleutherAI/lm-evaluation-harness">lm-eval</a> to evaluate the model accuracy through the OpenAI-compatible API.</p>
+<p>For <code class="docutils literal notranslate"><span class="pre">lm_eval</span></code> installation, please refer to <a class="reference internal" href="../../developer_guide/evaluation/using_lm_eval.html"><span class="std std-doc">Using lm_eval</span></a>.</p>
+<p>Run <code class="docutils literal notranslate"><span class="pre">lm_eval</span></code> to execute the accuracy evaluation:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>lm_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model<span class="w"> </span>local-completions<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_args<span class="w"> </span><span class="nv">model</span><span class="o">=</span>moonshotai/Kimi-K2-Thinking,base_url<span class="o">=</span>http://127.0.0.1:8000/v1/completions,tokenized_requests<span class="o">=</span>False,trust_remote_code<span class="o">=</span>True<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--tasks<span class="w"> </span>gsm8k<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_path<span class="w"> </span>./
+</pre></div>
+</div>
+<p>Reference configuration: <code class="docutils literal notranslate"><span class="pre">gsm8k</span></code> (5-shot), <code class="docutils literal notranslate"><span class="pre">--apply_chat_template</span></code>, <code class="docutils literal notranslate"><span class="pre">--fewshot_as_multiturn</span></code>, greedy decoding (<code class="docutils literal notranslate"><span class="pre">temperature=0.0</span></code>, <code class="docutils literal notranslate"><span class="pre">top_p=1.0</span></code>), max 2048 output tokens, batch size 1.</p>
+<p>Below are reference <code class="docutils literal notranslate"><span class="pre">gsm8k</span></code> results for <code class="docutils literal notranslate"><span class="pre">Kimi-K2-Thinking</span></code> powered by <code class="docutils literal notranslate"><span class="pre">vllm-ascend:v0.20.2rc1</span></code>, evaluated on one Atlas 800 A3 node (64G × 16).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>task</p></th>
+<th class="head text-right"><p>version</p></th>
+<th class="head"><p>filter</p></th>
+<th class="head text-right"><p>n-shot</p></th>
+<th class="head"><p>metric</p></th>
+<th class="head text-right"><p>value</p></th>
+<th class="head text-right"><p>stderr</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gsm8k</span></code></p></td>
+<td class="text-right"><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">flexible-extract</span></code></p></td>
+<td class="text-right"><p>5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exact_match</span></code></p></td>
+<td class="text-right"><p>0.8992</p></td>
+<td class="text-right"><p>0.0083</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gsm8k</span></code></p></td>
+<td class="text-right"><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">strict-match</span></code></p></td>
+<td class="text-right"><p>5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exact_match</span></code></p></td>
+<td class="text-right"><p>0.8453</p></td>
+<td class="text-right"><p>0.0100</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="performance-evaluation">
+<h2>8 Performance Evaluation<a class="headerlink" href="#performance-evaluation" title="Link to this heading">#</a></h2>
+<p>Refer to <a class="reference external" href="https://docs.vllm.ai/en/latest/benchmarking/">vllm benchmark</a> for more details.</p>
+<p><strong>Test Command Example:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vllm<span class="w"> </span>bench<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--backend<span class="w"> </span>openai-chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model<span class="w"> </span>moonshotai/Kimi-K2-Thinking<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--endpoint<span class="w"> </span>/v1/chat/completions<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dataset-name<span class="w"> </span>random<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--random-input-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--random-output-len<span class="w"> </span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--num-prompts<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--request-rate<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>After the benchmark completes, you can get the performance result, including request throughput, output token throughput, TTFT, TPOT, and ITL.</p>
+<p>The following reference results are obtained with <code class="docutils literal notranslate"><span class="pre">vllm-ascend:v0.20.2rc1</span></code> on one Atlas 800 A3 node (64G × 16), using OpenAI chat serving, random input/output lengths, 10 prompts, and <code class="docutils literal notranslate"><span class="pre">--request-rate</span> <span class="pre">1</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>random input len</p></th>
+<th class="head text-right"><p>random output len</p></th>
+<th class="head text-right"><p>success</p></th>
+<th class="head text-right"><p>duration (s)</p></th>
+<th class="head text-right"><p>request throughput (req/s)</p></th>
+<th class="head text-right"><p>output throughput (tok/s)</p></th>
+<th class="head text-right"><p>total throughput (tok/s)</p></th>
+<th class="head text-right"><p>mean TTFT (ms)</p></th>
+<th class="head text-right"><p>mean TPOT (ms)</p></th>
+<th class="head text-right"><p>mean ITL (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>512</p></td>
+<td class="text-right"><p>512</p></td>
+<td class="text-right"><p>10 / 10</p></td>
+<td class="text-right"><p>111.00</p></td>
+<td class="text-right"><p>0.09</p></td>
+<td class="text-right"><p>46.12</p></td>
+<td class="text-right"><p>94.38</p></td>
+<td class="text-right"><p>507.60</p></td>
+<td class="text-right"><p>200.47</p></td>
+<td class="text-right"><p>200.08</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>1024</p></td>
+<td class="text-right"><p>1024</p></td>
+<td class="text-right"><p>10 / 10</p></td>
+<td class="text-right"><p>221.52</p></td>
+<td class="text-right"><p>0.05</p></td>
+<td class="text-right"><p>46.23</p></td>
+<td class="text-right"><p>93.48</p></td>
+<td class="text-right"><p>566.39</p></td>
+<td class="text-right"><p>208.20</p></td>
+<td class="text-right"><p>208.00</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>2048</p></td>
+<td class="text-right"><p>2048</p></td>
+<td class="text-right"><p>10 / 10</p></td>
+<td class="text-right"><p>479.72</p></td>
+<td class="text-right"><p>0.02</p></td>
+<td class="text-right"><p>42.69</p></td>
+<td class="text-right"><p>85.78</p></td>
+<td class="text-right"><p>722.32</p></td>
+<td class="text-right"><p>230.26</p></td>
+<td class="text-right"><p>230.15</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>For a concurrency sweep, keep the input and output length fixed and vary <code class="docutils literal notranslate"><span class="pre">--max-concurrency</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MODEL_NAME</span><span class="o">=</span>moonshotai/Kimi-K2-Thinking
+<span class="nv">INPUT_LEN</span><span class="o">=</span><span class="m">1024</span>
+<span class="nv">OUTPUT_LEN</span><span class="o">=</span><span class="m">1024</span>
+
+<span class="k">for</span><span class="w"> </span>CONCURRENCY<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="m">16</span><span class="w"> </span><span class="m">32</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="nv">NUM_PROMPTS</span><span class="o">=</span><span class="k">$((</span><span class="nv">CONCURRENCY</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="m">10</span><span class="k">))</span>
+<span class="w">  </span>vllm<span class="w"> </span>bench<span class="w"> </span>serve<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--backend<span class="w"> </span>openai-chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MODEL_NAME</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--endpoint<span class="w"> </span>/v1/chat/completions<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset-name<span class="w"> </span>random<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--random-input-len<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$INPUT_LEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--random-output-len<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$OUTPUT_LEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-prompts<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$NUM_PROMPTS</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--request-rate<span class="w"> </span>inf<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-concurrency<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CONCURRENCY</span><span class="s2">&quot;</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>Reference results for 1024 input tokens and 1024 output tokens are:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>max concurrency</p></th>
+<th class="head text-right"><p>prompts</p></th>
+<th class="head text-right"><p>success</p></th>
+<th class="head text-right"><p>duration (s)</p></th>
+<th class="head text-right"><p>request throughput (req/s)</p></th>
+<th class="head text-right"><p>output throughput (tok/s)</p></th>
+<th class="head text-right"><p>total throughput (tok/s)</p></th>
+<th class="head text-right"><p>mean TTFT (ms)</p></th>
+<th class="head text-right"><p>P99 TTFT (ms)</p></th>
+<th class="head text-right"><p>mean TPOT (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>1</p></td>
+<td class="text-right"><p>10</p></td>
+<td class="text-right"><p>10 / 10</p></td>
+<td class="text-right"><p>595.07</p></td>
+<td class="text-right"><p>0.02</p></td>
+<td class="text-right"><p>17.21</p></td>
+<td class="text-right"><p>34.80</p></td>
+<td class="text-right"><p>473.71</p></td>
+<td class="text-right"><p>712.49</p></td>
+<td class="text-right"><p>57.71</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>2</p></td>
+<td class="text-right"><p>20</p></td>
+<td class="text-right"><p>20 / 20</p></td>
+<td class="text-right"><p>623.88</p></td>
+<td class="text-right"><p>0.03</p></td>
+<td class="text-right"><p>32.83</p></td>
+<td class="text-right"><p>66.35</p></td>
+<td class="text-right"><p>708.16</p></td>
+<td class="text-right"><p>996.59</p></td>
+<td class="text-right"><p>60.29</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>4</p></td>
+<td class="text-right"><p>40</p></td>
+<td class="text-right"><p>40 / 40</p></td>
+<td class="text-right"><p>725.38</p></td>
+<td class="text-right"><p>0.06</p></td>
+<td class="text-right"><p>56.47</p></td>
+<td class="text-right"><p>114.13</p></td>
+<td class="text-right"><p>956.11</p></td>
+<td class="text-right"><p>1137.55</p></td>
+<td class="text-right"><p>69.97</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>8</p></td>
+<td class="text-right"><p>80</p></td>
+<td class="text-right"><p>80 / 80</p></td>
+<td class="text-right"><p>907.44</p></td>
+<td class="text-right"><p>0.09</p></td>
+<td class="text-right"><p>90.28</p></td>
+<td class="text-right"><p>182.43</p></td>
+<td class="text-right"><p>1361.85</p></td>
+<td class="text-right"><p>1900.15</p></td>
+<td class="text-right"><p>87.37</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>16</p></td>
+<td class="text-right"><p>160</p></td>
+<td class="text-right"><p>160 / 160</p></td>
+<td class="text-right"><p>3093.07</p></td>
+<td class="text-right"><p>0.05</p></td>
+<td class="text-right"><p>52.97</p></td>
+<td class="text-right"><p>107.04</p></td>
+<td class="text-right"><p>76766.84</p></td>
+<td class="text-right"><p>251245.22</p></td>
+<td class="text-right"><p>222.07</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<div><p><strong>Note:</strong> At concurrency levels of 16, the Mean TTFT increases significantly (76.7s), indicating severe queueing delay. For production deployment, it is recommended to limit concurrency based on your latency requirements or increase <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> and <code class="docutils literal notranslate"><span class="pre">--max-num-batched-tokens</span></code> if NPU memory allows.</p>
+</div></blockquote>
+</section>
+<section id="performance-tuning">
+<h2>9 Performance Tuning<a class="headerlink" href="#performance-tuning" title="Link to this heading">#</a></h2>
+<section id="recommended-configurations">
+<h3>9.1 Recommended Configurations<a class="headerlink" href="#recommended-configurations" title="Link to this heading">#</a></h3>
+<blockquote>
+<div><p><strong>Note:</strong> The following configurations are validated in specific test environments and are for reference only. The optimal configuration depends on factors such as maximum input/output length, prefix cache hit rate, precision requirements, and deployment machine ratios. It is recommended to refer to Section 9.2 for tuning based on actual conditions.</p>
+</div></blockquote>
+<section id="table-1-scenario-overview">
+<h4>Table 1: Scenario Overview<a class="headerlink" href="#table-1-scenario-overview" title="Link to this heading">#</a></h4>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Scenario</p></th>
+<th class="head"><p>Deployment Mode</p></th>
+<th class="head"><p>Total NPUs</p></th>
+<th class="head"><p>Weight Version</p></th>
+<th class="head"><p>Key Considerations</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Long Context</p></td>
+<td><p>Single-node</p></td>
+<td><p>16 (A3)</p></td>
+<td><p>bfloat16</p></td>
+<td><p>Keep <code class="docutils literal notranslate"><span class="pre">--max-model-len</span></code> close to the real maximum input and output length; reduce <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> first when memory pressure is high.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Low Latency</p></td>
+<td><p>Single-node</p></td>
+<td><p>16 (A3)</p></td>
+<td><p>bfloat16</p></td>
+<td><p>Reduce <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> and <code class="docutils literal notranslate"><span class="pre">--max-num-batched-tokens</span></code> to reduce queueing delay.</p></td>
+</tr>
+<tr class="row-even"><td><p>High Throughput</p></td>
+<td><p>Single-node</p></td>
+<td><p>16 (A3)</p></td>
+<td><p>bfloat16</p></td>
+<td><p>Increase <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> gradually and benchmark with a request rate close to the real workload.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="table-2-detailed-recommendations">
+<h4>Table 2: Detailed Recommendations<a class="headerlink" href="#table-2-detailed-recommendations" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Long context:</strong> use <code class="docutils literal notranslate"><span class="pre">tp16</span></code>, keep <code class="docutils literal notranslate"><span class="pre">--max-model-len</span></code> close to the real maximum input and output length, and reduce <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> first when memory pressure is high.</p></li>
+<li><p><strong>Low latency:</strong> reduce <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> and <code class="docutils literal notranslate"><span class="pre">--max-num-batched-tokens</span></code> to reduce queueing delay.</p></li>
+<li><p><strong>High throughput:</strong> increase <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> gradually and benchmark with a request rate close to the real workload. For long-context throughput tests, evaluate <code class="docutils literal notranslate"><span class="pre">--decode-context-parallel-size</span></code> as an optional tuning knob.</p></li>
+<li><p>For 1024 input tokens and 1024 output tokens in the reference concurrency sweep, <code class="docutils literal notranslate"><span class="pre">--max-concurrency</span> <span class="pre">8</span></code> had the best output throughput. Higher concurrency increased TTFT significantly, so validate tail latency before using it in production.</p></li>
+</ul>
+<blockquote>
+<div><p><strong>Note:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-model-len</span></code> and <code class="docutils literal notranslate"><span class="pre">--max-num-seqs</span></code> need to be set according to the actual usage scenario.</p></li>
+<li><p>If the service runs under high concurrency, verify NPU health and HCCL status before increasing request rate.</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="tuning-guidelines">
+<h3>9.2 Tuning Guidelines<a class="headerlink" href="#tuning-guidelines" title="Link to this heading">#</a></h3>
+<section id="general-tuning-reference">
+<h4>9.2.1 General Tuning Reference<a class="headerlink" href="#general-tuning-reference" title="Link to this heading">#</a></h4>
+<p>Please refer to the <a class="reference internal" href="../../developer_guide/performance_and_debug/optimization_and_tuning.html"><span class="std std-doc">Public Performance Tuning Documentation</span></a> for general tuning methods.</p>
+<p>Please refer to the <a class="reference internal" href="../../user_guide/support_matrix/feature_matrix.html"><span class="std std-doc">Feature Guide</span></a> for detailed feature descriptions.</p>
+</section>
+</section>
+</section>
+<section id="faq">
+<h2>10 FAQ<a class="headerlink" href="#faq" title="Link to this heading">#</a></h2>
+<blockquote>
+<div><p>For common environment, installation, and general parameter issues, please refer to the <a class="reference external" href="https://docs.vllm.ai/projects/ascend/en/latest/faqs.html">Public FAQ</a>; this chapter only covers model-specific issues.</p>
+</div></blockquote>
+<ul>
+<li><p><strong>Q: API returns <code class="docutils literal notranslate"><span class="pre">{&quot;error&quot;:&quot;Model</span> <span class="pre">not</span> <span class="pre">found&quot;}</span></code> or <code class="docutils literal notranslate"><span class="pre">404</span></code> when requesting with <code class="docutils literal notranslate"><span class="pre">model:</span> <span class="pre">&quot;Kimi-K2-Thinking&quot;</span></code>?</strong></p>
+<p>A: The server registers the model under its full path <code class="docutils literal notranslate"><span class="pre">moonshotai/Kimi-K2-Thinking</span></code> by default. When the request uses the short name <code class="docutils literal notranslate"><span class="pre">Kimi-K2-Thinking</span></code> without <code class="docutils literal notranslate"><span class="pre">--served-model-name</span></code> override, the server cannot resolve the model ID. Use <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;moonshotai/Kimi-K2-Thinking&quot;</span></code> in requests, or start the server with <code class="docutils literal notranslate"><span class="pre">--served-model-name</span> <span class="pre">Kimi-K2-Thinking</span></code> to enable the short name.</p>
+</li>
+</ul>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="GLM5.2.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">GLM-5.2</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="Kimi-K2.5.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Kimi-K2.5</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#introduction">1 Introduction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-features">2 Supported Features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">3 Prerequisites</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#model-weight">3.1 Model Weight</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">4 Installation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-image-installation">4.1 Docker Image Installation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#source-code-installation">4.2 Source Code Installation</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#online-service-deployment">5 Online Service Deployment</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#single-node-online-deployment">5.1 Single-Node Online Deployment</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functional-verification">6 Functional Verification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-evaluation">7 Accuracy Evaluation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-aisbench">Using AISBench</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-lm-eval">Using lm-eval</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-evaluation">8 Performance Evaluation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-tuning">9 Performance Tuning</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-configurations">9.1 Recommended Configurations</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#table-1-scenario-overview">Table 1: Scenario Overview</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#table-2-detailed-recommendations">Table 2: Detailed Recommendations</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tuning-guidelines">9.2 Tuning Guidelines</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#general-tuning-reference">9.2.1 General Tuning Reference</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#faq">10 FAQ</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By the vllm-ascend team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, vllm-ascend team.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

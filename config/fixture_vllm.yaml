@@ -1,0 +1,26 @@
+# vLLM bench serve 适配器元数据 —— 合成 fixture
+evidence_id: fixture_vllm_synthetic
+record_id: fixture_vllm_synthetic_rec
+format_version: vllm-bench-serve-json/v1
+performance_source_kind: synthetic_fixture
+verification_status: synthetic_fixture
+
+model_name: SYNTHETIC-MODEL-B
+hardware_model: SYNTHETIC-GPU-B
+deployment_gpu_count: 2
+framework_version: null
+model_revision: null
+dataset_name: null
+dataset_digest: null
+
+metric_definitions:
+  note: "人工构造的 vllm bench serve 结果 JSON，字段名沿用官方脚本输出名"
+
+evidence:
+  publisher: synthetic_fixture
+  source_url: null
+  source_version: "synthetic/v1"
+  notes: >-
+    人工构造的合法小型 vLLM bench serve 结果样例。故意**只提供 mean_itl_ms 与
+    p99_itl_ms，不提供 mean_tpot_ms / p99_tpot_ms**，用于验证适配器拒绝用 ITL 顶替
+    TPOT。不是真实测量结果。
