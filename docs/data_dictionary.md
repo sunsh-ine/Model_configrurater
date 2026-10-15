@@ -399,3 +399,43 @@ Pydantic 把字符串还原为 `Decimal`，保证"落库—读回—复算"完�
 | 厂商规格页（硬件目录引用） | 记录在 `hardware_catalog.yaml` 的 `sources`（含 url/file/sha256/quote） | — | `vendor_page_verified` |
 
 > 说明：这些是**规格/配置文档**，不是实测结果或性能数据，因此不进入第一阶段的 benchmark 口径统计。
+
+
+---
+
+# 第三阶段数据结构（M19/M20/M21/M22/M23/M24）
+
+> 定义在 `src/llm_capacity_pricing/schemas/performance.py`；
+> 说明见 `docs/phase3_final_validation.md`。
+
+## 16. 匹配相关（M19）
+
+| 对象 | 关键字段 |
+|---|---|
+| `WorkloadSignature` | 目标/实际长度、长度分布、数据集、会话结构、`prefix_reuse`、`load_profile_kind`、到达方式、请求速率、**配置并发与观测并发分开**、流式、预热、EOS 策略、时长、请求数、成功/失败数 |
+| `BenchmarkSignature` | 模型（名/revision/精度/量化）、硬件（型号/SKU/卡数/拓扑）、部署（TP/DP/PP/EP/模式）、框架（名/版本/后端/运行参数）、workload、指标口径 ID、指标来源侧、统计窗口、样本量、**数据可信等级** |
+| `TargetRequirement` | 目标配置与负载、`required_metrics`（**口径 ID**）、`require_measured`、`allow_synthetic`、长度容差 |
+| `BenchmarkMatchResult` | `level`（exact_match / comparable_reference / modeling_candidate / rejected）、`reasons`（结构化 reason codes）、`differences`、`usable_for`、`blocked_from`、`data_trust`、`algorithm_validation_only` |
+
+## 17. 性能记录（M20）
+
+| 对象 | 关键字段 |
+|---|---|
+| `PerformanceProfile` | TTFT/TPOT/ITL/E2E 的 Mean/P90/P99、服务端指标（独立字段）、请求/输入/输出/总吞吐、每卡归一化吞吐、配置与观测并发、到达速率、时长、请求数、成功/失败数、失败率与失败分布、物理命中率与可计费命中比例（分开）、指标口径 ID、指标来源侧、统计窗口、一致性说明、缺失指标 |
+| `RequestMetric` | 逐请求 ttft/tpot/e2e、输入输出 token、成功与否与失败原因（**Goodput 唯一来源**） |
+| `BenchmarkRun` | `run_id` + 签名 + profile + 原始文件与 sha256 + 格式版本 + 框架与版本 + 启动/测试命令 + 采集时间 + 逐请求明细 + `load_profile_kind`（固定长度 / 多轮前缀复用）+ 可信等级 |
+
+## 18. 容量、估算、SLA、排序（M21–M24）
+
+| 对象 | 关键字段 |
+|---|---|
+| `CapacityPoint` / `CapacityProfile` | 单点指标；分组键、点数、`best_observed_point`、`maximum_sustainable_capacity`（**需持续性证据**）、`sustainability_evidence`、覆盖与缺失并发点、`coverage_status` |
+| `PerformanceEstimate` | `estimate_kind`（measured_reference / calibrated_estimate / not_predictable）、value、来源 run、支撑 run、方法与版本、覆盖范围、**留出 MAE 与相对误差**、失败案例 |
+| `SlaRequirement` / `SlaPolicy` / `SlaConstraintResult` / `SlaEvaluation` | 七类约束；策略（可接受可信等级、最低匹配等级、是否允许 synthetic、是否允许估算当实测）；逐项状态；整体状态；Goodput 与说明；样本量与统计窗口；`algorithm_validation_only` 标记 |
+| `RankedDeployment` / `DeploymentRanking` | 候选 + 静态状态 + 匹配等级 + SLA 状态 + 指标值 + `rank_bucket`（verified_sla_met / measured_but_sla_unmet / requires_benchmark / excluded）+ 风险；可比性说明、阻塞说明、`economic_scoring_used`（恒 False） |
+
+## 19. 第三阶段 SQLite 表
+
+| 表 | 主键 | 说明 |
+|---|---|---|
+| `benchmark_run` | `run_id` | 压测记录（含可信等级、负载类型、吞吐与 P99 的文本化数值、原始文件与哈希） |

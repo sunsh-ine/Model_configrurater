@@ -1,0 +1,29 @@
+# 合成性能曲线样本（并发 16）—— 仅用于算法验证
+evidence_id: fixture_perf_curve_c16
+record_id: fixture_perf_curve_c16
+format_version: vllm-bench-serve-json/v1
+performance_source_kind: synthetic_fixture
+verification_status: synthetic_fixture
+
+model_name: SYNTHETIC-MODEL-C
+hardware_model: SYNTHETIC-GPU-C
+deployment_gpu_count: 4
+tp_size: 4
+dp_size: 1
+framework: vllm
+framework_version: null
+model_revision: null
+dataset_name: null
+
+metric_definitions:
+  ttft: "客户端 TTFT（含分位数；人工构造）"
+  tpot: "请求级 TPOT（与 ITL 分开，本样本两者不等）"
+  itl: "逐 token 间隔 ITL"
+
+evidence:
+  publisher: synthetic_fixture
+  source_url: null
+  source_version: "synthetic/perf-curve/v1"
+  notes: >-
+    人工构造的多并发点样本，数值由"吞吐 = token 数 / 时长"推出，用于验证容量曲线、
+    估算器与 SLA 判定算法。**不得**用于任何正式 SLA 结论。

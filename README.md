@@ -9,6 +9,10 @@
 计算权重与 KV Cache 显存、枚举 TP/DP 部署候选并给出**静态**资源可行性。
 第二阶段**不写任何定价公式**，也**不做** TTFT/TPOT 性能预测。
 
+**第三阶段（M19–M25）**：性能评估与 SLA 引擎——Benchmark 配置匹配、统一性能指标、
+并发容量曲线、受限性能估算、SLA 判定与部署候选性能比较。
+核心纪律：**匹配等级 ≠ 数据可信等级 ≠ SLA 状态**；没有匹配实测就不宣称 SLA 达标。
+
 > **这不是私有化部署 SLA 预测系统，也不是对外报价系统。**
 > 所有金额为万元，`cost_scope = gpu_cost_only`（仅表内 GPU 成本，不是完整 TCO）。
 > 满载 Token 收入是理论上限，不是实际营收。
@@ -153,6 +157,13 @@ bash scripts/verify_all.sh
 | `sizing-inventory --db <path>` | 第二阶段库存：模型结构 / 硬件规格 / 待核实字段 |
 | `estimate-memory --model <id> --hardware <id> --tp N --dp N --context-length N --concurrency N …` | **M15+M16**：单配置显存构成（权重 / KV / 运行时 / 余量） |
 | `plan-deployment --model <id> --hardware <id> --context-length N --concurrency N …` | **M17+M18**：枚举 TP/DP 候选 + 静态可行性 + JSON/Markdown 导出 |
+| `import-performance --file <json> --metadata <yaml> \| --curve-index <INDEX.json> [--kind vllm\|sglang]` | **M20**：导入性能压测记录（离线，无需 GPU） |
+| `match-benchmark --model <名> --hardware <型号> …` | **M19**：按配置与负载匹配已有 Benchmark，输出等级与 reason codes |
+| `capacity-profile [--target-concurrency N] [--exclude-synthetic]` | **M21**：并发容量与性能曲线 |
+| `calibrate-performance --metric <名> --concurrency N` | **M22**：精确查询 / 范围内插值（附留出误差）/ 不可预测 |
+| `evaluate-sla --requirement <json> --run-id <id> …` | **M23**：SLA 判定（默认策略拒绝 synthetic 与不匹配数据） |
+| `rank-deployments --model <id> --hardware <id> --requirement <json> …` | **M24**：候选性能比较（静态筛选 + 性能证据） |
+| `performance-report --out <md>` | **M25**：第三阶段 Markdown 报告 |
 
 所有命令成功返回 `0`，失败返回非零并输出明确错误信息（缺文件、非法百分比、
 负价格、无效单位、找不到记录等）。
@@ -208,8 +219,16 @@ llm-capacity-pricing/
 │   ├── models/                            # 归档的官方 config.json / 权重索引 + 清单
 │   ├── hardware/hardware_catalog.yaml     # GPU 规格库（含来源与待核实字段）
 │   └── raw/vendor/                        # 厂商规格页存档（与 benchmark 证据分开）
-├── tests/                                 # 374 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（27 步，含第二阶段与敏感扫描）
+│   ├── perf/                              # 第三阶段：性能评估
+│   │   ├── benchmark_matcher.py           # M19 签名/匹配等级/reason codes
+│   │   ├── performance_profile.py         # M20 压测记录与统一指标
+│   │   ├── capacity_analyzer.py           # M21 容量曲线
+│   │   ├── estimator.py                   # M22 受限估算与留出验证
+│   │   ├── sla_evaluator.py               # M23 SLA 判定
+│   │   └── ranker.py                      # M24 候选比较
+├── tests/                                 # 460 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（36 步，含第三阶段与敏感扫描）
+├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
     ├── data_dictionary.md                 # 字段字典
@@ -315,6 +334,20 @@ GPU SKU 规格库（H100 SXM / H200 SXM，型号与 SKU 分离）、权重显存
 KV Cache 估算（GQA/MQA/MHA、Paged 块对齐、TP 头切分/复制）、运行时显存独立建模、
 TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报告。**49 个第二阶段测试**。
 
+**第三阶段已实现：** Benchmark 配置匹配（四等级 + reason codes，跨模型/跨硬件一律拒绝）、
+统一性能指标与版本化导入（vLLM/SGLang，幂等、离线）、并发容量曲线（`best_observed_point`
+≠ `maximum_sustainable_capacity`）、受限性能估算（`measured_reference` /
+`calibrated_estimate` 附留出误差 / `not_predictable`）、SLA 判定（四类状态 + 逐项约束 +
+请求级 Goodput）、部署候选性能比较、JSON/Markdown 报告。**56 个第三阶段测试**。
+
+**第三阶段未实现（边界内不做）：**
+
+- 按 GPU FLOPS 推算 TTFT/TPOT；PP/EP/PD 分离的性能模型（字段保存并阻断）；
+- 跨模型/跨硬件的通用性能预测器（只留 `PerformanceModel` 接口）；
+- 跨 TP/DP 的每卡吞吐外推；P99 的插值；
+- 把预测值当作已实测通过的 SLA；把静态可行当作性能达标；
+- 未确认价格前的经济性评分。
+
 **第二阶段未实现（边界内不做）：**
 
 - TTFT / TPOT / ITL / E2E 性能预测；按峰值并发推断所需 GPU 数量；
@@ -371,3 +404,4 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/v12_hardening_report.md`](docs/v12_hardening_report.md) | V1.2 加固（F1–F8）四分类结论与修复前后差异 |
 | [`docs/security_remediation_report.md`](docs/security_remediation_report.md) | 内部定价数据暴露清单、凭证扫描、历史影响评估 |
 | [`docs/risk_register.md`](docs/risk_register.md) | 风险清单（数据安全 / 证据 / 口径 / 商业 / 工程） |
+| [`docs/phase3_final_validation.md`](docs/phase3_final_validation.md) | 第三阶段验证报告（工程功能 / 性能可信度两个维度） |

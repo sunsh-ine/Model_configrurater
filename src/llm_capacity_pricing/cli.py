@@ -34,9 +34,18 @@ from llm_capacity_pricing.services import (
     import_benchmark_file,
     import_excel_into_db,
     import_official_candidates,
+    capacity_profiles_for,
+    calibrate_performance_for,
+    evaluate_sla_for,
+    export_performance_report,
     import_hardware,
     import_models,
+    import_performance_curve,
+    import_performance_run,
     import_sglang_candidates,
+    match_benchmarks_for,
+    performance_inventory,
+    rank_deployments_for,
     init_db,
     make_assumptions,
     official_coverage_summary,
@@ -49,6 +58,7 @@ from llm_capacity_pricing.services import (
 )
 from llm_capacity_pricing.importers.official_manifest import OfficialManifestError
 from llm_capacity_pricing.importers.sglang_cookbook import SglangCookbookError
+from llm_capacity_pricing.schemas.performance import SlaPolicy
 
 app = typer.Typer(
     add_completion=False,
@@ -594,6 +604,250 @@ def plan_deployment_cmd(
     except Exception as exc:
         _fail(str(exc))
         return
+
+
+
+# ---------------------------------------------------------------------------
+# 第三阶段：性能评估与 SLA
+# ---------------------------------------------------------------------------
+
+
+@app.command("import-performance")
+def import_performance_cmd(
+    file: Optional[str] = typer.Option(None, "--file", help="单个压测结果文件（SGLang JSONL / vLLM JSON）"),
+    metadata: Optional[str] = typer.Option(None, "--metadata", help="对应的适配器元数据 YAML"),
+    curve_index: Optional[str] = typer.Option(None, "--curve-index", help="或：曲线样本 INDEX.json（批量导入）"),
+    kind: str = typer.Option("vllm", "--kind", help="来源类型：vllm / sglang"),
+    root: Optional[str] = typer.Option(None, "--root", help="项目根目录"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """导入性能压测记录（M20）。离线可用，不需要 GPU。"""
+    try:
+        if curve_index:
+            info = import_performance_curve(curve_index, db, root=root, kind=kind)
+        elif file and metadata:
+            info = import_performance_run(file, metadata, db, kind=kind)
+        else:
+            _fail("请给出 --file/--metadata 或 --curve-index")
+            return
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.secho(f"已导入 {info['run_count']} 条性能记录", fg=typer.colors.GREEN)
+    typer.echo(f"可信等级: {info['data_trust']}")
+    if info.get("notice"):
+        typer.echo(f"说明: {info['notice']}")
+    _echo_json({"run_ids": info["run_ids"], "skipped": info.get("skipped", [])})
+
+
+@app.command("match-benchmark")
+def match_benchmark_cmd(
+    model: str = typer.Option(..., "--model", help="目标模型名（如 Qwen/Qwen3-32B）"),
+    hardware: Optional[str] = typer.Option(None, "--hardware", help="目标硬件型号"),
+    gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="目标 GPU 数量"),
+    tp: Optional[int] = typer.Option(None, "--tp", help="目标 TP"),
+    dp: Optional[int] = typer.Option(None, "--dp", help="目标 DP"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="目标输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="目标输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="目标数据集"),
+    concurrency: Optional[int] = typer.Option(None, "--concurrency", help="目标并发"),
+    require_metrics: str = typer.Option("m.latency.ttft.p99,m.latency.tpot.p99", "--require-metrics", help="必需指标口径 ID"),
+    allow_synthetic: bool = typer.Option(False, "--allow-synthetic", help="是否允许 synthetic（仅算法验证）"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """按配置与负载匹配已有 Benchmark（M19）。"""
+    try:
+        info = match_benchmarks_for(
+            db,
+            model_name=model,
+            hardware_model=hardware,
+            gpu_count=gpu_count,
+            tp_size=tp,
+            dp_size=dp,
+            input_len_target=input_len,
+            output_len_target=output_len,
+            dataset_name=dataset,
+            configured_concurrency=concurrency,
+            required_metrics=[m.strip() for m in require_metrics.split(",") if m.strip()],
+            require_measured=not allow_synthetic,
+            allow_synthetic=allow_synthetic,
+        )
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.echo(f"匹配等级分布: {info['level_counts']}")
+    typer.echo(f"非拒绝项: {len(info['matched'])} 条")
+    for item in info["matched"][:5]:
+        typer.echo(f"  [{item['level']}] {item['source_ref']} usable_for={item['usable_for']}")
+    _echo_json(info)
+
+
+@app.command("capacity-profile")
+def capacity_profile_cmd(
+    target_concurrency: Optional[int] = typer.Option(None, "--target-concurrency", help="目标并发（检查覆盖）"),
+    min_duration_s: Optional[str] = typer.Option(None, "--min-duration-s", help="可持续容量的最短测试时长（秒）"),
+    exclude_synthetic: bool = typer.Option(False, "--exclude-synthetic", help="排除 synthetic 数据"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """并发容量与性能曲线分析（M21）。"""
+    try:
+        info = capacity_profiles_for(
+            db, target_concurrency=target_concurrency, min_duration_s=min_duration_s,
+            exclude_synthetic=exclude_synthetic,
+        )
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.echo(f"记录 {info['run_count']} 条，分成 {info['group_count']} 个配置组")
+    for p in info["profiles"]:
+        best = p.get("best_observed_point") or {}
+        typer.echo(
+            f"  组 {p['group_key'][:40]}… 点数={len(p['points'])} 覆盖={p['coverage_status']} "
+            f"峰值并发={best.get('configured_concurrency')} 输出={best.get('output_throughput_tok_s')} "
+            f"可持续容量={p.get('maximum_sustainable_capacity')}"
+        )
+    _echo_json(info)
+
+
+@app.command("calibrate-performance")
+def calibrate_performance_cmd(
+    metric: str = typer.Option("output_throughput_tok_s", "--metric", help="要估算的指标"),
+    concurrency: int = typer.Option(..., "--concurrency", help="目标并发"),
+    group_key: Optional[str] = typer.Option(None, "--group-key", help="指定配置组（默认取第一条所在组）"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """性能估算：精确查询 / 范围内插值 / 不可预测（M22）。"""
+    try:
+        info = calibrate_performance_for(db, metric=metric, target_concurrency=concurrency, group_key=group_key)
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    _echo_json(info)
+
+
+@app.command("evaluate-sla")
+def evaluate_sla_cmd(
+    requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON（requirement_id/ttft_p99_ms_max/...）"),
+    run_id: Optional[str] = typer.Option(None, "--run-id", help="指定用于判定的实测记录"),
+    model: Optional[str] = typer.Option(None, "--model", help="目标模型（用于匹配判定）"),
+    hardware: Optional[str] = typer.Option(None, "--hardware", help="目标硬件"),
+    gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="目标 GPU 数"),
+    tp: Optional[int] = typer.Option(None, "--tp", help="目标 TP"),
+    dp: Optional[int] = typer.Option(None, "--dp", help="目标 DP"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="目标输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="目标输出长度"),
+    policy_id: str = typer.Option("default", "--policy-id", help="策略标识（default=生产策略）"),
+    allow_synthetic: bool = typer.Option(False, "--allow-synthetic", help="仅算法验证时开启"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """SLA 评估（M23）。默认策略拒绝 synthetic 与不匹配数据。"""
+    try:
+        payload = json.loads(requirement)
+    except json.JSONDecodeError as exc:
+        _fail(f"--requirement 不是合法 JSON: {exc}")
+        return
+    policy = SlaPolicy(
+        policy_id=policy_id,
+        allow_synthetic=allow_synthetic,
+        accepted_trust_levels=(
+            ["measured_internal", "measured_vendor_published", "synthetic_fixture"]
+            if allow_synthetic
+            else ["measured_internal", "measured_vendor_published"]
+        ),
+    )
+    try:
+        info = evaluate_sla_for(
+            db,
+            requirement=payload,
+            policy=policy,
+            run_id=run_id,
+            model_name=model,
+            hardware_model=hardware,
+            gpu_count=gpu_count,
+            tp_size=tp,
+            dp_size=dp,
+            input_len_target=input_len,
+            output_len_target=output_len,
+            allow_synthetic=allow_synthetic,
+        )
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.secho(f"SLA 状态: {info['status']}", fg=typer.colors.GREEN if info["status"] == "observed_pass" else typer.colors.YELLOW)
+    if info.get("algorithm_validation_only"):
+        typer.secho("  注意：该结论仅用于算法验证（synthetic 数据），不得对外使用", fg=typer.colors.YELLOW)
+    _echo_json(info)
+
+
+@app.command("rank-deployments")
+def rank_deployments_cmd(
+    model: str = typer.Option(..., "--model", help="模型 ID（如 qwen3-32b）"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 ID（如 nvidia-h100-sxm-80gb）"),
+    requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON"),
+    server: Optional[str] = typer.Option(None, "--server", help="服务器形态 ID"),
+    ctx: int = typer.Option(..., "--context-length", help="上下文长度"),
+    concurrency: int = typer.Option(..., "--concurrency", help="全局并发"),
+    tp_sizes: str = typer.Option("1,2,4,8", "--tp-sizes", help="枚举 TP"),
+    dp_sizes: str = typer.Option("1,2", "--dp-sizes", help="枚举 DP"),
+    usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="可用显存比例（假设）"),
+    usable_source_kind: Optional[str] = typer.Option(None, "--usable-source-kind", help="来源性质"),
+    runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时预留比例"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="目标输出长度"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """部署候选性能比较与排序（M24）：静态筛选 + 性能证据。"""
+    try:
+        sla_payload = json.loads(requirement)
+    except json.JSONDecodeError as exc:
+        _fail(f"--requirement 不是合法 JSON: {exc}")
+        return
+    assumptions = make_assumptions(
+        usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
+        usable_memory_source="CLI 输入（见 --usable-source-kind）",
+        usable_memory_source_kind=usable_source_kind,
+        runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
+        runtime_reserve_source="CLI 输入",
+        global_concurrency=concurrency,
+        context_length_per_request=ctx,
+        tp_sizes=_parse_int_list(tp_sizes),
+        dp_sizes=_parse_int_list(dp_sizes),
+    )
+    try:
+        info = rank_deployments_for(
+            db,
+            model_id=model,
+            hardware_id=hardware,
+            requirement=sla_payload,
+            assumptions=assumptions,
+            server_id=server,
+            input_len_target=ctx,
+            output_len_target=output_len,
+        )
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    buckets: dict[str, int] = {}
+    for entry in info["entries"]:
+        buckets[entry["rank_bucket"]] = buckets.get(entry["rank_bucket"], 0) + 1
+    typer.secho(f"分桶: {buckets}", fg=typer.colors.GREEN)
+    if info.get("blocker"):
+        typer.secho(f"阻塞: {info['blocker']}", fg=typer.colors.YELLOW)
+    _echo_json(info)
+
+
+@app.command("performance-report")
+def performance_report_cmd(
+    out: str = typer.Option("data/exports/performance_report.md", "--out", help="Markdown 报告路径"),
+    target_concurrency: Optional[int] = typer.Option(None, "--target-concurrency", help="目标并发"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """生成第三阶段性能评估报告（M25）。"""
+    inv = performance_inventory(db)
+    profiles = capacity_profiles_for(db, target_concurrency=target_concurrency)
+    info = export_performance_report(db, out, profiles=profiles, inventory=inv)
+    typer.secho(f"报告已写入 {info['report']}（{info['bytes']} 字节）", fg=typer.colors.GREEN)
+    _echo_json({"inventory": inv, "group_count": profiles["group_count"]})
+
 
 if __name__ == "__main__":
     app()

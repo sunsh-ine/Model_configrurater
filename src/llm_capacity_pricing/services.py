@@ -31,6 +31,20 @@ from llm_capacity_pricing.importers.excel_importer import (
 )
 from llm_capacity_pricing.importers.sglang_adapter import parse_sglang_bench_serving_jsonl_full
 from llm_capacity_pricing.importers.sglang_cookbook import build_numeric_candidates
+from llm_capacity_pricing.schemas.performance import SlaPolicy
+from llm_capacity_pricing.perf.benchmark_matcher import (
+    collect_signatures,
+    match_all,
+)
+from llm_capacity_pricing.perf.capacity_analyzer import (
+    SustainabilityCriteria,
+    analyze_runs,
+)
+from llm_capacity_pricing.perf.estimator import estimate as _estimate_performance
+from llm_capacity_pricing.perf.performance_profile import run_from_adapter
+from llm_capacity_pricing.perf.ranker import rank_deployments as _rank_deployments
+from llm_capacity_pricing.perf.sla_evaluator import evaluate_sla as _evaluate_sla
+from llm_capacity_pricing.reporting.performance_report import build_performance_report
 from llm_capacity_pricing.reporting.sizing_report import build_sizing_report
 from llm_capacity_pricing.schemas.sizing import DeploymentCandidate, ModelSpec, Precision
 from llm_capacity_pricing.sizing.hardware import load_hardware as _load_hardware_catalog
@@ -1530,3 +1544,435 @@ def _catalog_sources() -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+# --------------------------------------------------------------------------
+# 第三阶段（M19-M25）：性能评估与 SLA
+# --------------------------------------------------------------------------
+
+#: 第三阶段的测试态性能数据前缀（默认不参与正式结论）
+PERF_TEST_KINDS = ("synthetic_fixture",)
+
+
+def _perf_importer(kind: str):
+    if kind == "sglang":
+        from llm_capacity_pricing.importers.sglang_adapter import (
+            parse_sglang_bench_serving_jsonl_full,
+        )
+
+        return parse_sglang_bench_serving_jsonl_full
+    if kind == "vllm":
+        from llm_capacity_pricing.importers.vllm_adapter import (
+            parse_vllm_bench_serve_json_full,
+        )
+
+        return parse_vllm_bench_serve_json_full
+    raise ServiceError(f"未知性能数据来源 {kind!r}（支持 sglang / vllm）")
+
+
+def import_performance_run(
+    file: str | Path,
+    metadata_file: str | Path,
+    db_path: str | Path = "data/local.db",
+    *,
+    kind: str = "vllm",
+) -> dict[str, Any]:
+    """导入一次压测结果（M20）。走第一阶段已验证的版本化适配器。"""
+    meta = yaml.safe_load(Path(metadata_file).read_text(encoding="utf-8"))
+    records, evidences = _perf_importer(kind)(file, meta)
+    if not records:
+        raise ServiceError(f"未从 {file} 解析出任何记录")
+    runs = [
+        run_from_adapter(
+            record,
+            metadata=meta,
+            raw_file=file,
+            raw_format=meta.get("format_version", f"{kind}-adapter"),
+        )
+        for record in records
+    ]
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_evidence(session, evidences)
+            repo.upsert_benchmark_runs(session, runs)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "file": str(file),
+        "kind": kind,
+        "run_count": len(runs),
+        "run_ids": [r.run_id for r in runs],
+        "data_trust": sorted({r.data_trust for r in runs}),
+        "load_profile_kind": sorted({r.load_profile_kind for r in runs}),
+        "trust_note": (
+            "synthetic_fixture：仅用于算法验证，不得用于 SLA 结论"
+            if any(r.data_trust == "synthetic_fixture" for r in runs)
+            else "measured：可作为 SLA 判定依据（仍需匹配检查）"
+        ),
+    }
+
+
+def import_performance_curve(
+    index_path: str | Path,
+    db_path: str | Path = "data/local.db",
+    *,
+    root: str | Path | None = None,
+    kind: str = "vllm",
+) -> dict[str, Any]:
+    """按 INDEX 导入一整组曲线样本（离线，无需 GPU）。"""
+    import json
+
+    base = Path(root) if root is not None else Path(index_path).resolve().parent.parent.parent
+    index = json.loads(Path(index_path).read_text(encoding="utf-8"))
+    importer = _perf_importer(kind)
+    imported: list[str] = []
+    skipped: list[str] = []
+    runs = []
+    for point in index.get("points", []):
+        folder = Path(index_path).parent
+        data_file = folder / point["file"]
+        meta_file = folder / point["metadata"]
+        if not data_file.exists() or not meta_file.exists():
+            skipped.append(point["file"])
+            continue
+        meta = yaml.safe_load(meta_file.read_text(encoding="utf-8"))
+        records, _ = importer(data_file, meta)
+        if not records:
+            skipped.append(point["file"])
+            continue
+        run = run_from_adapter(
+            records[0], metadata=meta, raw_file=data_file, raw_format=meta.get("format_version", "")
+        )
+        runs.append(run)
+        imported.append(run.run_id)
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_benchmark_runs(session, runs)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "index": str(index_path),
+        "run_count": len(runs),
+        "run_ids": imported,
+        "skipped": skipped,
+        "data_trust": sorted({r.data_trust for r in runs}),
+        "notice": index.get("notice"),
+    }
+
+
+def performance_inventory(db_path: str | Path = "data/local.db") -> dict[str, Any]:
+    """第三阶段库存：各类可匹配数据源的签名数量与可信等级分布。"""
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            records = repo.list_benchmarks(session)
+            numeric = repo.list_numeric_candidates(session)
+            official = repo.list_official_candidates(session)
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    signatures = collect_signatures(
+        records=records, numeric_candidates=numeric, official_candidates=official, runs=runs
+    )
+    by_trust: dict[str, int] = {}
+    for sig in signatures:
+        by_trust[sig.data_trust] = by_trust.get(sig.data_trust, 0) + 1
+    return {
+        "signature_count": len(signatures),
+        "benchmark_records": len(records),
+        "official_candidates": len(numeric) + len(official),
+        "benchmark_runs": len(runs),
+        "by_trust": by_trust,
+        "sla_usable_trust_levels": ["measured_internal", "measured_vendor_published"],
+    }
+
+
+def match_benchmarks_for(
+    db_path: str | Path,
+    *,
+    model_name: str | None,
+    hardware_model: str | None = None,
+    gpu_count: int | None = None,
+    tp_size: int | None = None,
+    dp_size: int | None = None,
+    weight_precision: str | None = None,
+    input_len_target: int | None = None,
+    output_len_target: int | None = None,
+    dataset_name: str | None = None,
+    configured_concurrency: int | None = None,
+    required_metrics: Sequence[str] = (),
+    require_measured: bool = True,
+    allow_synthetic: bool = False,
+) -> dict[str, Any]:
+    """M19：对目标需求做全源匹配。"""
+    from llm_capacity_pricing.schemas.performance import (
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            signatures = collect_signatures(
+                records=repo.list_benchmarks(session),
+                numeric_candidates=repo.list_numeric_candidates(session),
+                official_candidates=repo.list_official_candidates(session),
+                runs=repo.list_benchmark_runs(session),
+                include_synthetic=allow_synthetic,
+            )
+    finally:
+        db.dispose()
+
+    target = TargetRequirement(
+        model_name=model_name,
+        hardware_model=hardware_model,
+        gpu_count=gpu_count,
+        tp_size=tp_size,
+        dp_size=dp_size,
+        weight_precision=weight_precision,
+        workload=WorkloadSignature(
+            input_len_target=input_len_target,
+            output_len_target=output_len_target,
+            dataset_name=dataset_name,
+            configured_concurrency=configured_concurrency,
+        ),
+        required_metrics=list(required_metrics),
+        require_measured=require_measured,
+        allow_synthetic=allow_synthetic,
+    )
+    results = match_all(target, signatures)
+    counts: dict[str, int] = {}
+    for r in results:
+        counts[r.level] = counts.get(r.level, 0) + 1
+    return {
+        "target": {
+            "model_name": model_name,
+            "hardware_model": hardware_model,
+            "gpu_count": gpu_count,
+            "tp_size": tp_size,
+            "dp_size": dp_size,
+            "workload": {
+                "input_len_target": input_len_target,
+                "output_len_target": output_len_target,
+                "dataset_name": dataset_name,
+                "configured_concurrency": configured_concurrency,
+            },
+            "required_metrics": list(required_metrics),
+        },
+        "level_counts": counts,
+        "matched": [r.model_dump(mode="json") for r in results if r.level != "rejected"],
+        "rejected_sample": [r.model_dump(mode="json") for r in results if r.level == "rejected"][:5],
+        "note": "匹配等级 ≠ 数据可信等级 ≠ SLA 状态；exact_match 也不代表 SLA 达标",
+    }
+
+
+def capacity_profiles_for(
+    db_path: str | Path = "data/local.db",
+    *,
+    target_concurrency: int | None = None,
+    min_duration_s: str | None = None,
+    exclude_synthetic: bool = False,
+) -> dict[str, Any]:
+    """M21：对库内性能记录做容量曲线分析。"""
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    criteria = (
+        SustainabilityCriteria(min_duration_s=Decimal(min_duration_s))
+        if min_duration_s
+        else None
+    )
+    profiles = analyze_runs(
+        runs, criteria=criteria, target_concurrency=target_concurrency, exclude_synthetic=exclude_synthetic
+    )
+    return {
+        "run_count": len(runs),
+        "group_count": len(profiles),
+        "profiles": [p.model_dump(mode="json") for p in profiles],
+    }
+
+
+def calibrate_performance_for(
+    db_path: str | Path,
+    *,
+    metric: str,
+    target_concurrency: int,
+    group_key: str | None = None,
+) -> dict[str, Any]:
+    """M22：性能估算（精确查询 / 范围内插值 / 不可预测）。"""
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    from llm_capacity_pricing.perf.capacity_analyzer import grouping_key
+
+    pool = [r for r in runs if group_key is None or grouping_key(r) == group_key]
+    if not pool:
+        return {"estimate_kind": "not_predictable", "reasons": ["no_runs_in_scope"]}
+    if group_key is None:
+        # 未指定分组时按"第一条记录所在组"收窄，避免跨配置插值
+        group_key = grouping_key(pool[0])
+        pool = [r for r in pool if grouping_key(r) == group_key]
+    result = _estimate_performance(
+        metric=metric, target_concurrency=target_concurrency, runs=pool
+    )
+    payload = result.model_dump(mode="json")
+    payload["group_key"] = group_key
+    payload["note"] = (
+        "measured_reference=直接命中实测；calibrated_estimate=同配置范围内插值（附留出误差）；"
+        "not_predictable=数据不足或超出覆盖范围"
+    )
+    return payload
+
+
+def evaluate_sla_for(
+    db_path: str | Path,
+    *,
+    requirement: dict[str, Any],
+    policy: SlaPolicy | None = None,
+    run_id: str | None = None,
+    model_name: str | None = None,
+    hardware_model: str | None = None,
+    gpu_count: int | None = None,
+    tp_size: int | None = None,
+    dp_size: int | None = None,
+    input_len_target: int | None = None,
+    output_len_target: int | None = None,
+    allow_synthetic: bool = False,
+) -> dict[str, Any]:
+    """M23：SLA 评估（要求必须能挂到一条匹配的实测记录上）。"""
+    from llm_capacity_pricing.schemas.performance import SlaRequirement
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+
+    sla_req = SlaRequirement.model_validate(requirement)
+    policy = policy or SlaPolicy()
+
+    chosen = None
+    if run_id:
+        chosen = next((r for r in runs if r.run_id == run_id), None)
+        if chosen is None:
+            raise ServiceError(f"性能记录不存在: {run_id}")
+    match_result = None
+    if chosen is not None:
+        from llm_capacity_pricing.schemas.performance import TargetRequirement, WorkloadSignature
+        from llm_capacity_pricing.perf.benchmark_matcher import match, signature_from_run
+
+        target = TargetRequirement(
+            model_name=model_name,
+            hardware_model=hardware_model,
+            gpu_count=gpu_count,
+            tp_size=tp_size,
+            dp_size=dp_size,
+            workload=WorkloadSignature(
+                input_len_target=input_len_target, output_len_target=output_len_target
+            ),
+            require_measured=not allow_synthetic,
+            allow_synthetic=allow_synthetic,
+        )
+        match_result = match(target, signature_from_run(chosen))
+
+    evaluation = _evaluate_sla(
+        sla_req, policy=policy, run=chosen, match_result=match_result,
+        target_ref=run_id or "unspecified",
+    )
+    payload = evaluation.model_dump(mode="json")
+    payload["note"] = (
+        "observed_pass/fail=有匹配实测；estimated_only=仅估算（不算达标）；"
+        "not_evaluable=缺关键指标或配置不匹配"
+    )
+    return payload
+
+
+def rank_deployments_for(
+    db_path: str | Path,
+    *,
+    model_id: str,
+    hardware_id: str,
+    requirement: dict[str, Any],
+    assumptions: PlanningAssumptions,
+    server_id: str | None = None,
+    policy: SlaPolicy | None = None,
+    input_len_target: int | None = None,
+    output_len_target: int | None = None,
+    weight_precision: Precision | None = None,
+    kv_precision: str = "bf16",
+) -> dict[str, Any]:
+    """M24：把第二阶段候选接上第三阶段性能证据。"""
+    from llm_capacity_pricing.schemas.performance import (
+        SlaRequirement,
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    plan = plan_deployment_for(
+        db_path,
+        model_id=model_id,
+        hardware_id=hardware_id,
+        server_id=server_id,
+        assumptions=assumptions,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+    )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+            models = {m.model_id: m for m in repo.list_model_specs(session)}
+    finally:
+        db.dispose()
+
+    sla_req = SlaRequirement.model_validate(requirement)
+    workload = WorkloadSignature(
+        input_len_target=input_len_target or assumptions.context_length_per_request,
+        output_len_target=output_len_target,
+        configured_concurrency=assumptions.global_concurrency,
+    )
+    ranking = _rank_deployments(
+        requirement_id=sla_req.requirement_id,
+        candidates=plan["candidates"],
+        runs=runs,
+        sla_requirement=sla_req,
+        policy=policy or SlaPolicy(),
+        workload=workload,
+        model_by_id=models,
+    )
+    payload = ranking.model_dump(mode="json")
+    payload["static_status_counts"] = plan["status_counts"]
+    return payload
+
+
+def export_performance_report(
+    db_path: str | Path,
+    out_path: str | Path,
+    *,
+    ranking: dict[str, Any] | None = None,
+    profiles: dict[str, Any] | None = None,
+    inventory: dict[str, Any] | None = None,
+    request: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """M25：生成第三阶段 Markdown 报告。"""
+    text = build_performance_report(
+        inventory=inventory or performance_inventory(db_path),
+        profiles=(profiles or {}).get("profiles", []) if profiles else [],
+        ranking=ranking,
+        request=request,
+    )
+    p = Path(out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    return {"report": str(p), "bytes": len(text.encode("utf-8"))}

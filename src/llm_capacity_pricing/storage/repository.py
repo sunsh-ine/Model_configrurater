@@ -17,6 +17,7 @@ from llm_capacity_pricing.schemas.official import (
     OfficialBenchmarkCandidate,
     SglangNumericCandidate,
 )
+from llm_capacity_pricing.schemas.performance import BenchmarkRun
 from llm_capacity_pricing.schemas.sizing import (
     HardwareSpec,
     ModelSpec,
@@ -25,6 +26,7 @@ from llm_capacity_pricing.schemas.sizing import (
 from llm_capacity_pricing.schemas.pricing import PricingResult
 from llm_capacity_pricing.storage.database import (
     BenchmarkRecordRow,
+    BenchmarkRunRow,
     Database,
     EvidenceRow,
     HardwarePriceRow,
@@ -546,3 +548,56 @@ class Repository:
     def get_server(self, session: Session, server_id: str) -> ServerProfile | None:
         row = session.get(ServerProfileRow, server_id)
         return ServerProfile.model_validate(json.loads(row.payload_json)) if row else None
+    # ------------------------------------------------------------------
+    # 第三阶段（M20）：性能实测数据
+    # ------------------------------------------------------------------
+
+    def upsert_benchmark_runs(self, session: Session, runs: Iterable[BenchmarkRun]) -> int:
+        """按 ``run_id`` 幂等写入性能压测记录。"""
+        n = 0
+        for run in runs:
+            sig, prof = run.signature, run.profile
+            session.merge(
+                BenchmarkRunRow(
+                    run_id=run.run_id,
+                    model_name=sig.model_name,
+                    hardware_model=sig.hardware_model,
+                    gpu_count=sig.gpu_count,
+                    tp_size=sig.tp_size,
+                    dp_size=sig.dp_size,
+                    framework=sig.framework,
+                    framework_version=sig.framework_version,
+                    configured_concurrency=prof.configured_concurrency,
+                    input_len_target=sig.workload.input_len_target,
+                    output_len_target=sig.workload.output_len_target,
+                    data_trust=run.data_trust,
+                    load_profile_kind=run.load_profile_kind,
+                    output_throughput_tok_s=_d(prof.output_throughput_tok_s),
+                    ttft_p99_ms=_d(prof.ttft_p99_ms),
+                    tpot_p99_ms=_d(prof.tpot_p99_ms),
+                    error_rate=_d(prof.error_rate),
+                    raw_file=run.raw_file,
+                    raw_sha256=run.raw_sha256,
+                    collected_at=run.collected_at,
+                    payload_json=_dump(run),
+                )
+            )
+            n += 1
+        return n
+
+    def list_benchmark_runs(self, session: Session) -> list[BenchmarkRun]:
+        rows = session.scalars(select(BenchmarkRunRow).order_by(BenchmarkRunRow.run_id)).all()
+        return [BenchmarkRun.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def get_benchmark_run(self, session: Session, run_id: str) -> BenchmarkRun | None:
+        row = session.get(BenchmarkRunRow, run_id)
+        return BenchmarkRun.model_validate(json.loads(row.payload_json)) if row else None
+
+    def delete_benchmark_runs(self, session: Session, run_ids: Sequence[str]) -> int:
+        """按 run_id 删除（用于清理测试态性能记录）。"""
+        if not run_ids:
+            return 0
+        result = session.execute(
+            delete(BenchmarkRunRow).where(BenchmarkRunRow.run_id.in_(list(run_ids)))
+        )
+        return int(result.rowcount or 0)

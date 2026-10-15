@@ -1,0 +1,36 @@
+{
+  "notice": "合成性能曲线样本（synthetic_fixture），仅用于算法验证，不得用于 SLA 结论",
+  "model_name": "SYNTHETIC-MODEL-C",
+  "hardware_model": "SYNTHETIC-GPU-C",
+  "tp_size": 4,
+  "dp_size": 1,
+  "input_len_target": 1024,
+  "output_len_target": 256,
+  "points": [
+    {
+      "file": "perf_curve_c1.json",
+      "metadata": "perf_curve_c1.yaml",
+      "concurrency": 1
+    },
+    {
+      "file": "perf_curve_c2.json",
+      "metadata": "perf_curve_c2.yaml",
+      "concurrency": 2
+    },
+    {
+      "file": "perf_curve_c4.json",
+      "metadata": "perf_curve_c4.yaml",
+      "concurrency": 4
+    },
+    {
+      "file": "perf_curve_c8.json",
+      "metadata": "perf_curve_c8.yaml",
+      "concurrency": 8
+    },
+    {
+      "file": "perf_curve_c16.json",
+      "metadata": "perf_curve_c16.yaml",
+      "concurrency": 16
+    }
+  ]
+}

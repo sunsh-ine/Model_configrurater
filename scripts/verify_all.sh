@@ -26,6 +26,7 @@ MANIFEST="data/sources/official_manifest.yaml"
 INCOMING="data/incoming/sglang_official_benchmark_candidates_20261015.json"
 MODEL_MANIFEST="data/models/model_manifest.yaml"
 HW_CATALOG="data/hardware/hardware_catalog.yaml"
+PERF_CURVE_INDEX="data/fixtures/perf_curve/INDEX.json"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -345,13 +346,54 @@ run_step 23 "estimate-memory（M15+M16 单配置显存构成）" 1 '^  "(per_gpu
   --usable-source-kind synthetic_example \
   --runtime-reserve-fraction 0.1 --runtime-source "演示用构造值" --db "$DB"
 
-run_step 24 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+# ---------------------------------------------------------------------------
+# 第三阶段（M19-M25）：性能评估、SLA 与部署方案比较
+# ---------------------------------------------------------------------------
+
+run_step 24 "import-performance（M20 性能记录，合成曲线用于算法验证）" 1 '^(已导入 [0-9]+ 条性能记录|可信等级:)' \
+  $CLI import-performance --curve-index "$PERF_CURVE_INDEX" --kind vllm --root "$ROOT" --db "$DB"
+
+run_step 25 "capacity-profile（M21 容量曲线，排除 synthetic）" 1 '^记录 [0-9]+ 条，分成|分成 0 个配置组' \
+  $CLI capacity-profile --exclude-synthetic --db "$DB"
+
+run_step 26 "capacity-profile（含 synthetic，算法验证）" 1 '^记录 [0-9]+ 条，分成|峰值并发' \
+  $CLI capacity-profile --target-concurrency 8 --db "$DB"
+
+run_step 27 "calibrate-performance（M22 范围内插值 + 留出误差）" 1 '^  "(estimate_kind|value|holdout_mae|covered_range)"' \
+  $CLI calibrate-performance --metric output_throughput_tok_s --concurrency 6 --db "$DB"
+
+run_step 28 "match-benchmark（M19：Qwen3-32B/H100 不得命中 235B/B200 数据）" 1 '^匹配等级分布:' \
+  $CLI match-benchmark --model "Qwen/Qwen3-32B" --hardware "NVIDIA H100 SXM" --gpu-count 4 --tp 4 \
+  --input-len 8192 --output-len 256 --db "$DB"
+
+run_step 29 "evaluate-sla（M23：默认策略拒绝 synthetic，应为 not_evaluable）" 1 '^SLA 状态: not_evaluable' \
+  $CLI evaluate-sla --requirement '{"requirement_id":"req-default","ttft_p99_ms_max":400}' \
+  --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" --hardware "SYNTHETIC-GPU-C" \
+  --gpu-count 4 --tp 4 --input-len 1024 --output-len 256 --db "$DB"
+
+run_step 30 "evaluate-sla（仅算法验证：显式 allow-synthetic，结论打标）" 1 '^(SLA 状态: observed_pass|  注意：该结论仅用于算法验证)' \
+  $CLI evaluate-sla --requirement '{"requirement_id":"req-algo","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
+  --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" --hardware "SYNTHETIC-GPU-C" \
+  --gpu-count 4 --tp 4 --input-len 1024 --output-len 256 \
+  --policy-id algorithm-validation-only --allow-synthetic --db "$DB"
+
+run_step 31 "rank-deployments（M24：静态可行但无实测 -> requires_benchmark）" 1 '^(分桶:|阻塞:)' \
+  $CLI rank-deployments --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --context-length 8192 --concurrency 32 --tp-sizes 2,4,8 --dp-sizes 1 \
+  --usable-fraction 0.9 --usable-source-kind synthetic_example \
+  --runtime-reserve-fraction 0.1 \
+  --requirement '{"requirement_id":"req-rank","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' --db "$DB"
+
+run_step 32 "performance-report（M25 第三阶段报告）" 1 '^报告已写入' \
+  $CLI performance-report --out "$OUT_DIR/performance_report.md" --target-concurrency 8 --db "$DB"
+
+run_step 33 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 25 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 34 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 26 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 35 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

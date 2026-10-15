@@ -261,3 +261,55 @@ Paged KV：
 | 4 | 其余（有假设且放得下） | `conditional_feasible`（必须列假设） |
 
 不变的边界：静态可行**不代表**能启动，**不代表**满足 SLA；不产出报价。
+
+
+---
+
+# 第三阶段公式与判定规则（M21–M23）
+
+公式版本：`capacity-1.0` / `estimate-1.0` / `sla-1.0`。
+
+## 11. 容量曲线（M21）
+
+```text
+分组键 = (模型, revision, 权重精度, 硬件, TP, DP, 卡数, 框架, 框架版本, 负载类型)
+曲线   = 按配置并发排序的 (并发, 输出吞吐, TTFT p99, TPOT p99, 失败率) 序列
+best_observed_point = 已测点中输出吞吐最大者        # 只是"测到的最优点"
+maximum_sustainable_capacity = 满足下列条件的最大并发：
+      持续时间 ≥ min_duration_s 且 失败率 ≤ max_error_rate
+      —— 否则为 None（缺少持续性证据时**不得**给出）
+coverage_status = sufficient 当且仅当点数 ≥ 3 且覆盖目标并发
+```
+
+## 12. 性能估算（M22）
+
+```text
+1) 目标并发已有实测点                     -> measured_reference（不调用模型）
+2) 指标属于 P99 家族                      -> not_predictable
+3) 同配置可用点数 < 3                     -> not_predictable
+4) 目标并发落在 [min, max] 之外           -> not_predictable（不外推）
+5) 其余（区间内）                          -> 线性插值 -> calibrated_estimate
+   误差用**留一验证**（leave-one-out）计算 MAE 与相对误差；
+   相对误差 > 0.15 时降级为 not_predictable
+   方法标识：linear_interpolation_in_covered_range/v1
+```
+
+## 13. SLA 判定（M23）
+
+```text
+门禁（顺序执行，任一不过 -> not_evaluable，不看数值）：
+  a) 必须提供匹配判定（否则 match_result_required_for_sla_proof）
+  b) 匹配等级 ≥ policy.minimum_match_level
+  c) 数据可信等级 ∈ policy.accepted_trust_levels
+     （synthetic 仅当 policy.allow_synthetic 且结论打 algorithm_validation_only 标记）
+
+逐项：observed = 实测值；阈值比较（max 型要求 observed ≤ 阈值，min 型反之）
+  observed 缺失            -> 该项 not_evaluable
+  any observed_fail        -> 整体 observed_fail
+  全部 observed_pass       -> 整体 observed_pass
+  其余                     -> 整体 not_evaluable
+仅估算（无实测）            -> estimated_only（**永远不算达标**）
+
+Goodput = 同时满足全部请求级约束的成功请求数 / 测试时长
+          —— 仅在存在逐请求明细时可算；禁止用聚合 P99 组合反推
+```

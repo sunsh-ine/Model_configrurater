@@ -323,3 +323,37 @@ class ServerProfileRow(Base):
     interconnect_declared: Mapped[str | None] = mapped_column(String(255))
     verification_status: Mapped[str | None] = mapped_column(String(32))
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# 第三阶段（M20）：性能实测数据
+# ---------------------------------------------------------------------------
+
+
+class BenchmarkRunRow(Base):
+    """一次完整压测（BenchmarkRun）：签名 + 聚合指标 + 原始文件与哈希。"""
+
+    __tablename__ = "benchmark_run"
+
+    run_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    model_name: Mapped[str | None] = mapped_column(String(255), index=True)
+    hardware_model: Mapped[str | None] = mapped_column(String(255), index=True)
+    gpu_count: Mapped[int | None] = mapped_column(Integer)
+    tp_size: Mapped[int | None] = mapped_column(Integer)
+    dp_size: Mapped[int | None] = mapped_column(Integer)
+    framework: Mapped[str | None] = mapped_column(String(64))
+    framework_version: Mapped[str | None] = mapped_column(String(64))
+    configured_concurrency: Mapped[int | None] = mapped_column(Integer, index=True)
+    input_len_target: Mapped[int | None] = mapped_column(Integer)
+    output_len_target: Mapped[int | None] = mapped_column(Integer)
+    #: 数据可信等级（synthetic / 厂商发布 / 内部实测 …）
+    data_trust: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    load_profile_kind: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    output_throughput_tok_s: Mapped[str | None] = mapped_column(Text)
+    ttft_p99_ms: Mapped[str | None] = mapped_column(Text)
+    tpot_p99_ms: Mapped[str | None] = mapped_column(Text)
+    error_rate: Mapped[str | None] = mapped_column(Text)
+    raw_file: Mapped[str | None] = mapped_column(Text)
+    raw_sha256: Mapped[str | None] = mapped_column(String(64))
+    collected_at: Mapped[datetime | None] = mapped_column(DateTime)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
