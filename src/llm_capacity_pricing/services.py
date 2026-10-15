@@ -1272,6 +1272,9 @@ def plan_deployment_for(
 ) -> dict[str, Any]:
     """生成 TP/DP 候选与静态可行性（M17）。"""
     model, hardware, server, servers = _load_for_planning(db_path, model_id, hardware_id, server_id)
+    from llm_capacity_pricing.sizing.planner import resolve_usable_memory as _resolve
+
+    _resolved_usable = _resolve(hardware, assumptions)
     candidates = _plan_deployment(
         model,
         hardware,
@@ -1295,16 +1298,10 @@ def plan_deployment_for(
             "context_length_per_request": assumptions.context_length_per_request,
             "global_concurrency": assumptions.global_concurrency,
             "block_size_tokens": assumptions.block_size_tokens,
-            "per_gpu_usable_bytes": (
-                hardware.usable_memory_bytes
-                if hardware.usable_memory_bytes is not None
-                else assumptions.per_gpu_usable_bytes
-            ),
-            "usable_memory_source": (
-                "hardware.usable_memory_bytes（实测字段）"
-                if hardware.usable_memory_bytes is not None
-                else (assumptions.usable_memory_source or "未提供")
-            ),
+            # 用与计算完全相同的解析函数取值，避免报告与计算口径不一致
+            # （例如只给 --usable-fraction 时，直接读 assumptions 会得到 None）
+            "per_gpu_usable_bytes": _resolved_usable[0],
+            "usable_memory_source": _resolved_usable[1],
             "usable_memory_source_kind": (
                 "measured"
                 if hardware.usable_memory_bytes is not None

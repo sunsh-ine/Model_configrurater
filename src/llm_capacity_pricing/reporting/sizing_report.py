@@ -32,6 +32,13 @@ def _gib(value: int | None) -> str:
     return "—" if value is None else f"{value / 1024**3:.2f} GiB"
 
 
+def _both(value: int | None) -> str:
+    """同时给出 GB(10^9) 与 GiB(2^30)，避免单位口径误读（V2.1）。"""
+    if value is None:
+        return "—"
+    return f"{value / 10**9:.2f} GB / {value / 1024**3:.2f} GiB"
+
+
 def _gb(value: int | None) -> str:
     return "—" if value is None else f"{value / 10**9:.2f} GB"
 
@@ -80,7 +87,7 @@ def build_sizing_report(
             f"{h.verification_status} |"
         )
     add(
-        f"| 单卡可用显存 | {_gib(request.get('per_gpu_usable_bytes'))} | "
+        f"| 单卡可用显存 | {_both(request.get('per_gpu_usable_bytes'))} | "
         f"来源性质 **{request.get('usable_memory_source_kind') or '未声明'}**；"
         f"{request.get('usable_memory_source')} |"
     )
@@ -114,7 +121,7 @@ def build_sizing_report(
     # ---- 候选表 --------------------------------------------------------
     add("## 2. 部署候选（按状态与卡数排序，不代表性能优劣）")
     add("")
-    add("| 候选 | 卡数 | TP | DP | 权重/卡 | KV/卡 | 合计/卡 | 余量 | 状态 |")
+    add("| 候选 | 卡数 | TP | DP | 权重/卡 (GiB) | KV/卡 (GiB) | 合计/卡 (GiB) | 余量 (GiB) | 状态 |")
     add("|---|---|---|---|---|---|---|---|---|")
     candidates = list(candidates)
     for c in candidates:
@@ -164,7 +171,10 @@ def build_sizing_report(
                 f"- 运行时：已知 {len(known)} 项（合计 {_gib(m.runtime_total_bytes)}），"
                 f"未知 {len(unknown)} 项：{[r.item for r in unknown] or '无'}"
             )
-            add(f"- 单卡可用：{_gib(m.per_gpu_usable_bytes)}；合计需求：{_gib(m.total_required_bytes)}；余量：{_gib(m.headroom_bytes)}")
+            add(
+                f"- 单卡可用：{_both(m.per_gpu_usable_bytes)}；合计需求：{_both(m.total_required_bytes)}；"
+                f"余量：{_both(m.headroom_bytes)}"
+            )
         for a in c.feasibility.assumptions:
             add(f"- 依赖假设：{a}")
         for r in c.feasibility.reasons:

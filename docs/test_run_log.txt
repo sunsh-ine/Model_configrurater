@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T16:46:03",
+  "generated_at": "2026-10-15T16:52:37",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T16:46:05",
+  "generated_at": "2026-10-15T16:52:38",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1214,7 +1214,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 22. plan-deployment（M17 TP/DP 候选 + M18 JSON/Markdown 报告） ===
 规划结果已写入 data/exports/deployment_plan.json
-报告已写入 data/exports/sizing_report.md（16451 字节）
+报告已写入 data/exports/sizing_report.md（16845 字节）
 状态分布: {'conditional_feasible': 5, 'infeasible': 3}
 
 === 23. estimate-memory（M15+M16 单配置显存构成） ===
@@ -1341,22 +1341,22 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 ........................................................................ [ 71%]
 ........................................................................ [ 89%]
 ............................................                             [100%]
-404 passed in 90.43s (0:01:30)
+404 passed in 55.89s
 
 === 26. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1172
-drwxrwxr-x  2 ssa ssa   4096 10月 15 16:46 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 16:46 ..
--rw-rw-r--  1 ssa ssa  20930 10月 15 16:46 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 16:46 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 16:46 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 16:46 overview.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 16:46 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 16:46 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16451 10月 15 16:46 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 15 16:52 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 16:52 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 15 16:52 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 16:52 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 16:52 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 16:52 overview.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 16:52 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 16:52 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 15 16:52 sizing_report.md
 
 ==== 汇总 ====
 步骤 27 项：通过 27，失败 0
-完成时间: 2026-10-15T16:48:12+08:00
+完成时间: 2026-10-15T16:53:56+08:00
 环境: Python 3.12.3
 全部步骤通过。
