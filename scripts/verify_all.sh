@@ -32,6 +32,7 @@ P4_CATALOG="data/examples/phase4_cost_inputs.example.yaml"
 P4_PLAN="data/examples/phase4_cost_plan.example.yaml"
 P4_DEMAND="data/examples/phase4_demand.example.yaml"
 P4_CONFIRMATION="data/examples/phase4_commercial_confirmation.example.yaml"
+P4_APPROVALS="data/examples/phase4_approvals.example.yaml"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -340,37 +341,65 @@ step_tco_unknown() { # 缺价项：未知不等于零（断言）
   fi
 }
 
-step_quote_blocked() { # 合成成本 + 无确认 + 未审批 -> 必须阻断（断言）
+step_record_sla_evidence() { # 生成持久化 SLA 证据；synthetic 曲线不得成为 observed_pass（断言）
   local out
-  if ! out=$($CLI quote-eligibility --candidate demo-owned --plan-file "$P4_PLAN" \
-      --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
-      --gpu-count 8 --server-count 1 --sla-status observed_pass \
-      --match-level exact_match --approval-status missing --db "$DB" 2>&1); then
+  if ! out=$($CLI record-sla-evidence --candidate demo-owned \
+      --requirement '{"requirement_id":"req-phase4","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
+      --model SYNTHETIC-MODEL-C --model-revision synthetic-revision-1 --precision bf16 \
+      --hardware SYNTHETIC-GPU-C --gpu-count 8 --tp 8 --dp 1 \
+      --framework vllm --framework-version synthetic-fw-1.0 \
+      --concurrency 8 --input-len 1024 --output-len 256 --dataset random \
+      --arrival-mode unbounded --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if printf '%s' "$out" | grep -q '"status": "observed_pass"'; then
+    printf '断言失败：synthetic 曲线不得产出 observed_pass 的 SLA 证据\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q '"sla_evaluation_id"'; then
+    printf '断言失败：必须产出可引用的证据 ID\n'; return 1
+  fi
+}
+
+step_quote_blocked_by_evidence() { # 引用真实证据仍必须阻断（断言）
+  local out
+  if ! out=$($CLI quote-eligibility --candidate demo-owned --requirement-id req-phase4 \
+      --sla-evaluation-id "sla::demo-owned::req-phase4" --approval-id syn-approval-demo \
+      --model SYNTHETIC-MODEL-C --model-revision synthetic-revision-1 --precision bf16 \
+      --hardware SYNTHETIC-GPU-C --gpu-count 8 --tp 8 --dp 1 \
+      --framework vllm --framework-version synthetic-fw-1.0 \
+      --concurrency 8 --input-len 1024 --output-len 256 --dataset random \
+      --arrival-mode unbounded --confirmation syn-confirmation-demo \
+      --plan-file "$P4_PLAN" --template syn-owned-3y \
+      --hardware-id nvidia-h100-sxm-80gb --server-count 1 --db "$DB" 2>&1); then
     printf '%s\n' "$out"; return 1
   fi
   printf '%s\n' "$out"
   if ! printf '%s' "$out" | grep -q '^正式报价不可发布'; then
-    printf '断言失败：合成成本不得发布正式报价\n'; return 1
+    printf '断言失败：证据未通过核验时不得发布报价\n'; return 1
   fi
   if ! printf '%s' "$out" | grep -q '"quote_publishable": false'; then
     printf '断言失败：quote_publishable 必须为 false\n'; return 1
   fi
+  if ! printf '%s' "$out" | grep -q 'sla_recheck'; then
+    printf '断言失败：必须给出 SLA 重新核验的阻断原因\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q 'approval_cost_snapshot_stale'; then
+    printf '断言失败：审批绑定的成本快照不符必须被指出\n'; return 1
+  fi
 }
 
-step_quote_still_blocked() { # 商务已确认但 SLA 非实测 -> 仍必须阻断（断言）
+step_quote_rejects_claims() { # 不接受调用方状态字符串（断言）
   local out
-  if ! out=$($CLI quote-eligibility --candidate demo-owned --plan-file "$P4_PLAN" \
-      --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
-      --gpu-count 8 --server-count 1 --sla-status estimated_only \
-      --confirmation syn-confirmation-demo --approval-status missing --db "$DB" 2>&1); then
-    printf '%s\n' "$out"; return 1
+  if out=$($CLI quote-eligibility --candidate demo-owned --requirement-id req-phase4 \
+      --model qwen3-32b --hardware nvidia-h100-sxm-80gb --gpu-count 8 --tp 8 --dp 1 \
+      --db "$DB" 2>&1); then
+    printf '%s\n' "$out"
+    printf '断言失败：缺少证据引用时不应返回成功\n'; return 1
   fi
   printf '%s\n' "$out"
-  if ! printf '%s' "$out" | grep -q '^正式报价不可发布'; then
-    printf '断言失败：SLA 未实测支撑时不得发布报价\n'; return 1
-  fi
-  if ! printf '%s' "$out" | grep -q 'sla_estimated_only'; then
-    printf '断言失败：必须给出 sla_estimated_only 阻断原因\n'; return 1
+  if ! printf '%s' "$out" | grep -qE 'sla-evaluation-id|必须提供'; then
+    printf '断言失败：必须明确要求持久化的证据 ID\n'; return 1
   fi
 }
 
@@ -523,16 +552,25 @@ run_step 37 "tco（M28 断言：缺价项 -> incomplete，未知不等于零）"
 run_step 38 "revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证）" 1 '^年度收入|^  "(annual_revenue|currency|capacity_check|scenario_only|period_revenue_total)"' \
   $CLI revenue-scenario --demand-file "$P4_DEMAND" --scenario syn-demand-base --db "$DB"
 
-run_step 39 "quote-eligibility（M30 断言：合成成本 + 无确认 + 未审批 -> 必须阻断）" 1 '^正式报价不可发布' \
-  step_quote_blocked
+run_step 39 "record-sla-evidence（F4.1 断言：synthetic 曲线不得成为 observed_pass）" 1 '^(已生成 SLA 证据|该证据不是)' \
+  step_record_sla_evidence
 
 run_step 40 "import-commercial-confirmations（人工确认记录，示例占位）" 1 '^已导入 [0-9]+ 条商务确认记录' \
   $CLI import-commercial-confirmations --file "$P4_CONFIRMATION" --db "$DB"
 
-run_step 41 "quote-eligibility（M30 断言：商务已确认但 SLA 非实测 -> 仍阻断）" 1 '^正式报价不可发布' \
-  step_quote_still_blocked
+run_step 41 "import-quote-approvals（F4.1 人工审批记录，示例占位）" 1 '^已导入 [0-9]+ 条审批记录' \
+  $CLI import-quote-approvals --file "$P4_APPROVALS" --db "$DB"
 
-run_step 42 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路）" 1 '^(候选分桶:|可发布正式报价的候选:)|^  "per_candidate"' \
+run_step 42 "quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因）" 1 '^正式报价不可发布' \
+  step_quote_blocked_by_evidence
+
+run_step 43 "quote-eligibility（F4.1 断言：不接受调用方状态字符串，必须要求证据 ID）" 1 '必须提供|sla-evaluation-id' \
+  step_quote_rejects_claims
+
+run_step 44 "反向场景断言（F4.1：伪造声明 / 未核验证据 / 失配快照全部阻断）" 1 '^反向场景检查通过' \
+  $PY scripts/check_forged_quote_blocked.py
+
+run_step 45 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路）" 1 '^(候选分桶:|可发布正式报价的候选:)|^  "per_candidate"' \
   $CLI phase4-decision --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
     --plan-file "$P4_PLAN" --template syn-owned-3y \
     --demand-file "$P4_DEMAND" --scenario syn-demand-base \
@@ -542,17 +580,17 @@ run_step 42 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路�
     --requirement '{"requirement_id":"req-phase4","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
     --out "$OUT_DIR/phase4_decision.json" --db "$DB"
 
-run_step 43 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明）" 1 '^报告已写入' \
+run_step 46 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明）" 1 '^报告已写入' \
   $CLI phase4-report --out "$OUT_DIR/phase4_report.md" \
     --decision-json "$OUT_DIR/phase4_decision.json" --db "$DB"
 
-run_step 44 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 47 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 45 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 48 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 46 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 49 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

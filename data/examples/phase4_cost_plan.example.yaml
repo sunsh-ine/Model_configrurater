@@ -9,6 +9,29 @@ notice: >-
   合成示例方案模板。买断与租赁是**互斥**的两套模板：租赁模板不产生 capex，
   也不计折旧；买断模板不含租金。缺假设的项会被标为不可算，而不是按 0 处理。
 
+# 成本范围覆盖策略（V4.1 F4.2）——**版本化**。
+# 一个"完整 TCO"必须处理下列类别；方案既没选入、也没在 scope_exclusions 里
+# 显式排除的类别，会被记为覆盖缺口，使 TCO 标为不完整。
+# 换句话说：**不能靠"不选它"来规避完整性检查**。
+coverage_policy:
+  policy_id: syn-coverage-standard
+  version: "1.0"
+  notes:
+    - "覆盖全部 10 类基础设施成本；任一类别必须 covered / excluded_by_scope / not_applicable"
+  requirements:
+    - category: gpu_hardware
+    - category: server_chassis
+      # 租赁口径下不含整机采购，但模板必须显式排除并给出理由
+      allow_scope_exclusion: true
+    - category: network
+    - category: storage
+    - category: power_energy
+    - category: facility_space
+    - category: cooling
+    - category: software_license
+    - category: operations
+    - category: maintenance
+
 plan_templates:
   # ---- 买断（自有）-----------------------------------------------------
   - template_id: syn-owned-3y
@@ -68,6 +91,12 @@ plan_templates:
       - syn-cooling
       - syn-software-license
       - syn-operations
+      - syn-maintenance
+    scope_exclusions:
+      # 租赁口径由厂商提供整机，不自购机箱：必须**显式**排除并说明理由，
+      # 否则会因"没选它"而被记为覆盖缺口
+      - category: server_chassis
+        reason: "合成示例：租赁含整机，不单独采购机箱"
     scope_notes:
       - "合成示例：租赁口径不含采购（syn-gpu-purchase 会被显式排除并记录原因）"
       - "合成示例：租赁口径不计折旧"
@@ -92,5 +121,14 @@ plan_templates:
       - syn-server-chassis
       - syn-power-energy
       - syn-infiniband-fabric
+    scope_exclusions:
+      - category: storage
+        reason: "合成示例：复用既有存储"
+      - category: facility_space
+        reason: "合成示例：机柜由现有机房提供"
+      - category: cooling
+        reason: "合成示例：制冷含在机柜费用内"
     scope_notes:
       - "含 unit_price 为空的成本项，用于验证 TCO incomplete 与报价阻断"
+      - "另有若干类别既未选入也未排除（software_license / operations / maintenance），"
+      - "用于验证覆盖缺口使 TCO 不完整"

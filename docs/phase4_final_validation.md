@@ -14,7 +14,7 @@
 
 | 结论 | 状态 | 依据 |
 |---|---|---|
-| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`47/47` 全链路步骤通过，`549 passed` |
+| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`50/50` 全链路步骤通过，`587 passed` |
 | **商业数据是否确认** | ⛔ **未确认** | 仓库内成本/计费数据全部为 `synthetic_example` 或 `pending_business_confirmation`；币种状态为 `assumed`/`unconfirmed`。尚无任何真实合同价接入 |
 | **SLA 是否具备实测依据** | ⛔ **不具备** | 目标配置（Qwen3-32B × H100/H200）无 `exact_match` 的可信实测，第三阶段结论恒为 `not_evaluable` / `requires_benchmark`，本阶段**未做任何放宽** |
 | **正式报价是否可发布** | ⛔ **不可发布** | 四维门禁三个维度未过（成本不完整、SLA 未验证、无人工确认与审批）。报告输出**阻断说明**而非报价金额 |
@@ -27,7 +27,7 @@
 | 任务书要求 | 交付物 |
 |---|---|
 | 源码 | `schemas/tco.py`、`schemas/commercial.py`、`schemas/decision.py`、`engines/tco.py`、`engines/revenue.py`、`engines/quote_gate.py`、`decision/comparison.py`、`decision/sensitivity.py`、`reporting/tco_report.py`、`agent_api.py`、`importers/cost_catalog.py` |
-| 测试 | `tests/test_phase4_tco.py`（50 个用例） |
+| 测试 | `tests/test_phase4_tco.py`（88 个用例） |
 | TCO 手算对照案例 | 见本文 §三；用例 `test_m28_hand_computed_tco_matches_engine` |
 | 方案比较示例 | `data/exports/phase4_report.md` §2；用例 `test_m31_*` |
 | 报价阻断示例 | `data/exports/phase4_report.md` §7；用例 `test_m30_*`、`test_m33_report_blocks_quote_and_watermarks` |
@@ -148,7 +148,7 @@ bash scripts/verify_all.sh
 | 项 | 结果 |
 |---|---|
 | 全链路步骤 | **47 / 47 通过**（第四阶段 11 步，其中 4 步为**断言式**） |
-| 全量测试 | **549 passed**（第三阶段 499 → 第四阶段新增 50） |
+| 全量测试 | **587 passed**（第三阶段 499 → 第四阶段新增 88） |
 | 第一阶段回归 | 默认情景 **160**（32×5）、`pricing_result` 总数 **192**、超容差不匹配 **0** —— 不变 |
 | 敏感数据扫描 | 已跟踪文件中未发现内部定价数值；忽略规则校验通过 |
 
@@ -224,7 +224,7 @@ phase4.quote_eligibility / phase4.decision / phase3.performance_inventory
 
 ## 十、安全事项（**独立、未闭环、未授权执行**）
 
-仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 549 项测试通过而消除**，
+仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 587 项测试通过而消除**，
 也不能由本阶段的功能开发替代处理。方案与影响评估见
 `docs/security_remediation_report.md` §4。
 
@@ -243,3 +243,174 @@ phase4.quote_eligibility / phase4.decision / phase3.performance_inventory
 
 第四阶段的计算与决策框架已完整可用：接入真实成本、计费规则与实测数据后，
 门禁会自动放行 —— 不需要改动任何代码，也不需要放宽任何口径。
+
+---
+
+# 附：V4.1 定向整改（F4.1–F4.7）
+
+复审指出第四阶段的核心正确性缺陷：**门禁信任调用方字符串、TCO 靠"不选"规避完整性、
+价格适用范围未校验**。本节记录整改结果。
+
+## A.1 F4.1（P0）报价门禁改为读取真实证据
+
+**问题**：`quote_eligibility_for` 直接接受 `sla_status="observed_pass"`、
+`match_level="exact_match"`、`approval_status="approved"`、`approval_ref="随便一个字符串"`，
+并据此可能给出 `quote_publishable=True`。门禁检查的是**状态字符串之间是否自洽**，
+而不是这些状态背后的证据是否有效。
+
+**整改**：
+
+1. **只接受引用**。`quote_eligibility_for(db, candidate_id, requirement_id,
+   sla_evaluation_id, approval_id, ...)`：缺少证据 ID 直接 `ServiceError`，
+   没有任何"声明即通过"的入口。
+2. **持久化证据表**。新增 `sla_evidence` 与 `quote_approval` 两张表；
+   `record-sla-evidence` 跑一次评估并落库，`import-quote-approvals` 导入人工审批。
+3. **服务端重新推导**。报价时用证据记录里的**需求快照 + 目标身份**重新匹配、
+   重新做 SLA 判定，并把结果与记录中的结论比对：
+   不一致 → `sla_evidence_stale`；引用的实测已不存在 → `matched_run_not_found`；
+   等级或状态不达标 → `sla_recheck_not_pass`。
+4. **成本快照绑定**。`tco_snapshot_hash()` 对决定金额的字段取指纹，审批记录必须绑定
+   同一个指纹；成本一变，旧审批自动失效（`approval_cost_snapshot_stale`）。
+5. **审批必须是记录**。`QuoteApproval` 要求审批人、时间、有效期、凭据与作用域
+   （候选 / 需求 / 方案），`approval_ref` 由记录提供，调用方无法自填。
+6. **诊断入口隔离**。`quote_eligibility_from_claims()` 保留原始字符串入口，
+   但恒返回 `quote_publishable=False`、`claims_only=True`，且**不会**把声明升级成
+   `verified_measured`。
+7. **Agent 接口参数白名单**。`AGENT_OP_PARAMS` 为每个算子声明允许的参数；
+   传 `sla_status` 等状态字符串属于未声明参数，直接拒绝；
+   `phase4.quote_eligibility` 强制要求四个引用。
+8. **Schema 层双保险**。`QuoteEligibility` 的校验器禁止
+   "`verified_measured` 却没有 `sla_evaluation_id`"、
+   "`approved` 却没有 `approval_id`"、"诊断路径标记可发布"。
+
+**复现**（评审指定的反向场景）：`scripts/check_forged_quote_blocked.py`
+—— 全部成本项标记 `confirmed`、调用方声称 `observed_pass`、审批凭据是任意字符串，
+10 项检查全部阻断（`50/50` 全链路第 44 步）。
+
+## A.2 F4.2（P0）成本范围完整性
+
+**问题**：`compute_tco()` 只遍历 `plan.selections`，未校验"该方案应该覆盖哪些类别"。
+只选 GPU 采购 + 完整折旧假设，就能得到 `incomplete=False` 的"完整 TCO"，
+而电费、网络、运维根本没进计算。
+
+**整改**：新增**版本化** `CostCoveragePolicy`，每个适用类别必须处于
+`covered` / `excluded_by_scope`（必须给理由）/ `not_applicable` 之一；
+既未选入又未显式排除的类别记为 `coverage_gaps`，使 TCO `incomplete=True`。
+**没有覆盖策略本身也算不完整**（`coverage_policy_missing`），
+否则"少选几类"就能蒙过检查。另加**疑似重复计费**检查：同一类别、同一计价口径、
+同一适用范围出现多个参与成本项时报警并使结果不完整。
+
+**复现**：`test_f42_omitting_required_categories_makes_tco_incomplete`、
+`test_f42_missing_coverage_policy_is_incomplete`、`test_f42_duplicate_billing_is_flagged`、
+`test_f42_explicit_scope_exclusion_is_accepted`、`test_f42_policy_forbidding_exclusion_still_flags_gap`。
+
+## A.3 F4.3（P0）价格适用范围与有效期
+
+**问题**：`applies_to_hardware_id` / `region` / `valid_from` / `valid_to` 保存了却从不参与计算。
+H200 的价格可以用来算 H100 方案，过期单价照用。
+
+**整改**：在算金额**之前**逐项校验，不通过则标 `not_applicable`、不给金额并写入
+`applicability_errors`（使 TCO 不完整）：
+
+| 情形 | 原因码 |
+|---|---|
+| 价格绑定的是别的 GPU SKU | `hardware_sku_mismatch` |
+| 价格区域与方案区域冲突 | `region_mismatch` |
+| 条目声明了区域但方案未声明区域 | `region_unspecified` |
+| 价格在基准日之前已失效 | `price_expired` |
+| 价格在基准日尚未生效 | `price_not_yet_effective` |
+
+基准日来自 `DeploymentCostPlan.as_of_date`（缺省取当天，并写进结果与备注）。
+收入侧同样收紧：`BillingRule.model_name` 必须与情景模型一致，
+计费规则的有效期窗口必须覆盖基准日，否则直接报错。
+
+**复现**：`test_f43_price_for_other_gpu_sku_is_not_applicable`、
+`test_f43_expired_and_not_yet_effective_prices_are_blocked`、
+`test_f43_region_conflict_and_unspecified_region`、
+`test_f43_billing_rule_must_match_scenario_model`、
+`test_f43_billing_rule_validity_window_is_enforced`。
+
+## A.4 F4.4（P1）缓存计费语义与失败请求
+
+**问题（缓存）**：`min(业务估计, 合同上限)` 被描述为"更保守"，但缓存价低于未缓存价时，
+**取更小的缓存比例反而提高收入预测**。术语与语义都不成立。
+
+**整改**：
+
+* 明确 `billable_cache_ratio` 是**合同上限**，不是保守估计；
+* 给出**收入区间** `[annual_revenue_lower_bound, annual_revenue_upper_bound]`
+  = [最大可辩护折扣, 完全不打折]，基准值落在区间内；
+* 删除全部"保守"措辞，并在 notes 里写明"基准值不是保守下界"。
+
+**问题（失败请求）**：收入模型没有区分需求请求量与可计费请求量。
+
+**整改**：`DemandPeriod.success_rate` + `BillingRule.billable_on_failure`；
+结果按 `demand / served / failed / billable` **三段**记录，
+默认 `billable_on_failure=False`（不假设失败也收费），并用 warning 明确提示。
+
+**复现**：`test_m29_cache_fraction_is_contract_cap_not_conservative`、
+`test_m29_revenue_bounds_widen_with_unconfirmed_cache_rule`、
+`test_f44_demand_served_billable_are_separated`、
+`test_f44_billable_on_failure_follows_contract`、`test_f44_different_cache_prices_compute_correctly`。
+
+## A.5 F4.5（P1）跨币种与完整性检查
+
+**问题**：`annual_margin = annual_revenue - annual_total` 未先检查币种，
+USD 收入减 CNY 成本也能得出"利润 200"。
+
+**整改**：新增 `_margin_allowed()`，要求成本与收入都存在、**成本结论完整**、
+双方币种一致且已知；否则**不给数字**，只写 `margin_not_evaluable:<原因>`。
+盈亏平衡的收入成本比同样加币种校验；预算检查新增 `compared_currency`，
+币种不一致直接 `unknown`。
+
+**复现**：`test_f45_usd_revenue_minus_cny_cost_is_not_a_margin`、
+`test_f45_incomplete_cost_hides_margin`、`test_f45_same_currency_still_yields_margin`（对照）、
+`test_f45_breakeven_ratio_blocked_on_currency_mismatch`、`test_f45_budget_blocked_on_currency_mismatch`。
+
+## A.6 F4.6（P1）综合容量证据
+
+**问题**：只要 `Peak Output TPS ≤ Measured Output TPS` 就判 `within_capacity`，
+忽略了请求吞吐、并发、负载一致性、SLA 与可持续性。
+
+**整改**：新增 `CapacityCheckDetail`，**五个子项**分别判定：
+
+| 子项 | 判据 |
+|---|---|
+| `output_throughput` | 峰值输出 tok/s ≤ 实测输出吞吐 |
+| `request_throughput` | 峰值 req/s ≤ 实测请求吞吐 |
+| `concurrency_and_load` | Little 定律推算所需并发 ≤ 实测配置并发；且需求负载长度与实测一致 |
+| `sla_evidence` | 实测 TTFT/TPOT 满足需求约束 |
+| `sustainability` | 同组曲线中该并发被认定为可持续容量 |
+
+结论规则：任一 `not_satisfied` → `exceeds_capacity`；全部 `satisfied` → `within_capacity`；
+存在 `unknown` → **`partially_verified`**（明确不得当作容量可行）。
+
+**复现**：`test_m29_output_only_is_not_enough_for_within_capacity`、
+`test_m29_all_five_subchecks_needed_for_within_capacity`、
+`test_m29_any_failing_subcheck_yields_exceeds_capacity`、`test_f46_*`。
+
+## A.7 F4.7 端到端与任务书对照
+
+* 全链路 `50/50` 通过，其中**断言式**步骤 4 个（租赁口径、缺价不完整、
+  证据未核验必须阻断、不接受状态字符串）+ **反向场景**步骤 1 个；
+* 全量测试 **587 passed**，第一阶段回归 **160 / 192 / 0 超容差** 不变；
+* 任务书对照：V4.0 正文未随指令提供，本节按复审列出的差异项
+  （成本类别覆盖策略、审批登记与证据绑定、价格有效期、报价作用域、
+  需求成功率、币种可比性、可复算输入快照）逐项落实；
+  **仍需在拿到 V4.0 正文后做一次逐条差异核对**。
+
+## A.8 修正后的门禁契约（摘要）
+
+```
+evaluate_quote_eligibility(
+    candidate_id, requirement_id,
+    tco,                      # 成本结果（含覆盖策略、适用性校验）
+    sla_evidence,             # 持久化记录（SlaEvidenceRecord）
+    sla_recheck,              # 服务端用记录快照重新推导的结果
+    approval,                 # 持久化审批记录（QuoteApproval）
+    confirmation,             # 人工商务确认
+    cost_snapshot_hash,       # 现算快照指纹，审批必须绑定同一个
+) -> QuoteEligibility
+```
+
+四个维度独立，**没有任何参数可以放宽门禁**；调用方无法只靠传字符串影响结论。

@@ -103,27 +103,44 @@ def compute_revenue(
   或带 `exact_match` 的实测吞吐）时才可能给出 `within_capacity` / `exceeds_capacity`，
   否则恒为 `unknown_no_measurement`，且 `scenario_only = True`。
 
-### 3.3 M30 报价门禁
+### 3.3 M30 报价门禁（V4.1 F4.1 修正后）
 
 ```python
 def evaluate_quote_eligibility(
-    *, candidate_id: str, tco: TcoResult | None, sla_status: str | None,
-    confirmation: CommercialConfirmation | None, approval_status: str,
-    as_of: date | None = None,
+    *, candidate_id, requirement_id,
+    tco: TcoResult | None,
+    sla_evidence: SlaEvidenceRecord | None,   # 持久化证据记录
+    sla_recheck: SlaRecheck | None,           # 服务端用记录快照重新推导的结果
+    approval: QuoteApproval | None,           # 持久化审批记录
+    confirmation: CommercialConfirmation | None,
+    cost_snapshot_hash: str | None,           # 现算指纹，审批必须绑定同一个
+    plan_id=None, scenario_id=None, billing_rule_id=None, as_of=None,
 ) -> QuoteEligibility: ...
+
+def record_sla_evidence_for(db, *, candidate_id, requirement, facts, ...) -> dict
+def import_quote_approvals(file, db) -> dict
 ```
 
-四个维度**独立**判定，`quote_publishable = AND(四维通过 AND 有效期未过)`：
+**只接受引用，不接受状态字符串。** 四个维度独立判定，
+`quote_publishable = AND(四维通过)`：
 
 | 维度 | 通过条件 |
 |---|---|
-| `cost_estimate_status` | `TcoResult.incomplete == False` 且币种已确认 且无合成价格 |
-| `sla_verification_status` | `SlaEvaluation.status == observed_pass` 且匹配等级为 `exact_match` |
-| `commercial_confirmation_status` | 币种 / 价格 / 条款三项全部人工确认 |
-| `approval_status` | 人工审批记录为 `approved` |
+| `cost_estimate_status` | `TcoResult.incomplete == False`、币种已确认、无合成价格、**无未确认条目** |
+| `sla_verification_status` | 存在证据记录，且**重新推导**得到 `observed_pass` + `exact_match`，且与记录结论一致 |
+| `commercial_confirmation_status` | 币种 / 价格 / 条款三项人工确认，且在有效期内 |
+| `approval_status` | 存在审批记录、`decision=approved`、作用域匹配、**成本快照指纹一致**、未过期 |
 
-任意一项未过 → `quote_publishable = False`，并把**每一项**不通过的原因写进 `blockers`。
-门禁是纯函数：不知道、没确认、缺数据一律**不通过**（fail-closed）。
+**服务端重新核验**（不接受"记录里写了就算"）：
+
+1. 按证据记录里的**需求快照 + 目标身份**重新跑匹配与 SLA 判定；
+2. 引用的实测必须仍存在，且重新匹配到的仍是同一条（否则 `evidence_run_superseded`）；
+3. 重新推导的等级/状态必须与记录一致（否则 `sla_evidence_stale`）；
+4. 成本快照指纹必须与审批一致（否则 `approval_cost_snapshot_stale`）。
+
+`quote_eligibility_from_claims()` 是**内部诊断**入口：恒返回
+`quote_publishable=False` 且 `claims_only=True`，且不会把声明升级为 `verified_measured`。
+Agent 接口另有**参数白名单**：传 `sla_status` 之类状态字符串会被直接拒绝。
 
 ### 3.4 M31 比较与 M32 敏感性
 

@@ -1,0 +1,40 @@
+# 第四阶段（V4.1 F4.1）人工审批记录 —— **示例，不是真实审批**
+#
+# ⚠️ 本文件用于验证审批记录的**审计要求**：decision=approved 必须齐备审批人、
+#    审批时间、有效期、凭据编号，并且作用域（候选 / 需求 / 方案）与
+#    **成本快照指纹**必须与当前计算一致。这里全部是演示占位。
+#
+# 说明：
+#   * cost_snapshot_hash 由方案的实际成本决定，写死之前无法预知；
+#     因此本示例记录**故意不指向真实方案**，导入后报价门禁仍会因
+#     "作用域不匹配 / 成本快照不一致"而阻断 —— 这正是设计意图。
+#   * 真实审批由业务方提供并单独保存；Agent 无任何接口可生成审批。
+
+schema_version: "1.0"
+
+approvals:
+  - approval_id: syn-approval-demo
+    decision: approved
+    approved_by: "示例占位（非真实审批人）"
+    approved_at: "2026-10-15T20:00:00+08:00"
+    valid_until: "2026-12-31"
+    document_ref: "APR-EXAMPLE-NOT-A-REAL-APPROVAL"
+    scope:
+      candidate_id: "demo-owned"
+      requirement_id: "req-phase4"
+      plan_id: "syn-owned-3y::demo-owned"
+      scenario_id: syn-demand-base
+      billing_rule_id: syn-billing-qwen3-32b
+      cost_snapshot_hash: "0000000000000000000000000000000000000000000000000000000000000000"
+    notes: >-
+      演示占位记录：cost_snapshot_hash 是占位值，与任何真实方案都不匹配，
+      因此导入后仍然不能发布报价。
+
+  - approval_id: syn-approval-pending
+    decision: pending
+    scope:
+      candidate_id: "demo-owned"
+      requirement_id: "req-phase4"
+      plan_id: "syn-owned-3y::demo-owned"
+      cost_snapshot_hash: "0000000000000000000000000000000000000000000000000000000000000000"
+    notes: "演示占位：审批尚未完成"

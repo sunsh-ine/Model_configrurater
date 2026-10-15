@@ -435,3 +435,43 @@ class CommercialConfirmationRow(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
     valid_until: Mapped[date | None] = mapped_column(Date)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# 第四阶段（V4.1 F4.1）：SLA 证据与人工审批记录
+# ---------------------------------------------------------------------------
+
+
+class SlaEvidenceRow(Base):
+    """持久化的 SLA 证据。报价门禁只认这里的记录，不认调用方字符串。"""
+
+    __tablename__ = "sla_evidence"
+
+    sla_evaluation_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    candidate_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    requirement_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    match_level: Mapped[str | None] = mapped_column(String(32), index=True)
+    matched_run_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    data_trust: Mapped[str | None] = mapped_column(String(48))
+    policy_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    run_pool_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class QuoteApprovalRow(Base):
+    """人工审批记录（Agent 无任何接口可生成）。"""
+
+    __tablename__ = "quote_approval"
+
+    approval_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    scope_candidate_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    scope_requirement_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    scope_plan_id: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    cost_snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    approved_by: Mapped[str | None] = mapped_column(String(128))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)

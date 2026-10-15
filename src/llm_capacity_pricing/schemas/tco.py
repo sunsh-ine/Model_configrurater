@@ -66,6 +66,25 @@ CostDetermination = Literal[
     "unknown_missing_price",    # 缺单价 -> 不得当 0
     "unknown_missing_basis",    # 缺计算所需假设（如功率/PUE）
     "excluded_by_cost_basis",   # 与买断/租赁口径不符，按规则排除
+    "not_applicable",           # 价格适用范围不符（SKU/区域/失效），不得用于本方案
+]
+
+#: 成本类别的覆盖判定（V4.1 F4.2）：每个**适用**类别都必须被显式处理，
+#: 不允许靠"不选它"来规避完整性检查。
+CoverageDecision = Literal[
+    "covered",              # 方案中已选入该类别的成本项
+    "excluded_by_scope",    # 明确排除，且必须给出理由
+    "not_applicable",       # 该类别在本次口径下不要求（策略里限定了另一种口径）
+    "missing",              # 应覆盖却既未选入也未显式排除 -> 覆盖缺口
+]
+
+#: 单价适用性校验的不通过原因
+ApplicabilityIssue = Literal[
+    "hardware_sku_mismatch",   # 价格绑定的是别的 GPU SKU
+    "region_mismatch",         # 价格的区域与方案区域不一致
+    "region_unspecified",      # 条目声明了区域，但方案未声明区域（无法断言适用）
+    "price_expired",           # 价格已在 as_of 之前失效
+    "price_not_yet_effective", # 价格在 as_of 时尚未生效
 ]
 
 #: 单价的来源可信度（沿用第三阶段的 measurement_origin 思路）
@@ -207,6 +226,65 @@ class CostLineSelection(BaseModel):
         return v
 
 
+class ScopeExclusion(BaseModel):
+    """明确排除某个成本类别并给出理由（V4.1 F4.2）。
+
+    **"不选它"不是排除** —— 要让一个适用类别不出现在 TCO 里，
+    必须在这里显式声明并写清理由，否则该类别会被记为覆盖缺口。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: CostCategory
+    reason: str
+
+
+class CostCoverageRequirement(BaseModel):
+    """某个成本类别在某个口径下的覆盖要求。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: CostCategory
+    #: 只在某个口径下要求；None = 买断与租赁都要求
+    applies_to_basis: CostBasis | None = None
+    #: 该类别是否可能因范围原因被合法排除（排除必须走 scope_exclusions）
+    allow_scope_exclusion: bool = True
+
+
+class CostCoveragePolicy(BaseModel):
+    """成本范围覆盖策略（V4.1 F4.2），**版本化**。
+
+    策略声明"一个完整 TCO 必须处理哪些成本类别"。校验逻辑：
+
+    1. 方案选中的成本项按类别归类；
+    2. 策略要求、但方案既未选入、也未在 ``scope_exclusions`` 中显式排除的类别，
+       记为 **覆盖缺口**，使 TCO ``incomplete=True``；
+    3. 显式排除的类别必须带理由，并原样写进结果（可审计）。
+
+    没有策略时引擎不会假装"完整"：``TcoResult.coverage_policy_id`` 为 None
+    且 ``completeness_reasons`` 会写明"未提供覆盖策略"。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_id: str
+    #: 策略版本（口径变化必须升版本，便于追溯历史结论）
+    version: str
+    #: 该策略适用的口径；None = 通用
+    applies_to_basis: CostBasis | None = None
+    requirements: list[CostCoverageRequirement] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self) -> "CostCoveragePolicy":
+        if not self.requirements:
+            raise ValueError("覆盖策略至少要声明一个成本类别要求")
+        seen = [r.category for r in self.requirements]
+        if len(seen) != len(set(seen)):
+            raise ValueError("同一类别不得在覆盖策略中重复声明")
+        return self
+
+
 class DeploymentCostPlan(BaseModel):
     """一个部署候选的成本方案（M27/M28 的输入）。"""
 
@@ -222,8 +300,14 @@ class DeploymentCostPlan(BaseModel):
     dp_size: int | None = None
     #: **买断与租赁互斥**
     cost_basis: CostBasis
+    #: 方案所在区域；价格条目声明了 region 时必须一致（F4.3）
+    region: str | None = None
+    #: 价格适用性判定的基准日期；None = 取当天（报告会写明实际取值）
+    as_of_date: date | None = None
     assumptions: FinancingAssumptions = Field(default_factory=FinancingAssumptions)
     selections: list[CostLineSelection] = Field(default_factory=list)
+    #: 明确排除的成本类别（含理由）—— 不写在这里就视为"应覆盖而未覆盖"
+    scope_exclusions: list[ScopeExclusion] = Field(default_factory=list)
     #: 业务口径说明（区域、楼宇、合同编号等）
     scope_notes: list[str] = Field(default_factory=list)
 
@@ -239,6 +323,9 @@ class DeploymentCostPlan(BaseModel):
         seen = [s.item_id for s in self.selections]
         if len(seen) != len(set(seen)):
             raise ValueError("同一成本项不得在 selections 中重复出现")
+        cats = [e.category for e in self.scope_exclusions]
+        if len(cats) != len(set(cats)):
+            raise ValueError("同一类别不得在 scope_exclusions 中重复声明")
         return self
 
 
@@ -263,6 +350,8 @@ class CostComponentResult(BaseModel):
     one_time_cost: Decimal | None = None
     determination: CostDetermination
     reason: str | None = None
+    #: 单价适用性校验的不通过原因（F4.3）；仅在 ``determination == not_applicable`` 时有值
+    applicability_issue: ApplicabilityIssue | None = None
     evidence_id: str
 
     @model_validator(mode="after")
@@ -270,6 +359,13 @@ class CostComponentResult(BaseModel):
         if self.determination == "excluded_by_cost_basis":
             if self.annual_cost is not None or self.one_time_cost is not None:
                 raise ValueError("被口径排除的成本项不得带金额（排除 ≠ 计 0）")
+        if self.determination == "not_applicable":
+            if self.annual_cost is not None or self.one_time_cost is not None:
+                raise ValueError("适用性不通过的成本项不得带金额")
+            if self.applicability_issue is None:
+                raise ValueError("not_applicable 必须给出 applicability_issue")
+        if self.determination != "not_applicable" and self.applicability_issue is not None:
+            raise ValueError("applicability_issue 只用于 not_applicable")
         if self.determination == "computed" and self.annual_cost is None and self.one_time_cost is None:
             raise ValueError("computed 的成本项必须给出金额")
         if self.determination.startswith("unknown_missing") and (
@@ -320,18 +416,37 @@ class TcoResult(BaseModel):
     cost_per_gpu_year: Decimal | None = None
     cost_per_server_year: Decimal | None = None
 
-    #: 完整性：任一参与项缺价格/缺假设，或币种不一致，即为 True
+    #: 完整性：任一参与项缺价格/缺假设、适用性不通过、类别覆盖缺口、
+    #: 疑似重复计费或币种不一致，即为 True
     incomplete: bool = False
     completeness_reasons: list[str] = Field(default_factory=list)
     #: 缺数据的成本项（category/item_id）
     unknown_items: list[str] = Field(default_factory=list)
     #: 按买断/租赁口径排除的成本项（**不是零成本**）
     excluded_items: list[str] = Field(default_factory=list)
+    #: 适用性不通过的成本项（F4.3）
+    applicability_errors: list[str] = Field(default_factory=list)
+    #: 价格未声明有效期的成本项（不阻断计算，但正式报价需另行确认）
+    validity_unknown_items: list[str] = Field(default_factory=list)
+
+    # ---- 成本范围覆盖（F4.2）--------------------------------------------
+    coverage_policy_id: str | None = None
+    coverage_policy_version: str | None = None
+    #: 每个适用类别的覆盖结论（category -> coverage decision）
+    coverage_decisions: dict[str, str] = Field(default_factory=dict)
+    #: 应覆盖却未被选入、也未显式排除的类别 —— **不能靠不选来规避**
+    coverage_gaps: list[str] = Field(default_factory=list)
+    #: 显式排除的类别及理由
+    scope_exclusions: dict[str, str] = Field(default_factory=dict)
+    #: 疑似重复计费（同一类别、同一计价口径、同一适用范围的多个成本项）
+    duplicate_billing: list[str] = Field(default_factory=list)
 
     #: 币种是否已确认；未确认不得进入正式报价
     currency_confirmed: bool = False
     #: 是否存在非真实价格（合成示例）
     contains_synthetic_prices: bool = False
+    #: 参与核算但状态**未确认**（非 confirmed）的成本项
+    unconfirmed_items: list[str] = Field(default_factory=list)
 
     notes: list[str] = Field(default_factory=list)
 

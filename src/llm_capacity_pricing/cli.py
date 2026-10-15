@@ -51,6 +51,8 @@ from llm_capacity_pricing.services import (
     import_cost_catalog,
     cost_catalog_summary,
     import_commercial_confirmations,
+    import_quote_approvals,
+    record_sla_evidence_for,
     tco_for,
     revenue_for,
     quote_eligibility_for,
@@ -1051,43 +1053,185 @@ def revenue_scenario_cmd(
     )
 
 
-@app.command("quote-eligibility")
-def quote_eligibility_cmd(
-    candidate_id: str = typer.Option(..., "--candidate", help="候选 ID"),
-    plan_file: Optional[str] = typer.Option(None, "--plan-file", help="成本方案模板 YAML"),
-    template: Optional[str] = typer.Option(None, "--template", help="模板 ID"),
-    hardware: Optional[str] = typer.Option(None, "--hardware", help="硬件 ID"),
-    gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="GPU 卡数"),
-    server_count: Optional[int] = typer.Option(None, "--server-count", help="服务器台数"),
-    sla_status: Optional[str] = typer.Option(None, "--sla-status", help="第三阶段 SLA 状态"),
-    match_level: Optional[str] = typer.Option(None, "--match-level", help="第三阶段匹配等级"),
-    confirmation_id: Optional[str] = typer.Option(
-        None, "--confirmation", help="人工商务确认记录 ID"
-    ),
-    approval_status: str = typer.Option(
-        "missing", "--approval-status", help="审批状态：approved / pending / missing（默认 missing）"
-    ),
-    approval_ref: Optional[str] = typer.Option(
-        None, "--approval-ref", help="人工审批凭据编号（声明 approved 时必填）"
+def _phase4_facts(
+    *,
+    model: str | None,
+    model_revision: str | None,
+    precision: str | None,
+    hardware: str | None,
+    gpu_count: int | None,
+    tp: int | None,
+    dp: int | None,
+    framework: str | None,
+    framework_version: str | None,
+    concurrency: int | None,
+    input_len: int | None,
+    output_len: int | None,
+    dataset: str | None,
+    arrival_mode: str | None,
+) -> dict[str, object]:
+    """把 CLI 参数收敛成"目标身份 + 负载"事实字典（供匹配与容量校验复用）。"""
+    return {
+        "model_name": model,
+        "model_revision": model_revision,
+        "weight_precision": precision,
+        "hardware_model": hardware,
+        "gpu_count": gpu_count,
+        "tp_size": tp,
+        "dp_size": dp,
+        "framework": framework,
+        "framework_version": framework_version,
+        "configured_concurrency": concurrency,
+        "input_len_target": input_len,
+        "output_len_target": output_len,
+        "dataset_name": dataset,
+        "arrival_mode": arrival_mode,
+    }
+
+
+@app.command("record-sla-evidence")
+def record_sla_evidence_cmd(
+    candidate_id: str = typer.Option(..., "--candidate", help="候选 ID（证据绑定的对象）"),
+    requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON"),
+    model: str = typer.Option(..., "--model", help="模型名（与实测签名一致）"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件型号（如 NVIDIA H100 SXM）"),
+    gpu_count: int = typer.Option(..., "--gpu-count", help="GPU 卡数"),
+    tp: int = typer.Option(..., "--tp", help="TP 大小"),
+    dp: int = typer.Option(1, "--dp", help="DP 大小"),
+    precision: Optional[str] = typer.Option(None, "--precision", help="权重精度"),
+    model_revision: Optional[str] = typer.Option(None, "--model-revision", help="模型版本"),
+    framework: Optional[str] = typer.Option(None, "--framework", help="推理框架"),
+    framework_version: Optional[str] = typer.Option(None, "--framework-version", help="框架版本"),
+    concurrency: Optional[int] = typer.Option(None, "--concurrency", help="配置并发"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="数据集"),
+    arrival_mode: Optional[str] = typer.Option(None, "--arrival-mode", help="到达方式"),
+    sla_evaluation_id: Optional[str] = typer.Option(
+        None, "--sla-evaluation-id", help="证据 ID（缺省按 candidate+requirement 生成）"
     ),
     out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
-    """M30：四维报价门禁判定（fail-closed）。"""
-    info = quote_eligibility_for(
-        db,
-        candidate_id=candidate_id,
-        plan_file=plan_file,
-        template_id=template,
-        hardware_id=hardware,
-        gpu_count=gpu_count,
-        server_count=server_count,
-        sla_status=sla_status,
-        match_level=match_level,
-        confirmation_id=confirmation_id,
-        approval_status=approval_status,
-        approval_ref=approval_ref,
+    """V4.1 F4.1：跑一次 SLA 评估并持久化为可引用的证据记录。"""
+    facts = _phase4_facts(
+        model=model, model_revision=model_revision, precision=precision,
+        hardware=hardware, gpu_count=gpu_count, tp=tp, dp=dp,
+        framework=framework, framework_version=framework_version,
+        concurrency=concurrency, input_len=input_len, output_len=output_len,
+        dataset=dataset, arrival_mode=arrival_mode,
     )
+    try:
+        info = record_sla_evidence_for(
+            db,
+            candidate_id=candidate_id,
+            requirement=json.loads(requirement),
+            facts=facts,
+            sla_evaluation_id=sla_evaluation_id,
+            target_ref=candidate_id,
+        )
+    except ServiceError as exc:
+        _fail(str(exc))
+        return
+    typer.secho(
+        f"已生成 SLA 证据 {info['sla_evaluation_id']}"
+        f"（status={info['status']} match_level={info['match_level']}）",
+        fg=typer.colors.GREEN if info["status"] == "observed_pass" else typer.colors.YELLOW,
+    )
+    if info["status"] != "observed_pass":
+        typer.secho(
+            "该证据不是 observed_pass + exact_match：报价门禁不会据此放行性能承诺",
+            fg=typer.colors.YELLOW,
+        )
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+    _echo_json(info)
+
+
+@app.command("import-quote-approvals")
+def import_quote_approvals_cmd(
+    file: str = typer.Option(..., "--file", help="人工审批记录 YAML"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """V4.1 F4.1：导入人工审批记录（本命令只做持久化，不生成审批）。"""
+    try:
+        info = import_quote_approvals(file, db)
+    except ServiceError as exc:
+        _fail(str(exc))
+        return
+    typer.secho(f"已导入 {info['approval_count']} 条审批记录", fg=typer.colors.GREEN)
+    _echo_json(info)
+
+
+@app.command("quote-eligibility")
+def quote_eligibility_cmd(
+    candidate_id: str = typer.Option(..., "--candidate", help="候选 ID"),
+    requirement_id: str = typer.Option(..., "--requirement-id", help="需求 ID"),
+    sla_evaluation_id: str = typer.Option(
+        ..., "--sla-evaluation-id", help="持久化的 SLA 证据 ID（必需）"
+    ),
+    approval_id: str = typer.Option(..., "--approval-id", help="人工审批记录 ID（必需）"),
+    model: Optional[str] = typer.Option(None, "--model", help="模型名（重新核验用）"),
+    hardware: Optional[str] = typer.Option(None, "--hardware", help="硬件型号"),
+    gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="GPU 卡数"),
+    tp: Optional[int] = typer.Option(None, "--tp", help="TP 大小"),
+    dp: Optional[int] = typer.Option(None, "--dp", help="DP 大小"),
+    precision: Optional[str] = typer.Option(None, "--precision", help="权重精度"),
+    model_revision: Optional[str] = typer.Option(None, "--model-revision", help="模型版本"),
+    framework: Optional[str] = typer.Option(None, "--framework", help="推理框架"),
+    framework_version: Optional[str] = typer.Option(None, "--framework-version", help="框架版本"),
+    concurrency: Optional[int] = typer.Option(None, "--concurrency", help="配置并发"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="数据集"),
+    arrival_mode: Optional[str] = typer.Option(None, "--arrival-mode", help="到达方式"),
+    plan_file: Optional[str] = typer.Option(None, "--plan-file", help="成本方案模板 YAML"),
+    template: Optional[str] = typer.Option(None, "--template", help="模板 ID"),
+    hardware_id: Optional[str] = typer.Option(
+        None, "--hardware-id", help="硬件 SKU ID（成本目录用；与 --hardware 的型号名不同）"
+    ),
+    server_count: Optional[int] = typer.Option(None, "--server-count", help="服务器台数"),
+    confirmation: Optional[str] = typer.Option(None, "--confirmation", help="人工商务确认记录 ID"),
+    scenario: Optional[str] = typer.Option(None, "--scenario", help="需求情景 ID"),
+    region: Optional[str] = typer.Option(None, "--region", help="区域"),
+    as_of: Optional[str] = typer.Option(None, "--as-of", help="基准日期 YYYY-MM-DD"),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M30 / V4.1 F4.1：四维报价门禁（只接受证据引用，不接受状态字符串）。"""
+    from datetime import date as _date
+
+    facts = _phase4_facts(
+        model=model, model_revision=model_revision, precision=precision,
+        hardware=hardware, gpu_count=gpu_count, tp=tp, dp=dp,
+        framework=framework, framework_version=framework_version,
+        concurrency=concurrency, input_len=input_len, output_len=output_len,
+        dataset=dataset, arrival_mode=arrival_mode,
+    )
+    try:
+        info = quote_eligibility_for(
+            db,
+            candidate_id=candidate_id,
+            requirement_id=requirement_id,
+            facts=facts,
+            sla_evaluation_id=sla_evaluation_id,
+            approval_id=approval_id,
+            confirmation_id=confirmation,
+            plan_file=plan_file,
+            template_id=template,
+            hardware_id=hardware_id or hardware,
+            gpu_count=gpu_count,
+            server_count=server_count,
+            scenario_id=scenario,
+            region=region,
+            as_of=_date.fromisoformat(as_of) if as_of else None,
+        )
+    except (ServiceError, ValueError) as exc:
+        _fail(str(exc))
+        return
     elig = info["eligibility"]
     if elig["quote_publishable"]:
         typer.secho("正式报价可发布", fg=typer.colors.GREEN)
@@ -1101,7 +1245,19 @@ def quote_eligibility_cmd(
             json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
         )
         typer.echo(f"已写入 {out}")
-    _echo_json(elig)
+    _echo_json(
+        {
+            "quote_publishable": elig["quote_publishable"],
+            "cost_estimate_status": elig["cost_estimate_status"],
+            "sla_verification_status": elig["sla_verification_status"],
+            "commercial_confirmation_status": elig["commercial_confirmation_status"],
+            "approval_status": elig["approval_status"],
+            "sla_evaluation_id": elig["sla_evaluation_id"],
+            "approval_id": elig["approval_id"],
+            "cost_snapshot_hash": elig["cost_snapshot_hash"],
+            "blockers": elig["blockers"],
+        }
+    )
 
 
 @app.command("phase4-decision")
@@ -1127,9 +1283,6 @@ def phase4_decision_cmd(
     runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留来源"),
     demand_file: Optional[str] = typer.Option(None, "--demand-file", help="业务需求情景 YAML"),
     scenario: Optional[str] = typer.Option(None, "--scenario", help="需求情景 ID"),
-    confirmation: Optional[str] = typer.Option(None, "--confirmation", help="人工商务确认记录 ID"),
-    approval_status: str = typer.Option("missing", "--approval-status", help="审批状态（默认 missing）"),
-    approval_ref: Optional[str] = typer.Option(None, "--approval-ref", help="人工审批凭据编号"),
     out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -1160,9 +1313,6 @@ def phase4_decision_cmd(
         dataset_name=dataset,
         demand_file=demand_file,
         scenario_id=scenario,
-        confirmation_id=confirmation,
-        approval_status=approval_status,
-        approval_ref=approval_ref,
     )
     comparison = info["comparison"]
     buckets: dict[str, int] = {}

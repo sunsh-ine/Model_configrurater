@@ -1,11 +1,15 @@
 """M28：完整 TCO、成本分解与现金流核算（纯计算，不落库）。
 
-口径（任务书 §三.1）：
+口径（任务书 §三.1 与 V4.1 F4.2/F4.3）：
 
 * ``TCO = 硬件 + 服务器 + 网络 + 存储 + 电力 + 空间 + 制冷 + 软件 + 运维 + 维保``；
 * **买断与租赁互斥**：不属于当前 ``cost_basis`` 的成本项标为
   ``excluded_by_cost_basis`` —— 排除**不是**零成本；
 * **未知不等于零**：缺单价或缺计算假设的成本项一律不给金额；
+* **覆盖不能靠"不选"**：每个适用成本类别必须由覆盖策略（``CostCoveragePolicy``）
+  显式处理 —— 未选入又未声明排除的类别记为**覆盖缺口**，使 TCO 不完整（F4.2）；
+* **价格必须适用**：在算金额之前校验 GPU SKU、区域与有效期，
+  不适用一律不给金额并记明原因（F4.3）；
 * **年度费用与一次性采购费用分开**：``annual_cash_opex`` / ``capex_one_time``；
 * 折旧是**会计口径、非现金**，单列 ``annual_depreciation``，不混进现金支出。
 
@@ -14,14 +18,17 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Sequence
 
 from llm_capacity_pricing.schemas.tco import (
+    ApplicabilityIssue,
     CashFlowResult,
     CashFlowYear,
     CostCatalogItem,
     CostComponentResult,
+    CostCoveragePolicy,
     DeploymentCostPlan,
     TcoResult,
 )
@@ -32,10 +39,6 @@ _ONE_TIME = ("one_time_per_gpu", "one_time_per_server")
 _PER_UNIT_YEAR = ("per_gpu_year", "per_server_year")
 #: 需要显式数量的年度口径
 _EXPLICIT_QUANTITY = ("per_rack_year", "per_kw_year")
-
-
-def _is_synthetic(item: CostCatalogItem) -> bool:
-    return item.status == "synthetic_example"
 
 
 def _base_quantity(
@@ -55,9 +58,7 @@ def _base_quantity(
     raise ValueError(f"未处理的 price_basis: {item.price_basis}")
 
 
-def _energy_kwh(
-    plan: DeploymentCostPlan,
-) -> tuple[Decimal | None, str | None]:
+def _energy_kwh(plan: DeploymentCostPlan) -> tuple[Decimal | None, str | None]:
     """年耗电量（kWh）。缺任一假设即不可算 —— 不用 1.0/0 之类的默认值顶替。"""
     a = plan.assumptions
     missing: list[str] = []
@@ -77,22 +78,87 @@ def _energy_kwh(
         + a.server_overhead_watts * Decimal(plan.server_count)
     )
     facility_watts = it_watts * a.pue
-    kwh = (
-        facility_watts / Decimal(1000) * a.hours_per_year * a.it_power_utilization
-    )
+    kwh = facility_watts / Decimal(1000) * a.hours_per_year * a.it_power_utilization
     return kwh, None
+
+
+def _applicability_issue(
+    item: CostCatalogItem, plan: DeploymentCostPlan, as_of: date
+) -> ApplicabilityIssue | str | None:
+    """价格适用范围校验（F4.3）。返回原因码，或 ``None`` 表示适用。"""
+    if item.applies_to_hardware_id and item.applies_to_hardware_id != plan.hardware_id:
+        return "hardware_sku_mismatch"
+    if item.region:
+        if plan.region is None:
+            # 条目标了区域而方案没声明区域：无法断言"该区域价格适用于本方案"
+            return "region_unspecified"
+        if item.region != plan.region:
+            return "region_mismatch"
+    if item.valid_to is not None and item.valid_to < as_of:
+        return "price_expired"
+    if item.valid_from is not None and item.valid_from > as_of:
+        return "price_not_yet_effective"
+    return None
+
+
+def _coverage(
+    plan: DeploymentCostPlan,
+    policy: CostCoveragePolicy | None,
+    components: Sequence[CostComponentResult],
+) -> tuple[dict[str, str], list[str], dict[str, str]]:
+    """成本范围覆盖判定（F4.2）。
+
+    返回 ``(decisions, gaps, exclusions)``。**没有策略就不算完整** ——
+    否则"少选几个类别"就能得到看似完整的 TCO。
+    """
+    exclusions = {e.category: e.reason for e in plan.scope_exclusions}
+    covered = {c.category for c in components if c.determination == "computed"}
+    decisions: dict[str, str] = {}
+    gaps: list[str] = []
+    if policy is None:
+        return decisions, gaps, exclusions
+
+    for req in policy.requirements:
+        if req.applies_to_basis is not None and req.applies_to_basis != plan.cost_basis:
+            decisions[req.category] = "not_applicable"
+            continue
+        if req.category in covered:
+            decisions[req.category] = "covered"
+            continue
+        if req.category in exclusions:
+            if not req.allow_scope_exclusion:
+                # 策略不允许排除该类别，却给了排除理由 -> 仍然算缺口
+                decisions[req.category] = "missing"
+                gaps.append(f"{req.category}:policy_forbids_scope_exclusion")
+                continue
+            decisions[req.category] = "excluded_by_scope"
+            continue
+        decisions[req.category] = "missing"
+        gaps.append(req.category)
+    return decisions, gaps, exclusions
 
 
 def compute_tco(
     plan: DeploymentCostPlan,
     items: Sequence[CostCatalogItem],
+    coverage_policy: CostCoveragePolicy | None = None,
 ) -> TcoResult:
-    """把一个部署成本方案与成本目录合成完整 TCO。"""
+    """把一个部署成本方案与成本目录合成完整 TCO。
+
+    ``coverage_policy`` 为 None 时结果**一定**是不完整的：
+    没有覆盖策略就无法证明"该算的成本都算了"。
+    """
     by_id = {item.item_id: item for item in items}
+    as_of = plan.as_of_date or date.today()
     components: list[CostComponentResult] = []
     completeness: list[str] = []
     unknown_items: list[str] = []
     excluded_items: list[str] = []
+    applicability_errors: list[str] = []
+    validity_unknown: list[str] = []
+    unconfirmed_items: list[str] = []
+    #: 参与核算的 (成本项, 结果) —— 用于覆盖/重复计费/币种判定
+    participating: list[tuple[CostCatalogItem, CostComponentResult]] = []
     currencies: set[str] = set()
     statuses: set[str] = set()
 
@@ -108,7 +174,7 @@ def compute_tco(
             unknown_items.append(selection.item_id)
             continue
 
-        # ---- 口径互斥：买断 / 租赁 ----
+        # ---- 1. 口径互斥：买断 / 租赁 ----
         if item.basis is not None and item.basis != plan.cost_basis:
             excluded_items.append(f"{item.category}/{item.item_id}")
             components.append(
@@ -136,7 +202,33 @@ def compute_tco(
             )
             continue
 
-        # ---- 缺单价：未知，不得当 0 ----
+        # ---- 2. 价格适用范围（F4.3）：不适用就不得算金额 ----
+        issue = _applicability_issue(item, plan, as_of)
+        if issue is not None:
+            label = f"{item.category}/{item.item_id}:{issue}"
+            applicability_errors.append(label)
+            components.append(
+                CostComponentResult(
+                    item_id=item.item_id,
+                    category=item.category,
+                    basis=item.basis,
+                    price_basis=item.price_basis,
+                    unit_price=item.unit_price,
+                    unit=item.unit,
+                    currency=item.currency,
+                    currency_status=item.currency_status,
+                    status=item.status,
+                    origin=item.origin,
+                    quantity=None,
+                    determination="not_applicable",
+                    reason=f"价格适用范围不通过（{issue}，基准日 {as_of.isoformat()}）",
+                    applicability_issue=issue,  # type: ignore[arg-type]
+                    evidence_id=item.evidence_id,
+                )
+            )
+            continue
+
+        # ---- 3. 缺单价：未知，不得当 0 ----
         if item.unit_price is None:
             unknown_items.append(f"{item.category}/{item.item_id}")
             components.append(
@@ -159,32 +251,31 @@ def compute_tco(
             )
             continue
 
-        # ---- 数量 ----
+        # ---- 4. 数量 ----
         quantity = selection.quantity
-        if item.price_basis == "per_kwh":
+        if item.price_basis == "per_kwh" and quantity is None:
+            quantity, reason = _energy_kwh(plan)
             if quantity is None:
-                quantity, reason = _energy_kwh(plan)
-                if quantity is None:
-                    unknown_items.append(f"{item.category}/{item.item_id}")
-                    components.append(
-                        CostComponentResult(
-                            item_id=item.item_id,
-                            category=item.category,
-                            basis=item.basis,
-                            price_basis=item.price_basis,
-                            unit_price=item.unit_price,
-                            unit=item.unit,
-                            currency=item.currency,
-                            currency_status=item.currency_status,
-                            status=item.status,
-                            origin=item.origin,
-                            quantity=None,
-                            determination="unknown_missing_basis",
-                            reason=reason,
-                            evidence_id=item.evidence_id,
-                        )
+                unknown_items.append(f"{item.category}/{item.item_id}")
+                components.append(
+                    CostComponentResult(
+                        item_id=item.item_id,
+                        category=item.category,
+                        basis=item.basis,
+                        price_basis=item.price_basis,
+                        unit_price=item.unit_price,
+                        unit=item.unit,
+                        currency=item.currency,
+                        currency_status=item.currency_status,
+                        status=item.status,
+                        origin=item.origin,
+                        quantity=None,
+                        determination="unknown_missing_basis",
+                        reason=reason,
+                        evidence_id=item.evidence_id,
                     )
-                    continue
+                )
+                continue
         elif quantity is None:
             quantity, reason = _base_quantity(item, plan)
             if quantity is None:
@@ -209,6 +300,7 @@ def compute_tco(
                 )
                 continue
 
+        # ---- 5. 计算 ----
         amount = item.unit_price * quantity
         is_one_time = item.price_basis in _ONE_TIME
         annual = None if is_one_time else amount
@@ -222,28 +314,32 @@ def compute_tco(
         if item.currency:
             currencies.add(item.currency)
         statuses.add(item.status)
+        if item.valid_from is None and item.valid_to is None:
+            validity_unknown.append(f"{item.category}/{item.item_id}")
 
-        components.append(
-            CostComponentResult(
-                item_id=item.item_id,
-                category=item.category,
-                basis=item.basis,
-                price_basis=item.price_basis,
-                unit_price=item.unit_price,
-                unit=item.unit,
-                currency=item.currency,
-                currency_status=item.currency_status,
-                status=item.status,
-                origin=item.origin,
-                quantity=quantity,
-                annual_cost=annual,
-                one_time_cost=one_time,
-                determination="computed",
-                evidence_id=item.evidence_id,
-            )
+        component = CostComponentResult(
+            item_id=item.item_id,
+            category=item.category,
+            basis=item.basis,
+            price_basis=item.price_basis,
+            unit_price=item.unit_price,
+            unit=item.unit,
+            currency=item.currency,
+            currency_status=item.currency_status,
+            status=item.status,
+            origin=item.origin,
+            quantity=quantity,
+            annual_cost=annual,
+            one_time_cost=one_time,
+            determination="computed",
+            evidence_id=item.evidence_id,
         )
+        components.append(component)
+        participating.append((item, component))
+        if item.status != "confirmed":
+            unconfirmed_items.append(f"{item.category}/{item.item_id}")
 
-    # ---- 折旧（会计口径，仅买断）----
+    # ---- 6. 折旧（会计口径，仅买断）----
     annual_depreciation: Decimal | None = None
     if plan.cost_basis == "owned":
         a = plan.assumptions
@@ -257,22 +353,61 @@ def compute_tco(
             depreciable = capex * (Decimal(1) - a.residual_value_fraction)
             annual_depreciation = depreciable / Decimal(a.depreciation_years)
 
-    # ---- 币种一致性 ----
-    # 注意：先固定"见过的币种"再判定，避免 pop 破坏 currencies_seen
+    # ---- 7. 成本范围覆盖（F4.2）----
+    coverage_policy_id = None
+    coverage_policy_version = None
+    coverage_decisions: dict[str, str] = {}
+    coverage_gaps: list[str] = []
+    scope_exclusions: dict[str, str] = {}
+    if coverage_policy is None:
+        completeness.append(
+            "coverage_policy_missing: 未提供成本覆盖策略，无法证明该算的成本都已覆盖"
+        )
+    else:
+        coverage_policy_id = coverage_policy.policy_id
+        coverage_policy_version = coverage_policy.version
+        coverage_decisions, coverage_gaps, scope_exclusions = _coverage(
+            plan, coverage_policy, components
+        )
+        if coverage_gaps:
+            completeness.append(
+                "coverage_gap:" + ",".join(sorted(coverage_gaps))
+                + "（类别未选入且未显式排除：不选它不等于它不存在）"
+            )
+
+    # ---- 8. 疑似重复计费 ----
+    groups: dict[tuple[str, str, str | None, str | None], list[str]] = {}
+    for item, _component in participating:
+        key = (item.category, item.price_basis, item.applies_to_hardware_id, item.region)
+        groups.setdefault(key, []).append(item.item_id)
+    duplicate_billing = sorted(
+        f"{cat}/" + ",".join(sorted(ids))
+        for (cat, _pb, _hw, _rg), ids in groups.items()
+        if len(ids) > 1
+    )
+    if duplicate_billing:
+        completeness.append(
+            "duplicate_billing:" + ";".join(duplicate_billing)
+            + "（同一类别、同一计价口径、同一适用范围出现多个成本项）"
+        )
+
+    # ---- 9. 币种与状态 ----
     currencies_seen = sorted(currencies)
     currency = currencies.pop() if len(currencies) == 1 else None
     if len(currencies) > 1:
         completeness.append("mixed_currencies: 参与核算的成本项币种不一致")
-    # 缺数据的分项必须让整个 TCO 变成"不完整"——否则缺项会被当成 0 悄悄吃掉
     if unknown_items:
         completeness.append(
             "unknown_cost_items:" + ",".join(sorted(set(unknown_items)))
             + "（缺价格或缺假设：未知不等于零，总额不完整）"
         )
+    if applicability_errors:
+        completeness.append(
+            "price_not_applicable:" + ",".join(sorted(set(applicability_errors)))
+            + "（价格适用范围不通过：不得跨 SKU/区域/失效期使用）"
+        )
     currency_confirmed = bool(currency) and all(
-        c.currency_status == "confirmed"
-        for c in components
-        if c.determination == "computed"
+        c.currency_status == "confirmed" for c in components if c.determination == "computed"
     )
     if currency and not currency_confirmed:
         completeness.append("currency_not_confirmed: 存在未确认币种的成本项")
@@ -283,6 +418,7 @@ def compute_tco(
 
     incomplete = bool(completeness)
 
+    # ---- 10. 汇总 ----
     horizon = plan.assumptions.horizon_years
     total_cash = None
     total_pv = None
@@ -315,13 +451,42 @@ def compute_tco(
             f"有 {len(excluded_items)} 项因买断/租赁口径被排除：{excluded_items}；"
             "排除项不代表零成本"
         )
+    if scope_exclusions:
+        notes.append(
+            "按范围显式排除的成本类别：" + "; ".join(
+                f"{k}（{v}）" for k, v in sorted(scope_exclusions.items())
+            )
+        )
     if unknown_items:
         notes.append(
             f"有 {len(unknown_items)} 项缺价格或缺少假设，成本总额因此**不完整**：{unknown_items}"
         )
+    if applicability_errors:
+        notes.append(
+            f"有 {len(applicability_errors)} 项价格适用范围不通过，已从总额中剔除："
+            f"{applicability_errors}"
+        )
+    if validity_unknown:
+        notes.append(
+            f"有 {len(validity_unknown)} 项价格未声明有效期：计算可用，"
+            f"但正式报价前需确认：{validity_unknown}"
+        )
+    if coverage_gaps:
+        notes.append(
+            f"成本范围覆盖缺口：{coverage_gaps} —— 这些类别既未选入也未显式排除，"
+            "因此这份 TCO **不完整**"
+        )
+    if duplicate_billing:
+        notes.append(f"疑似重复计费：{duplicate_billing}")
+    if unconfirmed_items:
+        notes.append(
+            f"有 {len(unconfirmed_items)} 项价格状态未确认（非 confirmed）："
+            f"{unconfirmed_items}；正式报价前必须确认"
+        )
     notes.append(
         "折旧为会计口径、非现金支出；现金流核算请使用 capex_one_time 与 annual_cash_opex"
     )
+    notes.append(f"价格适用性判定基准日：{as_of.isoformat()}")
 
     return TcoResult(
         plan_id=plan.plan_id,
@@ -347,10 +512,57 @@ def compute_tco(
         completeness_reasons=sorted(set(completeness)),
         unknown_items=unknown_items,
         excluded_items=excluded_items,
+        applicability_errors=applicability_errors,
+        validity_unknown_items=validity_unknown,
+        coverage_policy_id=coverage_policy_id,
+        coverage_policy_version=coverage_policy_version,
+        coverage_decisions=coverage_decisions,
+        coverage_gaps=coverage_gaps,
+        scope_exclusions=scope_exclusions,
+        duplicate_billing=duplicate_billing,
         currency_confirmed=currency_confirmed,
         contains_synthetic_prices=contains_synthetic,
+        unconfirmed_items=unconfirmed_items,
         notes=notes,
     )
+
+
+def tco_snapshot_hash(tco: TcoResult) -> str:
+    """成本快照指纹（V4.1 F4.1）：用于把人工审批绑定到**具体这一版成本**。
+
+    覆盖决定金额的字段（方案身份、口径、各项金额与币种）。审批记录保存该指纹，
+    报价时重新计算并比对 —— 成本变了，旧审批自动失效。
+    """
+    import hashlib
+    import json
+
+    payload = {
+        "plan_id": tco.plan_id,
+        "candidate_id": tco.candidate_id,
+        "hardware_id": tco.hardware_id,
+        "cost_basis": tco.cost_basis,
+        "gpu_count": tco.gpu_count,
+        "server_count": tco.server_count,
+        "horizon_years": tco.horizon_years,
+        "currency": tco.currency,
+        "capex": str(tco.capex_one_time),
+        "opex": str(tco.annual_cash_opex),
+        "depreciation": str(tco.annual_depreciation),
+        "components": [
+            {
+                "item_id": c.item_id,
+                "price_basis": c.price_basis,
+                "unit_price": str(c.unit_price),
+                "quantity": str(c.quantity),
+                "annual": str(c.annual_cost),
+                "one_time": str(c.one_time_cost),
+                "determination": c.determination,
+            }
+            for c in sorted(tco.components, key=lambda c: c.item_id)
+        ],
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def build_cash_flow(

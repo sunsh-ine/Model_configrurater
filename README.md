@@ -150,12 +150,24 @@ python -m llm_capacity_pricing.cli revenue-scenario \
   --demand-file data/examples/phase4_demand.example.yaml \
   --scenario syn-demand-base --db data/local.db
 
-# 5) 报价门禁（四维独立、fail-closed；默认 approval-status=missing）
+# 5a) 生成并持久化一条 SLA 证据（门禁只认这条记录，不认状态字符串）
+python -m llm_capacity_pricing.cli record-sla-evidence \
+  --candidate demo-owned --requirement '{"requirement_id":"req","ttft_p99_ms_max":400}' \
+  --model SYNTHETIC-MODEL-C --hardware SYNTHETIC-GPU-C --gpu-count 8 --tp 8 --dp 1 \
+  --concurrency 8 --input-len 1024 --output-len 256 --db data/local.db
+
+# 5b) 导入人工审批记录（示例占位，真实审批由业务方提供）
+python -m llm_capacity_pricing.cli import-quote-approvals \
+  --file data/examples/phase4_approvals.example.yaml --db data/local.db
+
+# 5c) 报价门禁：只给引用，服务端从记录读取并重新核验
 python -m llm_capacity_pricing.cli quote-eligibility \
-  --candidate demo-owned --plan-file data/examples/phase4_cost_plan.example.yaml \
-  --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
-  --gpu-count 8 --server-count 1 --sla-status observed_pass \
-  --match-level exact_match --db data/local.db
+  --candidate demo-owned --requirement-id req \
+  --sla-evaluation-id "sla::demo-owned::req" --approval-id syn-approval-demo \
+  --model SYNTHETIC-MODEL-C --hardware SYNTHETIC-GPU-C --gpu-count 8 --tp 8 --dp 1 \
+  --concurrency 8 --input-len 1024 --output-len 256 \
+  --plan-file data/examples/phase4_cost_plan.example.yaml --template syn-owned-3y \
+  --hardware-id nvidia-h100-sxm-80gb --server-count 1 --db data/local.db
 
 # 6) 全链路决策：资源 → 性能 → TCO → 收益 → 门禁 → 比较
 python -m llm_capacity_pricing.cli phase4-decision \
@@ -174,14 +186,21 @@ python -m llm_capacity_pricing.cli phase4-report \
   --decision-json data/exports/phase4_decision.json --db data/local.db
 ```
 
-> **报价门禁不会被任何参数放宽**。四个维度（成本完整+币种确认、SLA 实测、
-> 人工商务确认、人工审批+凭据）必须同时通过才可能 `quote_publishable=True`；
-> 合成示例成本、未确认币种、估算型 SLA 一律阻断，报告只输出阻断说明、不输出金额。
+> **报价门禁不会被任何参数放宽，也不接受"状态字符串"**。四个维度
+> （成本完整+币种确认、SLA 实测、人工商务确认、人工审批+凭据）必须同时通过才可能
+> `quote_publishable=True`；其中 SLA 结论由服务端用**持久化证据里的需求快照与目标身份
+> 重新推导**，审批必须绑定**当前成本快照指纹**并在有效期内。合成示例成本、未确认币种、
+> 估算型 SLA、作用域不符或快照失配一律阻断，报告只输出阻断说明、不输出金额。
+> 反向场景断言见 `scripts/check_forged_quote_blocked.py`。
 
 > **买断与租赁互斥**：不属于当前口径的成本项会被标成 `excluded_by_cost_basis`
 > 并写明原因（排除**不等于**零成本）；**缺价格/缺假设**的成本项标为
 > `unknown_missing_price` / `unknown_missing_basis`，使 TCO 标为 `incomplete`
 > （未知**不等于**零）。
+>
+> **成本范围不能靠"不选"规避**：方案模板必须带 `coverage_policy`，每个适用类别
+> 要么被选入、要么用 `scope_exclusions` 显式排除并给出理由，否则记为覆盖缺口。
+> **价格必须适用**：GPU SKU、区域、有效期在算金额之前校验，不通过则剔除并报明原因。
 
 ### 一键复现以上全部步骤
 
@@ -226,9 +245,11 @@ bash scripts/verify_all.sh
 | `import-cost-catalog --file <yaml> --db <path>` | **M27**：导入成本目录（GPU/机房/电力/网络/软件/运维）与计费规则 |
 | `cost-catalog --db <path>` | **M27**：成本目录库存（类别/口径/状态/缺价项） |
 | `import-commercial-confirmations --file <yaml> --db <path>` | **M30**：导入**人工**商务确认记录（本命令不生成确认） |
+| `record-sla-evidence --candidate <id> --requirement <json> --model <名> --hardware <型号> --gpu-count N --tp N …` | **V4.1 F4.1**：跑一次 SLA 评估并**持久化**为可引用的证据记录 |
+| `import-quote-approvals --file <yaml> --db <path>` | **V4.1 F4.1**：导入**人工**审批记录（本命令不生成审批） |
 | `tco --plan-file <yaml> --template <id> --candidate <id> --hardware <id> --gpu-count N --server-count N` | **M28**：完整 TCO、成本分解与现金流 |
 | `revenue-scenario --demand-file <yaml> --scenario <id>` | **M29**：业务请求量 → Token 计费与收益情景（含容量比对） |
-| `quote-eligibility --candidate <id> [--sla-status … --match-level … --confirmation … --approval-status … --approval-ref …]` | **M30**：四维报价门禁（fail-closed） |
+| `quote-eligibility --candidate <id> --requirement-id <id> --sla-evaluation-id <id> --approval-id <id> [--confirmation <id> --plan-file … --template …]` | **M30/V4.1**：四维报价门禁（只接受证据引用，服务端重新核验） |
 | `phase4-decision --model <id> --hardware <id> --plan-file <yaml> --template <id> …` | **M31/M32**：资源-性能-TCO-收益-门禁全链路 + 比较/敏感性/盈亏平衡 |
 | `phase4-report --out <md> [--decision-json <json>]` | **M33**：第四阶段报告（四个独立结论 + 报价草稿或阻断说明） |
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -26,15 +26,66 @@ BillableCacheBasis = Literal[
     "unknown",
 ]
 
-#: 收益情景与可信容量的比对结论
+#: 收益情景与可信容量的比对结论（F4.6：不只看输出吞吐）
 CapacityCheck = Literal[
-    "within_capacity",          # 需求落在已验证可持续容量内
-    "exceeds_capacity",         # 超出已验证容量
+    "within_capacity",          # 全部子项满足
+    "partially_verified",       # 部分子项证据不足（**不得**当作容量可行）
+    "exceeds_capacity",         # 至少一个子项不满足
     "unknown_no_measurement",   # 没有可信实测，无法判定
 ]
 
+#: 单个容量子项的判定
+CapacityCheckStatus = Literal["satisfied", "not_satisfied", "unknown"]
+
+
+class CapacityCheckDetail(BaseModel):
+    """综合容量校验明细（V4.1 F4.6）。
+
+    仅"Output TPS 达标"不足以得出容量可行：还要看请求吞吐、并发与负载一致性、
+    SLA 证据与可持续性。任一子项不满足即整体不满足；有子项无法判定则只能是
+    ``partially_verified``。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    output_throughput: CapacityCheckStatus
+    request_throughput: CapacityCheckStatus
+    concurrency_and_load: CapacityCheckStatus
+    sla_evidence: CapacityCheckStatus
+    sustainability: CapacityCheckStatus
+    overall: CapacityCheck
+    reasons: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self) -> "CapacityCheckDetail":
+        subs = (
+            self.output_throughput,
+            self.request_throughput,
+            self.concurrency_and_load,
+            self.sla_evidence,
+            self.sustainability,
+        )
+        if self.overall == "within_capacity" and any(s != "satisfied" for s in subs):
+            raise ValueError("有子项未满足时不得判 within_capacity")
+        if self.overall == "exceeds_capacity" and not any(
+            s == "not_satisfied" for s in subs
+        ):
+            raise ValueError("判 exceeds_capacity 必须至少有一个子项 not_satisfied")
+        if not self.reasons:
+            raise ValueError("容量判定必须给出逐子项理由")
+        return self
+
 #: 商务确认状态
 ConfirmationStatus = Literal["confirmed", "pending", "missing"]
+
+#: 第三阶段 SLA 状态（第四阶段只读沿用）
+SlaStatusLiteral = Literal[
+    "observed_pass", "observed_fail", "estimated_only", "not_evaluable"
+]
+#: 第三阶段匹配等级（第四阶段只读沿用）
+MatchLevelLiteral = Literal[
+    "exact_match", "comparable_reference", "modeling_candidate", "rejected"
+]
 
 #: 报价发布门禁的四个独立维度
 CostEstimateStatus = Literal["complete", "incomplete", "unknown"]
@@ -61,9 +112,13 @@ class BillingRule(BaseModel):
     price_cached_input_per_1m: Decimal | None = None
     price_output_per_1m: Decimal | None = None
 
-    #: 可计费缓存输入占比（0..1）。**不是**物理 prefix cache 命中率。
+    #: 可计费缓存输入占比上限（0..1）。**不是**物理 prefix cache 命中率。
+    #: 语义是"合同最多允许多大比例的输入按缓存价计费"——**合同上限**，
+    #: 不是"保守估计"：缓存价低于未缓存价时，取更小的比例会**提高**收入预测。
     billable_cache_ratio: Decimal | None = None
     billable_cache_basis: BillableCacheBasis = "unknown"
+    #: 失败请求是否计费（合同口径）。默认 False —— 未确认前不得假设失败也收费。
+    billable_on_failure: bool = False
 
     #: 批处理/离线折扣（0..1）
     batch_discount_fraction: Decimal | None = None
@@ -124,6 +179,9 @@ class DemandPeriod(BaseModel):
     is_peak: bool = False
     #: 该时段是否走批处理折扣
     batch: bool = False
+    #: 成功提供服务的比例（0..1]。需求请求量 ≠ 成功服务量 ≠ 可计费量，
+    #: 三者必须分开记录，否则收入会被按"全部成功"高估。
+    success_rate: Decimal = Decimal("1")
 
     @field_validator("duration_hours")
     @classmethod
@@ -151,6 +209,13 @@ class DemandPeriod(BaseModel):
     def _fraction(cls, v: Decimal) -> Decimal:
         if not (Decimal("0") <= v <= Decimal("1")):
             raise ValueError("cached_input_fraction 必须落在 0..1")
+        return v
+
+    @field_validator("success_rate")
+    @classmethod
+    def _success_rate(cls, v: Decimal) -> Decimal:
+        if not (Decimal("0") < v <= Decimal("1")):
+            raise ValueError("success_rate 必须落在 (0, 1]")
         return v
 
 
@@ -193,6 +258,12 @@ class PeriodRevenue(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     label: str
+    #: 需求 / 成功服务 / 可计费 三段请求量（三者不一定相等）
+    demand_requests: Decimal
+    served_requests: Decimal
+    failed_requests: Decimal
+    billable_requests: Decimal
+
     billable_input_tokens_uncached: Decimal
     billable_input_tokens_cached: Decimal
     billable_output_tokens: Decimal
@@ -200,7 +271,13 @@ class PeriodRevenue(BaseModel):
     output_revenue: Decimal
     gross_revenue: Decimal
     batch_discount: Decimal = Decimal("0")
+    #: 按**当前计费口径**算出的收入（基准值，不等于保守下界）
     revenue: Decimal
+    #: 收入区间：最大折扣（lower）与完全不打折（upper）。基准值落在区间内。
+    revenue_lower_bound: Decimal | None = None
+    revenue_upper_bound: Decimal | None = None
+    #: 实际采用的缓存计费规则说明
+    cache_rule: str
     #: 该时段的平均请求速率（req/s），峰值时段用于容量校验
     request_rate_rps: Decimal
     is_peak: bool = False
@@ -230,11 +307,24 @@ class RevenueResult(BaseModel):
     annual_billable_input_tokens: Decimal
     annual_billable_output_tokens: Decimal
     annual_requests: int
+    #: 年度三段请求量（需求 / 成功服务 / 可计费）
+    annual_demand_requests: Decimal
+    annual_served_requests: Decimal
+    annual_billable_requests: Decimal
+    annual_failed_requests: Decimal
+    #: 收入区间（缓存计费不确定性的边界）；基准值 annual_revenue 落在区间内，
+    #: **不构成**"保守下界"——缓存价低于未缓存价时，取更小的缓存比例会提高收入。
+    annual_revenue_lower_bound: Decimal | None = None
+    annual_revenue_upper_bound: Decimal | None = None
+    #: 缓存计费口径说明（合同上限 / 业务估计未受约束）
+    cache_rule: str = "unknown"
 
     #: 峰值时段请求速率（容量校验用）
     peak_request_rate_rps: Decimal | None = None
-    #: 与第三阶段可信容量的比对结论
+    #: 与第三阶段可信容量的比对结论（= capacity_detail.overall）
     capacity_check: CapacityCheck = "unknown_no_measurement"
+    #: 逐子项判定明细（输出吞吐 / 请求吞吐 / 并发负载 / SLA / 可持续性）
+    capacity_detail: CapacityCheckDetail | None = None
     #: 比对依据说明（哪条实测、什么并发、什么产能）
     capacity_basis: list[str] = Field(default_factory=list)
 
@@ -247,6 +337,17 @@ class RevenueResult(BaseModel):
     def _guard(self) -> "RevenueResult":
         if self.capacity_check == "within_capacity" and not self.capacity_basis:
             raise ValueError("判定 within_capacity 必须给出容量依据（哪条实测/什么产能）")
+        if self.capacity_detail is not None and self.capacity_detail.overall != self.capacity_check:
+            raise ValueError("capacity_check 必须等于 capacity_detail.overall")
+        lo, hi, base = (
+            self.annual_revenue_lower_bound,
+            self.annual_revenue_upper_bound,
+            self.annual_revenue,
+        )
+        if lo is not None and hi is not None and not (lo <= base <= hi):
+            raise ValueError(
+                "基准收入必须落在 [下界, 上界] 区间内（区间是缓存计费不确定性的边界）"
+            )
         return self
 
 
@@ -310,8 +411,16 @@ class QuoteEligibility(BaseModel):
     sla_verification_status: SlaVerificationStatus
     commercial_confirmation_status: ConfirmationStatus
     approval_status: ApprovalStatus
-    #: 人工审批凭据编号（如审批单号）；**没有凭据就不算审批通过**
+    #: 本次判定实际引用的**持久化**证据 ID（V4.1 F4.1）
+    sla_evaluation_id: str | None = None
+    approval_id: str | None = None
+    confirmation_id: str | None = None
+    #: 判定时的成本快照指纹（审批必须绑定同一个）
+    cost_snapshot_hash: str | None = None
+    #: 人工审批凭据编号（来自审批记录，不接受调用方自填）
     approval_ref: str | None = None
+    #: 是否走了"仅凭调用方声明"的诊断路径（该路径**永不可发布**）
+    claims_only: bool = False
 
     #: 四个维度全部通过才可能为 True（且必须满足有效期等附加条件）
     quote_publishable: bool = False
@@ -331,6 +440,103 @@ class QuoteEligibility(BaseModel):
             raise ValueError("四维门禁未全通过时不得标记 quote_publishable")
         if self.quote_publishable and self.blockers:
             raise ValueError("quote_publishable=True 时不得存在 blockers")
-        if self.approval_status == "approved" and not self.approval_ref:
-            raise ValueError("approval_status=approved 必须给出人工审批凭据 approval_ref")
+        if self.claims_only and self.quote_publishable:
+            raise ValueError("仅凭调用方声明的诊断路径永不可发布")
+        if self.approval_status == "approved" and not self.approval_id:
+            raise ValueError(
+                "approval_status=approved 必须引用真实的审批记录 approval_id"
+                "（非空字符串不算授权证明）"
+            )
+        if self.sla_verification_status == "verified_measured" and not self.sla_evaluation_id:
+            raise ValueError("verified_measured 必须引用真实的 SLA 证据记录 sla_evaluation_id")
+        return self
+
+
+# ---------------------------------------------------------------------------
+# V4.1 F4.1：证据链记录 —— 报价资格只能来自**持久化**的 SLA 与审批记录
+# ---------------------------------------------------------------------------
+
+
+class SlaEvidenceRecord(BaseModel):
+    """一条持久化的 SLA 证据。
+
+    报价门禁**只认这个记录**，不认调用方传来的状态字符串。
+    记录里保存了评估时使用的需求快照与目标身份，报价时服务端会用它们
+    **重新推导**匹配等级与 SLA 状态：结论变了（数据被替换、需求被改动）
+    就视为证据失效。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sla_evaluation_id: str
+    candidate_id: str
+    requirement_id: str
+    #: 评估时使用的需求快照（重新核验时用这份，而不是调用方现填的）
+    requirement: dict[str, Any]
+    #: 评估时使用的目标身份快照
+    target_identity: dict[str, Any]
+    status: SlaStatusLiteral
+    match_level: MatchLevelLiteral | None = None
+    matched_run_id: str | None = None
+    data_trust: str | None = None
+    policy_id: str
+    evaluated_at: datetime
+    #: 评估时 run 池的指纹（数据集变化即视为证据不可复现）
+    run_pool_hash: str
+
+    @model_validator(mode="after")
+    def _guard(self) -> "SlaEvidenceRecord":
+        if self.status == "observed_pass" and self.match_level != "exact_match":
+            raise ValueError("observed_pass 的 SLA 证据必须来自 exact_match")
+        if self.status in ("observed_pass", "observed_fail") and not self.matched_run_id:
+            raise ValueError("实测类 SLA 结论必须绑定 matched_run_id")
+        return self
+
+
+class ApprovalScope(BaseModel):
+    """审批的作用域：这份审批到底批的是**哪一个**方案。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_id: str
+    requirement_id: str
+    plan_id: str
+    scenario_id: str | None = None
+    billing_rule_id: str | None = None
+    #: 审批时看到的成本快照指纹；成本变了旧审批自动失效
+    cost_snapshot_hash: str
+
+
+class QuoteApproval(BaseModel):
+    """人工审批记录（V4.1 F4.1）。
+
+    **审批是一条可核验的记录，不是调用方给的一个非空字符串。**
+    ``decision=approved`` 必须齐备审批人、时间、有效期、凭据与作用域；
+    Agent 无法通过任何接口生成它。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_id: str
+    decision: Literal["approved", "rejected", "pending"]
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+    valid_until: date | None = None
+    document_ref: str | None = None
+    scope: ApprovalScope
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _guard(self) -> "QuoteApproval":
+        if self.decision == "approved":
+            missing = [
+                name
+                for name in ("approved_by", "approved_at", "valid_until", "document_ref")
+                if getattr(self, name) is None
+            ]
+            if missing:
+                raise ValueError(
+                    f"decision=approved 的审批必须齐备 {missing}"
+                    "（人工审批需要可追溯的审批人、时间、有效期与凭据）"
+                )
         return self

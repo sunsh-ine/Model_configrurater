@@ -47,9 +47,10 @@ def check_budget(
     compared_value: Decimal | None,
     currency: str | None,
     currency_confirmed: bool,
+    compared_currency: str | None = None,
     reasons_extra: Sequence[str] = (),
 ) -> BudgetCheck:
-    """预算检查。缺金额 / 缺对比值 / 币种未确认一律 ``unknown``。"""
+    """预算检查。缺金额 / 缺对比值 / 币种未确认或不一致一律 ``unknown``。"""
     reasons: list[str] = list(reasons_extra)
     if budget_amount is None:
         reasons.append("budget_amount_missing: 未给出预算金额")
@@ -59,7 +60,19 @@ def check_budget(
         reasons.append(
             "currency_not_confirmed: 币种未确认，不得给出预算结论"
         )
-    if budget_amount is None or compared_value is None or not currency_confirmed:
+    if compared_currency is not None and currency is not None and (
+        compared_currency != currency
+    ):
+        reasons.append(
+            f"currency_mismatch:{compared_currency}!= {currency}: "
+            "预算与成本币种不一致，不得直接相减"
+        )
+    if (
+        budget_amount is None
+        or compared_value is None
+        or not currency_confirmed
+        or any(r.startswith("currency_mismatch") for r in reasons)
+    ):
         return BudgetCheck(
             budget_id=budget_id,
             budget_amount=budget_amount,
@@ -229,8 +242,16 @@ def analyze_breakeven(
         reasons.append("missing_output_price: 缺少输出单价，无法反推所需计费量")
 
     ratio = None
-    if revenue is not None and annual_cost:
-        ratio = revenue.annual_revenue / annual_cost
+    if revenue is not None:
+        if not tco.currency or not revenue.currency:
+            reasons.append("currency_unknown: 成本或收入的币种未知，不得计算收入成本比")
+        elif tco.currency != revenue.currency:
+            reasons.append(
+                f"currency_mismatch:{revenue.currency}!= {tco.currency}: "
+                "跨币种不得计算收入成本比"
+            )
+        elif annual_cost:
+            ratio = revenue.annual_revenue / annual_cost
 
     capacity_check = revenue.capacity_check if revenue else "unknown_no_measurement"
     notes = [

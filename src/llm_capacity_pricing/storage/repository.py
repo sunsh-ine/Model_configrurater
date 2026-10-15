@@ -11,7 +11,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
-from llm_capacity_pricing.schemas.commercial import BillingRule, CommercialConfirmation
+from llm_capacity_pricing.schemas.commercial import (
+    BillingRule,
+    CommercialConfirmation,
+    QuoteApproval,
+    SlaEvidenceRecord,
+)
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.schemas.evidence import Evidence
 from llm_capacity_pricing.schemas.official import (
@@ -40,7 +45,9 @@ from llm_capacity_pricing.storage.database import (
     ModelSpecRow,
     OfficialCandidateRow,
     PricingResultRow,
+    QuoteApprovalRow,
     ServerProfileRow,
+    SlaEvidenceRow,
     TokenPriceRow,
 )
 
@@ -197,6 +204,75 @@ class _Phase4Mixin:
         return [
             CommercialConfirmation.model_validate(json.loads(r.payload_json)) for r in rows
         ]
+
+    # ---- V4.1 F4.1：SLA 证据与审批记录 --------------------------------
+
+    def upsert_sla_evidence(
+        self, session: Session, items: Iterable[SlaEvidenceRecord]
+    ) -> int:
+        n = 0
+        for rec in items:
+            session.merge(
+                SlaEvidenceRow(
+                    sla_evaluation_id=rec.sla_evaluation_id,
+                    candidate_id=rec.candidate_id,
+                    requirement_id=rec.requirement_id,
+                    status=rec.status,
+                    match_level=rec.match_level,
+                    matched_run_id=rec.matched_run_id,
+                    data_trust=rec.data_trust,
+                    policy_id=rec.policy_id,
+                    evaluated_at=rec.evaluated_at,
+                    run_pool_hash=rec.run_pool_hash,
+                    payload_json=_dump(rec),
+                )
+            )
+            n += 1
+        return n
+
+    def get_sla_evidence(
+        self, session: Session, sla_evaluation_id: str
+    ) -> SlaEvidenceRecord | None:
+        row = session.get(SlaEvidenceRow, sla_evaluation_id)
+        return SlaEvidenceRecord.model_validate(json.loads(row.payload_json)) if row else None
+
+    def list_sla_evidence(self, session: Session) -> list[SlaEvidenceRecord]:
+        rows = session.scalars(
+            select(SlaEvidenceRow).order_by(SlaEvidenceRow.sla_evaluation_id)
+        ).all()
+        return [SlaEvidenceRecord.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def upsert_quote_approvals(
+        self, session: Session, items: Iterable[QuoteApproval]
+    ) -> int:
+        n = 0
+        for ap in items:
+            session.merge(
+                QuoteApprovalRow(
+                    approval_id=ap.approval_id,
+                    decision=ap.decision,
+                    scope_candidate_id=ap.scope.candidate_id,
+                    scope_requirement_id=ap.scope.requirement_id,
+                    scope_plan_id=ap.scope.plan_id,
+                    cost_snapshot_hash=ap.scope.cost_snapshot_hash,
+                    approved_by=ap.approved_by,
+                    approved_at=ap.approved_at,
+                    valid_until=ap.valid_until,
+                    payload_json=_dump(ap),
+                )
+            )
+            n += 1
+        return n
+
+    def get_quote_approval(self, session: Session, approval_id: str) -> QuoteApproval | None:
+        row = session.get(QuoteApprovalRow, approval_id)
+        return QuoteApproval.model_validate(json.loads(row.payload_json)) if row else None
+
+    def list_quote_approvals(self, session: Session) -> list[QuoteApproval]:
+        rows = session.scalars(
+            select(QuoteApprovalRow).order_by(QuoteApprovalRow.approval_id)
+        ).all()
+        return [QuoteApproval.model_validate(json.loads(r.payload_json)) for r in rows]
 
     def get_commercial_confirmation(
         self, session: Session, confirmation_id: str

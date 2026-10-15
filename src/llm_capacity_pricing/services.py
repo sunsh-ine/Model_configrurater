@@ -42,7 +42,10 @@ from llm_capacity_pricing.perf.capacity_analyzer import (
 )
 from llm_capacity_pricing.perf.estimator import estimate as _estimate_performance
 from llm_capacity_pricing.perf.performance_profile import run_from_adapter
-from llm_capacity_pricing.perf.ranker import rank_deployments as _rank_deployments
+from llm_capacity_pricing.perf.ranker import (
+    _best_match,
+    rank_deployments as _rank_deployments,
+)
 from llm_capacity_pricing.perf.sla_evaluator import evaluate_sla as _evaluate_sla
 from llm_capacity_pricing.reporting.performance_report import build_performance_report
 from llm_capacity_pricing.reporting.sizing_report import build_sizing_report
@@ -2144,6 +2147,17 @@ def load_cost_plan_templates(file: str | Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def load_coverage_policy(file: str | Path) -> Any:
+    """读取成本范围覆盖策略（V4.1 F4.2）。缺失时返回 None —— 引擎会把 TCO 标为不完整。"""
+    from llm_capacity_pricing.schemas.tco import CostCoveragePolicy
+
+    raw = _load_yaml_file(file)
+    block = raw.get("coverage_policy")
+    if not block:
+        return None
+    return CostCoveragePolicy.model_validate(block)
+
+
 def load_demand_scenarios(file: str | Path) -> dict[str, dict[str, Any]]:
     raw = _load_yaml_file(file)
     scenarios = raw.get("demand_scenarios") or []
@@ -2168,6 +2182,8 @@ def build_cost_plan_from_template(
     tp_size: int | None = None,
     dp_size: int | None = None,
     plan_id: str | None = None,
+    region: str | None = None,
+    as_of_date: Any = None,
 ) -> Any:
     """把模板 + 第二阶段候选事实合成一个 ``DeploymentCostPlan``。"""
     from llm_capacity_pricing.schemas.tco import (
@@ -2175,6 +2191,8 @@ def build_cost_plan_from_template(
         DeploymentCostPlan,
         FinancingAssumptions,
     )
+
+    from llm_capacity_pricing.schemas.tco import ScopeExclusion
 
     raw_assumptions = {
         k: v for k, v in (template.get("assumptions") or {}).items() if v is not None
@@ -2188,9 +2206,15 @@ def build_cost_plan_from_template(
         tp_size=tp_size,
         dp_size=dp_size,
         cost_basis=template["cost_basis"],
+        region=region or template.get("region"),
+        as_of_date=as_of_date or template.get("as_of_date"),
         assumptions=FinancingAssumptions(**raw_assumptions),
         selections=[
             CostLineSelection(item_id=s) for s in (template.get("selections") or [])
+        ],
+        scope_exclusions=[
+            ScopeExclusion.model_validate(e)
+            for e in (template.get("scope_exclusions") or [])
         ],
         scope_notes=list(template.get("scope_notes") or []),
     )
@@ -2209,6 +2233,8 @@ def tco_for(
     dp_size: int | None = None,
     annual_revenue: Decimal | None = None,
     revenue_basis: str = "none",
+    region: str | None = None,
+    as_of_date: Any = None,
 ) -> dict[str, Any]:
     """M28：按模板 + 成本目录计算完整 TCO 与现金流。"""
     from llm_capacity_pricing.engines.tco import build_cash_flow, compute_tco
@@ -2235,8 +2261,11 @@ def tco_for(
         server_count=server_count,
         tp_size=tp_size,
         dp_size=dp_size,
+        region=region,
+        as_of_date=as_of_date,
     )
-    tco = compute_tco(plan, items)
+    policy = load_coverage_policy(plan_file)
+    tco = compute_tco(plan, items, coverage_policy=policy)
     cash_flow = build_cash_flow(
         tco, annual_revenue=annual_revenue, revenue_basis=revenue_basis
     )
@@ -2265,6 +2294,8 @@ def capacity_evidence_for(
     model_revision: str | None = None,
     framework: str | None = None,
     framework_version: str | None = None,
+    requirement: dict[str, Any] | None = None,
+    policy: Any = None,
 ) -> Any:
     """从第三阶段证据池里挑一条**可信**容量证据。
 
@@ -2287,6 +2318,8 @@ def capacity_evidence_for(
         db.dispose()
     if not runs:
         return None
+
+    from llm_capacity_pricing.perf.capacity_analyzer import analyze_group, grouping_key
 
     target = TargetRequirement(
         model_name=model_name,
@@ -2315,6 +2348,46 @@ def capacity_evidence_for(
         best_match.level == "exact_match"
         and best_run.data_trust in PHASE4_TRUSTED_LEVELS
     )
+
+    # ---- 可持续性证据（F4.6）：同组曲线里"该并发是否被认定为可持续容量" ----
+    sustainability = False
+    group = [r for r in runs if grouping_key(r) == grouping_key(best_run)]
+    try:
+        profile = analyze_group(group)
+        sustainability = (
+            profile.maximum_sustainable_capacity is not None
+            and profile.maximum_sustainable_capacity == best_run.profile.configured_concurrency
+        )
+    except ValueError:
+        sustainability = False
+
+    # ---- SLA 证据（F4.6）：按需求给出的时延约束对这条 run 做判定 ----
+    sla_status = None
+    if requirement is not None:
+        try:
+            evaluation = evaluate_sla_for(
+                db_path,
+                requirement=requirement,
+                run_id=best_run.run_id,
+                policy=policy,
+                model_revision=model_revision,
+                framework=framework,
+                framework_version=framework_version,
+                weight_precision=weight_precision,
+                hardware_model=hardware_model,
+                gpu_count=gpu_count,
+                tp_size=tp_size,
+                dp_size=dp_size,
+                input_len_target=input_len_target,
+                output_len_target=output_len_target,
+                dataset_name=dataset_name,
+                arrival_mode=arrival_mode,
+                configured_concurrency=configured_concurrency,
+            )
+            sla_status = evaluation["status"]
+        except Exception:  # noqa: BLE001 - 证据不足时保持 None，不猜测
+            sla_status = None
+
     return CapacityEvidence(
         run_id=best_run.run_id,
         is_verified=verified,
@@ -2323,6 +2396,13 @@ def capacity_evidence_for(
         output_throughput_tok_s=best_run.profile.output_throughput_tok_s,
         match_level=best_match.level,
         data_trust=best_run.data_trust,
+        input_len_target=best_run.signature.workload.input_len_target,
+        output_len_target=best_run.signature.workload.output_len_target,
+        ttft_p99_ms=best_run.profile.ttft_p99_ms,
+        tpot_p99_ms=best_run.profile.tpot_p99_ms,
+        error_rate=best_run.profile.error_rate,
+        sla_status=sla_status,
+        sustainability_verified=sustainability,
     )
 
 
@@ -2332,9 +2412,13 @@ def revenue_for(
     demand_file: str | Path,
     scenario_id: str,
     capacity: dict[str, Any] | None = None,
+    requirement: dict[str, Any] | None = None,
+    sla_limits: dict[str, Any] | None = None,
+    policy: Any = None,
+    as_of: Any = None,
 ) -> dict[str, Any]:
-    """M29：按业务需求情景计算收入；``capacity`` 为候选事实时顺便做容量比对。"""
-    from llm_capacity_pricing.engines.revenue import compute_revenue
+    """M29：按业务需求情景计算收入；``capacity`` 为候选事实时顺便做综合容量比对（F4.6）。"""
+    from llm_capacity_pricing.engines.revenue import SlaLimits, compute_revenue
     from llm_capacity_pricing.schemas.commercial import DemandPeriod, RevenueScenario
 
     scenarios = load_demand_scenarios(demand_file)
@@ -2365,8 +2449,26 @@ def revenue_for(
 
     evidence = None
     if capacity is not None:
-        evidence = capacity_evidence_for(db_path, **capacity)
-    result = compute_revenue(scenario, rule, capacity_evidence=evidence)
+        evidence = capacity_evidence_for(
+            db_path, requirement=requirement, policy=policy, **capacity
+        )
+    limits = None
+    if sla_limits:
+        limits = SlaLimits(
+            ttft_p99_ms_max=(
+                Decimal(str(sla_limits["ttft_p99_ms_max"]))
+                if sla_limits.get("ttft_p99_ms_max") is not None
+                else None
+            ),
+            tpot_p99_ms_max=(
+                Decimal(str(sla_limits["tpot_p99_ms_max"]))
+                if sla_limits.get("tpot_p99_ms_max") is not None
+                else None
+            ),
+        )
+    result = compute_revenue(
+        scenario, rule, capacity_evidence=evidence, sla_limits=limits, as_of=as_of
+    )
     return {
         "scenario": scenario.model_dump(mode="json"),
         "billing_rule": rule.model_dump(mode="json"),
@@ -2385,45 +2487,316 @@ def revenue_for(
     }
 
 
+def _diagnostic_eligibility(
+    *,
+    candidate_id: str,
+    tco: Any,
+    sla_status: str | None,
+    match_level: str | None,
+    plan_id: str | None = None,
+) -> Any:
+    """诊断入口：只反映"若不核验证据会得到什么"，结论恒为不可发布（V4.1 F4.1）。"""
+    from llm_capacity_pricing.engines.quote_gate import quote_eligibility_from_claims
+
+    result = quote_eligibility_from_claims(
+        candidate_id=candidate_id,
+        tco=tco,
+        sla_status=sla_status,
+        match_level=match_level,
+    )
+    if plan_id is not None:
+        result = result.model_copy(update={"plan_id": plan_id})
+    return result
+
+
+def _run_pool_hash(runs: Sequence[Any]) -> str:
+    """run 池指纹：数据集被替换后，旧 SLA 证据即不可复现。"""
+    import hashlib
+
+    blob = "|".join(
+        sorted(f"{r.run_id}:{r.raw_sha256 or '-'}:{r.data_trust}" for r in runs)
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _target_from_facts(facts: dict[str, Any]) -> Any:
+    from llm_capacity_pricing.schemas.performance import (
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    return TargetRequirement(
+        model_name=facts.get("model_name"),
+        model_revision=facts.get("model_revision"),
+        weight_precision=facts.get("weight_precision"),
+        hardware_model=facts.get("hardware_model"),
+        gpu_count=facts.get("gpu_count"),
+        tp_size=facts.get("tp_size"),
+        dp_size=facts.get("dp_size"),
+        framework=facts.get("framework"),
+        framework_version=facts.get("framework_version"),
+        workload=WorkloadSignature(
+            input_len_target=facts.get("input_len_target"),
+            output_len_target=facts.get("output_len_target"),
+            dataset_name=facts.get("dataset_name"),
+            arrival_mode=facts.get("arrival_mode") or "unknown",
+            configured_concurrency=facts.get("configured_concurrency"),
+        ),
+        required_metrics=[],
+        require_measured=not facts.get("allow_synthetic", False),
+        allow_synthetic=bool(facts.get("allow_synthetic", False)),
+    )
+
+
+def record_sla_evidence_for(
+    db_path: str | Path,
+    *,
+    candidate_id: str,
+    requirement: dict[str, Any],
+    facts: dict[str, Any],
+    sla_evaluation_id: str | None = None,
+    policy: Any = None,
+    target_ref: str | None = None,
+) -> dict[str, Any]:
+    """V4.1 F4.1：跑一次 SLA 评估并**持久化**为可引用的证据记录。
+
+    报价门禁后续只认这条记录，并用其中的需求快照与目标身份重新推导结论。
+    """
+    from datetime import datetime, timezone
+
+    from llm_capacity_pricing.schemas.commercial import SlaEvidenceRecord
+    from llm_capacity_pricing.schemas.performance import SlaRequirement
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    if not runs:
+        raise ServiceError("性能证据池为空：无法生成 SLA 证据记录")
+
+    target = _target_from_facts(facts)
+    best_run, best_match = _best_match(target, runs)
+    sla_req = SlaRequirement.model_validate(requirement)
+    policy = policy or SlaPolicy()
+    evaluation = _evaluate_sla(
+        sla_req,
+        policy=policy,
+        run=best_run,
+        match_result=best_match,
+        target_ref=target_ref or candidate_id,
+    )
+
+    evidence_id = sla_evaluation_id or f"sla::{candidate_id}::{sla_req.requirement_id}"
+    record = SlaEvidenceRecord(
+        sla_evaluation_id=evidence_id,
+        candidate_id=candidate_id,
+        requirement_id=sla_req.requirement_id,
+        requirement=sla_req.model_dump(mode="json"),
+        target_identity={
+            "model_name": facts.get("model_name"),
+            "model_revision": facts.get("model_revision"),
+            "weight_precision": facts.get("weight_precision"),
+            "hardware_model": facts.get("hardware_model"),
+            "gpu_count": facts.get("gpu_count"),
+            "tp_size": facts.get("tp_size"),
+            "dp_size": facts.get("dp_size"),
+            "framework": facts.get("framework"),
+            "framework_version": facts.get("framework_version"),
+            "input_len_target": facts.get("input_len_target"),
+            "output_len_target": facts.get("output_len_target"),
+            "dataset_name": facts.get("dataset_name"),
+            "arrival_mode": facts.get("arrival_mode"),
+            "configured_concurrency": facts.get("configured_concurrency"),
+        },
+        status=evaluation.status,
+        match_level=best_match.level if best_match else None,
+        matched_run_id=best_run.run_id if best_run else None,
+        data_trust=best_run.data_trust if best_run else None,
+        policy_id=policy.policy_id,
+        evaluated_at=datetime.now(timezone.utc),
+        run_pool_hash=_run_pool_hash(runs),
+    )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_sla_evidence(session, [record])
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "sla_evaluation_id": evidence_id,
+        "status": record.status,
+        "match_level": record.match_level,
+        "matched_run_id": record.matched_run_id,
+        "run_pool_hash": record.run_pool_hash,
+        "note": (
+            "已持久化。报价门禁会用它重新推导结论；"
+            "若原始数据或需求变化，记录会被判为 stale。"
+        ),
+    }
+
+
+def import_quote_approvals(
+    file: str | Path, db_path: str | Path = "data/local.db"
+) -> dict[str, Any]:
+    """V4.1 F4.1：导入**人工**审批记录（本函数只做持久化，不生成审批）。"""
+    from llm_capacity_pricing.schemas.commercial import QuoteApproval
+
+    raw = _load_yaml_file(file)
+    entries = raw.get("approvals") or []
+    if not entries:
+        raise ServiceError(f"{file} 中没有任何 approvals")
+    approvals = [QuoteApproval.model_validate(e) for e in entries]
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            n = repo.upsert_quote_approvals(session, approvals)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "file": str(file),
+        "approval_count": n,
+        "decisions": {a.approval_id: a.decision for a in approvals},
+        "notice": "审批记录由人工提供；Agent 无任何接口可生成审批。",
+    }
+
+
+def _recheck_sla_evidence(
+    db_path: str | Path,
+    *,
+    record: Any,
+    facts: dict[str, Any],
+    policy: Any = None,
+) -> Any:
+    """V4.1 F4.1：用记录里的**需求快照 + 目标身份**重新推导结论。"""
+    from llm_capacity_pricing.engines.quote_gate import SlaRecheck
+    from llm_capacity_pricing.schemas.performance import SlaRequirement
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+
+    if record.matched_run_id is None:
+        return SlaRecheck(ok=False, reasons=["evidence_has_no_run: 证据未绑定实测记录"])
+    run = next((r for r in runs if r.run_id == record.matched_run_id), None)
+    if run is None:
+        return SlaRecheck(
+            ok=False,
+            reasons=[f"matched_run_not_found: 证据引用的实测 {record.matched_run_id!r} 已不存在"],
+        )
+
+    target = _target_from_facts(facts)
+    _best_run, best_match = _best_match(target, runs)
+    if best_match is None:
+        return SlaRecheck(ok=False, reasons=["no_comparable_run: 当前证据池中无可用实测"])
+    if best_match.source_ref != run.run_id and best_match.signature_id != run.signature.signature_id:
+        return SlaRecheck(
+            ok=False,
+            match_level=best_match.level,
+            reasons=[
+                "evidence_run_superseded: 重新匹配得到的是另一条实测 "
+                f"{best_match.source_ref!r}，而非证据引用的 {run.run_id!r}"
+            ],
+        )
+    try:
+        sla_req = SlaRequirement.model_validate(record.requirement)
+    except Exception as exc:  # noqa: BLE001
+        return SlaRecheck(ok=False, reasons=[f"requirement_snapshot_invalid: {exc}"])
+
+    evaluation = _evaluate_sla(
+        sla_req,
+        policy=policy or SlaPolicy(),
+        run=run,
+        match_result=best_match,
+        target_ref=record.candidate_id,
+    )
+    return SlaRecheck(
+        ok=True,
+        match_level=best_match.level,
+        status=evaluation.status,
+        run_id=run.run_id,
+        reasons=[
+            f"重新推导：match_level={best_match.level} status={evaluation.status}"
+        ],
+    )
+
+
 def quote_eligibility_for(
     db_path: str | Path,
     *,
     candidate_id: str,
+    requirement_id: str,
+    facts: dict[str, Any],
+    sla_evaluation_id: str | None = None,
+    approval_id: str | None = None,
+    confirmation_id: str | None = None,
     plan_file: str | Path | None = None,
     template_id: str | None = None,
     hardware_id: str | None = None,
     gpu_count: int | None = None,
     server_count: int | None = None,
-    sla_status: str | None = None,
-    match_level: str | None = None,
-    confirmation_id: str | None = None,
-    approval_status: str = "missing",
-    approval_ref: str | None = None,
-    demand_file: str | Path | None = None,
     scenario_id: str | None = None,
+    region: str | None = None,
+    as_of: Any = None,
+    policy: Any = None,
 ) -> dict[str, Any]:
-    """M30：四维报价门禁。任何维度缺证据都不通过（fail-closed）。"""
+    """M30 / V4.1 F4.1：四维报价门禁。
+
+    **只接受引用**（candidate_id / requirement_id / sla_evaluation_id / approval_id），
+    服务端从持久化记录读取结论并重新核验；没有任何参数能让调用方"声明通过"。
+    """
     from llm_capacity_pricing.engines.quote_gate import evaluate_quote_eligibility
-    from llm_capacity_pricing.schemas.tco import TcoResult
+    from llm_capacity_pricing.engines.tco import compute_tco, tco_snapshot_hash
+
+    if sla_evaluation_id is None:
+        raise ServiceError(
+            "必须提供 --sla-evaluation-id（持久化的 SLA 证据记录）；"
+            "调用方声明的 sla_status 字符串不被接受"
+        )
+    if approval_id is None:
+        raise ServiceError(
+            "必须提供 --approval-id（人工审批记录）；非空字符串不构成授权证明"
+        )
 
     tco = None
     plan_id = None
+    snapshot = None
     if plan_file and template_id and hardware_id and gpu_count and server_count:
-        info = tco_for(
-            db_path,
-            plan_file=plan_file,
-            template_id=template_id,
+        templates = load_cost_plan_templates(plan_file)
+        if template_id not in templates:
+            raise ServiceError(f"未知模板 {template_id!r}；可用：{sorted(templates)}")
+        db, repo = open_db(db_path)
+        try:
+            with db.session() as session:
+                items = repo.list_cost_catalog_items(session)
+        finally:
+            db.dispose()
+        if not items:
+            raise ServiceError("成本目录为空：请先运行 import-cost-catalog")
+        plan = build_cost_plan_from_template(
+            templates[template_id],
             candidate_id=candidate_id,
             hardware_id=hardware_id,
             gpu_count=gpu_count,
             server_count=server_count,
+            region=region,
+            as_of_date=as_of,
         )
-        tco = TcoResult.model_validate(info["tco"])
-        plan_id = info["tco"]["plan_id"]
+        tco = compute_tco(plan, items, coverage_policy=load_coverage_policy(plan_file))
+        plan_id = plan.plan_id
+        snapshot = tco_snapshot_hash(tco)
 
     db, repo = open_db(db_path)
     try:
         with db.session() as session:
+            evidence = repo.get_sla_evidence(session, sla_evaluation_id)
+            approval = repo.get_quote_approval(session, approval_id)
             confirmation = (
                 repo.get_commercial_confirmation(session, confirmation_id)
                 if confirmation_id
@@ -2433,36 +2806,47 @@ def quote_eligibility_for(
     finally:
         db.dispose()
 
-    billing_rule_id = None
-    if demand_file and scenario_id:
-        raw = load_demand_scenarios(demand_file).get(scenario_id)
-        if raw:
-            billing_rule_id = raw.get("billing_rule_id")
-
-    if approval_status == "approved" and not approval_ref:
+    if evidence is None:
         raise ServiceError(
-            "approval_status=approved 必须提供 --approval-ref（人工审批凭据）；"
-            "无凭据的审批不算通过，Agent 不得自行声明已审批"
+            f"SLA 证据记录不存在: {sla_evaluation_id}（请先用 record-sla-evidence 生成）"
         )
+    if approval is None:
+        raise ServiceError(f"审批记录不存在: {approval_id}（请先用 import-quote-approvals 导入）")
+
+    recheck = _recheck_sla_evidence(
+        db_path, record=evidence, facts=facts, policy=policy
+    )
+    # 计费规则由情景决定；此处只做记录，不参与门禁判定
+    billing_rule_id = None
 
     eligibility = evaluate_quote_eligibility(
         candidate_id=candidate_id,
+        requirement_id=requirement_id,
         tco=tco,
-        sla_status=sla_status,
-        match_level=match_level,
+        sla_evidence=evidence,
+        sla_recheck=recheck,
+        approval=approval,
         confirmation=confirmation,
-        approval_status=approval_status,
-        approval_ref=approval_ref,
+        cost_snapshot_hash=snapshot,
         plan_id=plan_id,
         scenario_id=scenario_id,
         billing_rule_id=billing_rule_id,
+        as_of=as_of,
     )
     return {
         "eligibility": eligibility.model_dump(mode="json"),
         "tco_used": tco.model_dump(mode="json") if tco else None,
-        "confirmation_used": (
-            confirmation.model_dump(mode="json") if confirmation else None
-        ),
+        "cost_snapshot_hash": snapshot,
+        "sla_evidence_used": evidence.model_dump(mode="json"),
+        "sla_recheck": {
+            "ok": recheck.ok,
+            "match_level": recheck.match_level,
+            "status": recheck.status,
+            "run_id": recheck.run_id,
+            "reasons": recheck.reasons,
+        },
+        "approval_used": approval.model_dump(mode="json"),
+        "confirmation_used": confirmation.model_dump(mode="json") if confirmation else None,
         "billing_rules_available": sorted(rules),
         "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
     }
@@ -2514,9 +2898,6 @@ def phase4_decision_for(
     kv_precision: str = "bf16",
     demand_file: str | Path | None = None,
     scenario_id: str | None = None,
-    confirmation_id: str | None = None,
-    approval_status: str = "missing",
-    approval_ref: str | None = None,
     budgets: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """M31/M32：把第二/三/四阶段串成一条可审计的部署决策链。
@@ -2558,11 +2939,6 @@ def phase4_decision_for(
             models = {m.model_id: m for m in repo.list_model_specs(session)}
             items = repo.list_cost_catalog_items(session)
             rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
-            confirmation = (
-                repo.get_commercial_confirmation(session, confirmation_id)
-                if confirmation_id
-                else None
-            )
     finally:
         db.dispose()
 
@@ -2596,6 +2972,7 @@ def phase4_decision_for(
     if template_id not in templates:
         raise ServiceError(f"未知模板 {template_id!r}；可用：{sorted(templates)}")
     template = templates[template_id]
+    coverage_policy = load_coverage_policy(plan_file)
 
     scenario = None
     rule = None
@@ -2643,7 +3020,7 @@ def phase4_decision_for(
             tp_size=candidate.tp_size,
             dp_size=candidate.dp_size,
         )
-        tco = compute_tco(cost_plan, items)
+        tco = compute_tco(cost_plan, items, coverage_policy=coverage_policy)
 
         revenue = None
         if scenario is not None and rule is not None:
@@ -2667,17 +3044,14 @@ def phase4_decision_for(
             revenue = compute_revenue(scenario, rule, capacity_evidence=evidence)
 
         ranked = ranked_by_id.get(candidate.candidate_id)
-        eligibility = evaluate_quote_eligibility(
+        # V4.1 F4.1：决策链的资格结论也**只能**来自持久化证据。
+        # 这里没有证据 ID，因此一律走诊断入口，结论固定为"不可发布"。
+        eligibility = _diagnostic_eligibility(
             candidate_id=candidate.candidate_id,
             tco=tco,
             sla_status=ranked.sla_status if ranked else None,
             match_level=ranked.match_level if ranked else None,
-            confirmation=confirmation,
-            approval_status=approval_status,
-            approval_ref=approval_ref,
             plan_id=cost_plan.plan_id,
-            scenario_id=scenario.scenario_id if scenario else None,
-            billing_rule_id=rule.rule_id if rule else None,
         )
 
         cash_flow = build_cash_flow(

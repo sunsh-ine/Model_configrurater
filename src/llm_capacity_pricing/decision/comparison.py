@@ -34,6 +34,29 @@ class CandidateEconomics:
     eligibility: QuoteEligibility | None = None
 
 
+def _margin_allowed(
+    tco: TcoResult | None, revenue: RevenueResult | None
+) -> tuple[bool, str | None]:
+    """利润/利润率是否可算（V4.1 F4.5）。
+
+    必须同时满足：成本与收入都存在、成本结论完整、双方币种一致且已知。
+    否则不给数字 —— 例如 USD 收入减 CNY 成本得出的"利润 200"没有经济含义。
+    """
+    if tco is None:
+        return False, "cost_missing"
+    if revenue is None:
+        return False, "revenue_missing"
+    if tco.incomplete:
+        return False, "cost_incomplete"
+    if not tco.currency or not revenue.currency:
+        return False, "currency_unknown"
+    if tco.currency != revenue.currency:
+        return False, f"currency_mismatch:{revenue.currency}!= {tco.currency}"
+    if tco.annual_total_cost is None:
+        return False, "annual_cost_missing"
+    return True, None
+
+
 def _comparability(
     tco: TcoResult | None,
     reference: TcoResult | None,
@@ -95,14 +118,19 @@ def compare_deployments(
 
         comparability, notes = _comparability(tco, reference)
 
-        annual_margin = None
-        margin_ratio = None
+        # ---- 利润只在口径可比时才给（V4.1 F4.5）----
         annual_revenue = revenue.annual_revenue if revenue else None
         annual_total = tco.annual_total_cost if tco else None
-        if annual_revenue is not None and annual_total is not None:
+        margin_ok, margin_reason = _margin_allowed(tco, revenue)
+        annual_margin = None
+        margin_ratio = None
+        if margin_ok and annual_revenue is not None and annual_total is not None:
             annual_margin = annual_revenue - annual_total
             if annual_revenue != 0:
                 margin_ratio = annual_margin / annual_revenue
+        elif margin_reason:
+            # 口径不可比时**不给数字**，只给原因 —— 避免"看似精确的 Decimal"
+            notes.append(f"margin_not_evaluable:{margin_reason}")
 
         if tco is not None and tco.incomplete:
             notes.append("成本结论**不完整**，不得据此报价；原因见 TCO 明细")
@@ -160,6 +188,7 @@ def compare_deployments(
         "性能维度为第三阶段结论的原样展示，未做重新判定",
         "币种未确认、买断/租赁混用、周期不同的候选之间不比较金额高低",
         "未使用经济性评分（币种与合同价未确认前禁止）",
+        "利润/利润率只在**成本完整、双方币种一致**时给出；否则只给不可评估的原因",
     ]
     if reference is None:
         notes.append("没有任何候选具备**完整**成本结论：不给出成本高低比较")
