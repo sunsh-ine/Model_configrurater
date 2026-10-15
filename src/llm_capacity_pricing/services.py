@@ -1862,6 +1862,7 @@ def evaluate_sla_for(
     output_len_target: int | None = None,
     dataset_name: str | None = None,
     arrival_mode: str | None = None,
+    configured_concurrency: int | None = None,
     allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """M23：SLA 评估（要求必须能挂到一条匹配的实测记录上）。"""
@@ -1903,6 +1904,7 @@ def evaluate_sla_for(
                 dataset_name=dataset_name,
                 # CLI 未指定时用 "unknown"（Literal 不接受 None）
                 arrival_mode=arrival_mode or "unknown",  # type: ignore[arg-type]
+                configured_concurrency=configured_concurrency,
             ),
             require_measured=not allow_synthetic,
             allow_synthetic=allow_synthetic,

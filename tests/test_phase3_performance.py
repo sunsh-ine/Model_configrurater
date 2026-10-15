@@ -357,15 +357,8 @@ def test_ep_deployment_is_blocked(candidate_db):
 def test_synthetic_requires_explicit_optin(curve_runs):
     run = curve_runs[0]
     sig = signature_from_run(run)
-    base = dict(
-        model_name=sig.model_name,
-        hardware_model=sig.hardware_model,
-        gpu_count=sig.gpu_count,
-        tp_size=sig.tp_size,
-        workload=WorkloadSignature(
-            input_len_target=sig.workload.input_len_target,
-            output_len_target=sig.workload.output_len_target,
-        ),
+    base = _full_identity_target(run).model_dump(
+        exclude={"allow_synthetic", "require_measured"}
     )
     default = match(TargetRequirement(**base), sig)
     assert default.level == "rejected"
@@ -598,7 +591,11 @@ def test_analyze_runs_groups_separately(curve_runs):
 def test_estimated_reference_for_exact_point(curve_runs):
     target = next(r for r in curve_runs if r.profile.configured_concurrency == 8)
     result = estimate(
-        metric="output_throughput_tok_s", target_concurrency=8, runs=curve_runs, target_run=target
+        metric="output_throughput_tok_s",
+        target_concurrency=8,
+        runs=curve_runs,
+        target_run=target,
+        allowed_trust=ALGO_TRUST,
     )
     assert result.estimate_kind == "measured_reference"
     assert result.value == target.profile.output_throughput_tok_s
@@ -627,7 +624,7 @@ def test_no_extrapolation_outside_range(curve_runs):
 
 @pytest.mark.parametrize("metric", ["ttft_p99_ms", "tpot_p99_ms", "itl_p99_ms", "e2e_p99_ms"])
 def test_p99_metrics_are_never_interpolated(curve_runs, metric):
-    result = estimate(metric=metric, target_concurrency=6, runs=curve_runs)
+    result = estimate(metric=metric, target_concurrency=6, runs=curve_runs, allowed_trust=ALGO_TRUST)
     assert result.estimate_kind == "not_predictable"
     assert any("p99_not_interpolatable" in r for r in result.reasons)
 
@@ -666,15 +663,28 @@ def test_estimate_must_not_be_observed_pass():
 
 
 def _target_for(run: BenchmarkRun, **overrides) -> TargetRequirement:
+    """构造与该 run 身份完全对齐的目标需求。
+
+    V3.1 复审 P0-1 之后，**目标侧**也必须齐备身份字段（revision/精度/框架版本/
+    数据集/长度/到达方式/并发），否则不得 exact_match。
+    """
     sig = signature_from_run(run)
     base = dict(
         model_name=sig.model_name,
+        model_revision=sig.model_revision,
+        weight_precision=sig.weight_precision,
         hardware_model=sig.hardware_model,
         gpu_count=sig.gpu_count,
         tp_size=sig.tp_size,
+        dp_size=sig.dp_size,
+        framework=sig.framework,
+        framework_version=sig.framework_version,
         workload=WorkloadSignature(
             input_len_target=sig.workload.input_len_target,
             output_len_target=sig.workload.output_len_target,
+            dataset_name=sig.workload.dataset_name,
+            arrival_mode=sig.workload.arrival_mode,
+            configured_concurrency=sig.workload.configured_concurrency,
         ),
     )
     base.update(overrides)
@@ -714,10 +724,16 @@ def test_synthetic_is_rejected_by_default_policy(curve_runs):
         SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("400")),
         policy=SlaPolicy(),  # 生产默认策略
         run=run,
-        match_result=match(_target_for(run, allow_synthetic=True), signature_from_run(run)),
+        match_result=match(
+            _target_for(run, allow_synthetic=True), signature_from_run(run)
+        ),
     )
     assert result.status == "not_evaluable"
-    assert any("data_trust_not_accepted" in r for r in result.reasons)
+    # 生产默认策略下，synthetic 会同时触发"不得用于 SLA 证明"与"可信等级不接受"两道门禁
+    assert any(
+        "data_trust_not_accepted" in r or "sla_proof_blocked_by_match" in r
+        for r in result.reasons
+    ), result.reasons
     assert result.algorithm_validation_only is False
 
 
@@ -727,7 +743,9 @@ def test_synthetic_observed_pass_is_flagged_algorithm_only(curve_runs):
         SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("400")),
         policy=ALGO_POLICY,
         run=run,
-        match_result=match(_target_for(run, allow_synthetic=True), signature_from_run(run)),
+        match_result=match(
+            _target_for(run, allow_synthetic=True), signature_from_run(run)
+        ),
     )
     assert result.status == "observed_pass"
     assert result.algorithm_validation_only is True  # 明确标记，不得对外使用
@@ -755,7 +773,10 @@ def test_match_level_below_policy_blocks(measured_runs):
         match_result=match(target, signature_from_run(run)),
     )
     assert result.status == "not_evaluable"
-    assert any("match_level_below_policy" in r for r in result.reasons)
+    assert any(
+        "sla_requires_exact_match" in r or "match_level_below_policy" in r
+        for r in result.reasons
+    ), result.reasons
 
 
 def test_missing_metric_prevents_conclusion(measured_runs):
@@ -877,7 +898,7 @@ def _aligned_runs(measured_runs):
     for run in measured_runs:
         sig = run.signature.model_copy(
             update={
-                "model_name": "qwen3-32b",
+                "model_name": "qwen3-32b",   # 与候选 model_id 对齐
                 "hardware_model": "NVIDIA H100 SXM",
                 "tp_size": 4,
                 "dp_size": 1,
@@ -908,19 +929,52 @@ def _candidate_x():
     )
 
 
+def _with_repeats(measured_runs, concurrency: int = 8, worse: bool = True):
+    """给指定并发点造一次**同身份**的重复实测。
+
+    ``worse=True`` 时让重复观测明显更差（TTFT/TPOT 更高），用于验证
+    "同一配置多次实测时取保守值、不取最优值"（V3.1 复审 P1-2）。
+    """
+    target = next(r for r in measured_runs if r.profile.configured_concurrency == concurrency)
+    profile = target.profile
+    if worse:
+        profile = profile.model_copy(
+            update={
+                "ttft_p99_ms": Decimal("900"),
+                "tpot_p99_ms": Decimal("60"),
+                "output_throughput_tok_s": profile.output_throughput_tok_s / 2,
+            }
+        )
+    repeat = target.model_copy(update={"run_id": target.run_id + "-repeat", "profile": profile})
+    return list(measured_runs) + [repeat]
+
+
 def _rank(measured_runs, ttft_max: str):
+    """排序用目标：负载身份齐备（长度/数据集/到达方式/并发）。"""
     return rank_deployments(
         requirement_id="r",
         candidates=[_candidate_x()],
         runs=_aligned_runs(measured_runs),
         sla_requirement=SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal(ttft_max)),
         policy=ALGO_POLICY,
-        workload=WorkloadSignature(input_len_target=1024, output_len_target=256),
+        workload=WorkloadSignature(
+            input_len_target=1024,
+            output_len_target=256,
+            dataset_name="random",
+            arrival_mode="unbounded",
+            configured_concurrency=8,
+        ),
+        # V3.1 复审 P0-1：目标侧必须声明 revision / 框架 / 框架版本，否则不得 exact_match
+        target_identity={
+            "model_revision": "synthetic-revision-1",
+            "framework": "vllm",
+            "framework_version": "synthetic-fw-1.0",
+        },
     )
 
 
 def test_ranking_marks_verified_when_aggregate_meets_sla(measured_runs):
-    ranking = _rank(measured_runs, "1000")   # 宽松阈值：保守聚合仍达标
+    ranking = _rank(_with_repeats(measured_runs), "1000")   # 宽松阈值：保守聚合仍达标
     entry = ranking.entries[0]
     assert entry.rank_bucket == "verified_sla_met"
     assert entry.sla_status == "observed_pass"
@@ -933,7 +987,7 @@ def test_ranking_uses_conservative_aggregate_not_best_run(measured_runs):
 
     严格阈值下，单看 c=1（TTFT 120ms）会通过，但保守聚合取最大 P99（720ms）会不通过。
     """
-    ranking = _rank(measured_runs, "400")
+    ranking = _rank(_with_repeats(measured_runs), "400")
     entry = ranking.entries[0]
     assert entry.rank_bucket == "measured_but_sla_unmet"
     assert entry.matched_run_id.startswith("aggregate:")
@@ -1006,7 +1060,7 @@ def test_cli_evaluate_sla_default_policy_refuses_synthetic(tmp_path, root):
          "--framework-version", "synthetic-fw-1.0", "--precision", "bf16",
          "--hardware", "SYNTHETIC-GPU-C", "--gpu-count", "4", "--tp", "4",
          "--input-len", "1024", "--output-len", "256", "--dataset", "random",
-         "--arrival-mode", "unbounded", "--db", db],
+         "--arrival-mode", "unbounded", "--concurrency", "4", "--db", db],
     )
     assert r.exit_code == 0
     assert "not_evaluable" in r.output
@@ -1119,7 +1173,11 @@ def test_r1_long_context_cannot_use_short_context_benchmark(measured_runs):
         match_result=match_result,
     )
     assert evaluation.status == "not_evaluable"
-    assert any("match_level_below_policy" in r for r in evaluation.reasons)
+    # 现在由"生产级结论强制 exact_match"这道不可放宽的门禁拦下
+    assert any(
+        "sla_requires_exact_match" in r or "match_level_below_policy" in r
+        for r in evaluation.reasons
+    ), evaluation.reasons
 
 
 def test_r1_ranking_never_verifies_mismatched_load(measured_runs):
@@ -1134,6 +1192,11 @@ def test_r1_ranking_never_verifies_mismatched_load(measured_runs):
         workload=WorkloadSignature(
             input_len_target=32768, output_len_target=256, configured_concurrency=32
         ),
+        target_identity={
+            "model_revision": "synthetic-revision-1",
+            "framework": "vllm",
+            "framework_version": "synthetic-fw-1.0",
+        },
     )
     entry = ranking.entries[0]
     assert entry.rank_bucket != "verified_sla_met"
@@ -1350,6 +1413,11 @@ def test_r7_end_to_end_no_false_verified_path(measured_runs):
             dataset_name="random",
             configured_concurrency=32,
         ),
+        target_identity={
+            "model_revision": "synthetic-revision-1",
+            "framework": "vllm",
+            "framework_version": "synthetic-fw-1.0",
+        },
     )
     entry = ranking.entries[0]
     assert entry.rank_bucket == "requires_benchmark"
@@ -1361,3 +1429,205 @@ def test_r7_same_load_still_reaches_verified(measured_runs):
     """对照组：负载与并发都匹配时，仍能正常进入 verified_sla_met（规则不是无脑拦死）。"""
     ranking = _rank(measured_runs, "1000")
     assert ranking.entries[0].rank_bucket == "verified_sla_met"
+
+
+# ==========================================================================
+# V3.1 复审加固专项（本轮四类边界问题）
+# ==========================================================================
+
+
+def test_review_target_identity_incomplete_blocks_exact_match(curve_runs):
+    """复审 P0-1：记录侧完整但**目标侧**缺 revision -> 不得 exact_match。"""
+    run = next(r for r in curve_runs if r.profile.configured_concurrency == 4)
+    sig = signature_from_run(run)
+    full = _target_for(run, allow_synthetic=True)
+    assert match(full, sig).level == "exact_match"
+
+    for dropped in ("model_revision", "framework_version", "weight_precision"):
+        partial = full.model_copy(update={dropped: None})
+        result = match(partial, sig)
+        assert result.level != "exact_match", dropped
+        assert any("target_identity_incomplete" in r for r in result.reasons), (dropped, result.reasons)
+
+
+def test_review_target_workload_incomplete_blocks_sla(curve_runs):
+    """复审 P0-1：目标未填数据集/到达方式/长度/并发 -> 不得证明 SLA。"""
+    run = next(r for r in curve_runs if r.profile.configured_concurrency == 4)
+    sig = signature_from_run(run)
+    full = _target_for(run, allow_synthetic=True)
+    partial_wl = full.model_copy(
+        update={
+            "workload": WorkloadSignature(input_len_target=1024, output_len_target=256)
+        }
+    )
+    result = match(partial_wl, sig)
+    assert result.level != "exact_match"
+    assert any("target_identity_incomplete" in r for r in result.reasons)
+
+    evaluation = evaluate_sla(
+        SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("400")),
+        policy=ALGO_POLICY,
+        run=run,
+        match_result=result,
+    )
+    assert evaluation.status == "not_evaluable"
+
+
+def test_review_relaxed_policy_cannot_produce_observed_pass(measured_runs):
+    """复审 P0-2：自定义策略放宽 minimum_match_level 也不能得到生产级 observed_pass。"""
+    run = next(r for r in measured_runs if r.profile.configured_concurrency == 4)
+    sig = signature_from_run(run)
+    # 负载不同 -> comparable_reference（长度属于 workload，不能当顶层字段传）
+    target = _full_identity_target(run, input_len_target=32768)
+    match_result = match(target, sig)
+    assert match_result.level == "comparable_reference"
+
+    relaxed = SlaPolicy(policy_id="relaxed", minimum_match_level="comparable_reference")
+    evaluation = evaluate_sla(
+        SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("9999")),
+        policy=relaxed,
+        run=run,
+        match_result=match_result,
+    )
+    assert evaluation.status == "not_evaluable"
+    assert any("sla_requires_exact_match" in r for r in evaluation.reasons)
+
+
+def test_review_match_result_must_reference_this_run(measured_runs):
+    """复审 P0-2：匹配结论必须针对被评价的那条 run，否则阻断。"""
+    run = next(r for r in measured_runs if r.profile.configured_concurrency == 4)
+    other = next(r for r in measured_runs if r.profile.configured_concurrency == 8)
+    wrong_match = match(_target_for(other), signature_from_run(other))
+    evaluation = evaluate_sla(
+        SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("9999")),
+        policy=ALGO_POLICY,
+        run=run,
+        match_result=wrong_match,
+    )
+    assert evaluation.status == "not_evaluable"
+    assert any("match_result_run_mismatch" in r for r in evaluation.reasons)
+
+
+def test_review_partial_repeats_do_not_become_sustainable(curve_runs):
+    """复审 P1-1：同并发两次测试，一次通过一次失败 -> 不得认定为稳定。"""
+    base = next(r for r in curve_runs if r.profile.configured_concurrency == 16)
+    failing = base.model_copy(
+        update={
+            "run_id": base.run_id + "-failing",
+            "profile": base.profile.model_copy(update={"error_rate": Decimal("0.20")}),
+        }
+    )
+    profile = analyze_group(
+        [base, failing],
+        criteria=SustainabilityCriteria(
+            min_duration_s=Decimal("60"), min_repeats_per_point=2
+        ),
+    )
+    assert profile.maximum_sustainable_capacity is None
+    assert profile.observed_stable_candidate is None
+    assert any("concurrency_has_failing_observation" in f for f in profile.quality_flags)
+    assert any("失败观测" in n for n in profile.notes)
+
+
+def test_review_estimator_exact_query_respects_trust(curve_runs):
+    """复审 P1-2：精确查询不得绕开可信度校验。"""
+    target = next(r for r in curve_runs if r.profile.configured_concurrency == 8)
+    result = estimate(
+        metric="output_throughput_tok_s",
+        target_concurrency=8,
+        runs=curve_runs,
+        target_run=target,  # synthetic，且未显式允许
+    )
+    assert result.estimate_kind == "not_predictable"
+    assert any("trust_level_not_allowed_for_estimation" in r for r in result.reasons)
+
+
+def test_review_estimator_target_run_must_be_in_scope(curve_runs, measured_runs):
+    """复审 P1-2：target_run 必须与输入 run 同组。"""
+    target = next(r for r in curve_runs if r.profile.configured_concurrency == 8)
+    other_scope = [
+        r.model_copy(
+            update={
+                "signature": r.signature.model_copy(update={"input_len_target": 32768}),
+            }
+        )
+        for r in measured_runs[:3]
+    ]
+    # 修正 workload 里的长度（signature 与 workload 都改）
+    other_scope = [
+        r.model_copy(
+            update={
+                "signature": r.signature.model_copy(
+                    update={
+                        "workload": r.signature.workload.model_copy(
+                            update={"input_len_target": 32768}
+                        )
+                    }
+                )
+            }
+        )
+        for r in other_scope
+    ]
+    result = estimate(
+        metric="output_throughput_tok_s",
+        target_concurrency=8,
+        runs=other_scope,
+        target_run=target,
+        allowed_trust=ALGO_TRUST,
+    )
+    assert result.estimate_kind == "not_predictable"
+    assert any(
+        "target_run_not_in_scope" in r or "mixed_configurations_in_input" in r
+        for r in result.reasons
+    ), result.reasons
+
+
+def test_review_aggregate_does_not_hide_missing_metric(measured_runs):
+    """复审 P1-2：部分记录缺 TTFT P99 时，聚合不得给出该指标。"""
+    from llm_capacity_pricing.perf.ranker import _aggregate_runs
+
+    run_a = measured_runs[0]
+    run_b = measured_runs[1].model_copy(
+        update={
+            "run_id": measured_runs[1].run_id + "-no-ttft",
+            "profile": measured_runs[1].profile.model_copy(update={"ttft_p99_ms": None}),
+        }
+    )
+    aggregated = _aggregate_runs([run_a, run_b], "exact_match")
+    assert aggregated.profile.ttft_p99_ms is None          # 不得用剩余记录凑出值
+    assert any(
+        "aggregate_metric_missing_in_some_runs:ttft_p99_ms" in f
+        for f in aggregated.profile.quality_flags
+    )
+    assert any("不得据此声称全部观测支持对应 SLA" in n for n in aggregated.profile.consistency_notes)
+
+
+def test_review_aggregate_takes_conservative_values(measured_runs):
+    """复审 P1-2：聚合取 P99 最大、吞吐最小（不取最优）。"""
+    from llm_capacity_pricing.perf.ranker import _aggregate_runs
+
+    good = measured_runs[0]
+    bad = measured_runs[0].model_copy(
+        update={
+            "run_id": good.run_id + "-bad",
+            "profile": good.profile.model_copy(
+                update={
+                    "ttft_p99_ms": Decimal("900"),
+                    "output_throughput_tok_s": good.profile.output_throughput_tok_s / 4,
+                }
+            ),
+        }
+    )
+    aggregated = _aggregate_runs([good, bad], "exact_match")
+    assert aggregated.profile.ttft_p99_ms == Decimal("900")
+    assert aggregated.profile.output_throughput_tok_s == bad.profile.output_throughput_tok_s
+    assert "conservative_worst_case" in aggregated.profile.quality_flags
+    assert aggregated.data_trust == "measured_internal"
+
+
+def test_review_conservative_aggregate_fails_tight_sla(measured_runs):
+    """结合体：严格阈值下，保守聚合让'较好那次'无法单独通过。"""
+    ranking = _rank(_with_repeats(measured_runs, worse=True), "400")
+    entry = ranking.entries[0]
+    assert entry.matched_run_id.startswith("aggregate:")
+    assert entry.rank_bucket == "measured_but_sla_unmet"

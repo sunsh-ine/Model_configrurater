@@ -103,43 +103,16 @@ def estimate(
 ) -> PerformanceEstimate:
     """估算某配置在某并发下的聚合性能指标。
 
-    判定顺序（先指标红线，再数据校验，最后才是能不能算）：
+    判定顺序（V3.1 复审要求：**先校验数据，再走精确查询**）：
 
-    1. ``measured_reference``：目标并发已有实测点 —— 直接返回观测值，不调用模型；
-    2. ``p99_not_interpolatable``：指标属于 P99 家族 —— 与数据可信度无关，一律不插值；
-    3. 配置/负载一致性、可信等级校验（V3.1 R6，估算器**内部**再做一次，
-       不依赖调用方事先分组正确）；
+    1. 配置/负载一致性、可信等级、target_run 作用域校验
+       （否则精确查询会绕过这些检查直接返回 ``measured_reference``）；
+    2. ``measured_reference``：目标并发已有实测点 —— 直接返回观测值，不调用模型；
+    3. ``p99_not_interpolatable``：指标属于 P99 家族 —— 与数据可信度无关，一律不插值；
     4. 点数与覆盖范围检查；
     5. 留出验证（leave-one-out）计算误差，有效留出点不足或误差过大 -> ``not_predictable``。
     """
     unit = INTERPOLATABLE_METRICS.get(metric) or "unknown"
-
-    # ---- 1. 精确查询 -----------------------------------------------------
-    if target_run is not None:
-        value = _value(target_run, metric)
-        if value is not None and _concurrency(target_run) == target_concurrency:
-            return PerformanceEstimate(
-                target_ref=f"concurrency={target_concurrency}",
-                metric=metric,
-                estimate_kind="measured_reference",
-                value=value,
-                unit=unit,
-                source_run_id=target_run.run_id,
-                reasons=["exact_observed_point_used_no_model"],
-            )
-
-    # ---- 2. P99 红线 -----------------------------------------------------
-    if metric in NON_INTERPOLATABLE_METRICS:
-        return PerformanceEstimate(
-            target_ref=f"concurrency={target_concurrency}",
-            metric=metric,
-            estimate_kind="not_predictable",
-            unit=unit,
-            reasons=[
-                "p99_not_interpolatable: 缺少该并发点的实测 P99，"
-                "不允许用其它并发点插值（统计保证不成立）"
-            ],
-        )
 
     # ---- 3. 数据校验（R6）------------------------------------------------
     if runs:
@@ -169,6 +142,18 @@ def estimate(
             ],
             supporting_runs=[r.run_id for r in runs],
         )
+    if target_run is not None and runs:
+        if grouping_key(target_run) != grouping_key(runs[0]):
+            return PerformanceEstimate(
+                target_ref=f"concurrency={target_concurrency}",
+                metric=metric,
+                estimate_kind="not_predictable",
+                unit=unit,
+                reasons=[
+                    "target_run_not_in_scope: 指定的 target_run 与输入 run 不属于同一配置/负载组"
+                ],
+                supporting_runs=[r.run_id for r in runs],
+            )
     allowed = set(allowed_trust or DEFAULT_ALLOWED_TRUST)
     disallowed = sorted(trust_levels - allowed)
     if disallowed:
@@ -182,6 +167,33 @@ def estimate(
                 "（synthetic 仅可验证算法，不可用于性能结论；如确为算法验证请显式允许）"
             ],
             supporting_runs=[r.run_id for r in runs],
+        )
+
+    # ---- 1. 精确查询 -----------------------------------------------------
+    if target_run is not None:
+        value = _value(target_run, metric)
+        if value is not None and _concurrency(target_run) == target_concurrency:
+            return PerformanceEstimate(
+                target_ref=f"concurrency={target_concurrency}",
+                metric=metric,
+                estimate_kind="measured_reference",
+                value=value,
+                unit=unit,
+                source_run_id=target_run.run_id,
+                reasons=["exact_observed_point_used_no_model"],
+            )
+
+    # ---- 2. P99 红线 -----------------------------------------------------
+    if metric in NON_INTERPOLATABLE_METRICS:
+        return PerformanceEstimate(
+            target_ref=f"concurrency={target_concurrency}",
+            metric=metric,
+            estimate_kind="not_predictable",
+            unit=unit,
+            reasons=[
+                "p99_not_interpolatable: 缺少该并发点的实测 P99，"
+                "不允许用其它并发点插值（统计保证不成立）"
+            ],
         )
 
     # ---- 4. 点数与覆盖范围 -----------------------------------------------

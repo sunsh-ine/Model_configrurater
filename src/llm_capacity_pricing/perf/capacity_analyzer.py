@@ -166,25 +166,44 @@ def analyze_group(
                 why.append("TPOT P99 未达标或缺失")
         return not why, why
 
-    candidates: list[int] = []
+    # 按并发点归组，逐点统计"达标 / 不达标"的独立观测（V3.1 复审 P1-1）
+    # 关键点：**任一次观测不达标，该并发点就不能被认定为稳定** ——
+    # 不能因为"总次数够了"就把通过的那次升级为可持续容量。
+    by_concurrency: dict[int, list[CapacityPoint]] = {}
     for point in with_throughput:
         if point.configured_concurrency is None:
             continue
-        ok, why = _passes_basic(point)
-        if ok:
-            candidates.append(point.configured_concurrency)
-            if repeats.get(point.configured_concurrency, 0) >= criteria.min_repeats_per_point:
-                if max_sustainable is None or point.configured_concurrency > max_sustainable:
-                    max_sustainable = point.configured_concurrency
-            elif observed_stable is None or point.configured_concurrency > observed_stable:
-                observed_stable = point.configured_concurrency
-        else:
-            flags.append(f"point_not_stable:c{point.configured_concurrency}:{'；'.join(why)}")
+        by_concurrency.setdefault(point.configured_concurrency, []).append(point)
+
+    for concurrency, observations in sorted(by_concurrency.items()):
+        passing: list[CapacityPoint] = []
+        failing: list[tuple[CapacityPoint, list[str]]] = []
+        for point in observations:
+            ok, why = _passes_basic(point)
+            (passing if ok else failing).append(point if ok else (point, why))
+        if failing:
+            # 失败观测必须显式处理：该并发点整体不认定为稳定，
+            # 并把失败观测列入说明（不静默忽略）
+            for point, why in failing:
+                flags.append(f"point_not_stable:c{concurrency}:{'；'.join(why)}")
+            flags.append(f"concurrency_has_failing_observation:c{concurrency}")
+            notes.append(
+                f"并发 {concurrency} 的 {len(observations)} 次观测中 "
+                f"{len(failing)} 次未达标 → 该并发点不计入稳定容量"
+                f"（失败观测：{[p.run_id for p, _ in failing]}）"
+            )
+            continue
+        # 全部观测达标：再要求"达标观测次数 ≥ 门槛"
+        if len(passing) >= criteria.min_repeats_per_point:
+            if max_sustainable is None or concurrency > max_sustainable:
+                max_sustainable = concurrency
+        elif observed_stable is None or concurrency > observed_stable:
+            observed_stable = concurrency
 
     if max_sustainable is not None:
         sustainability.append(
-            f"该并发点：失败率已知且 ≤ {criteria.max_error_rate}、时长 ≥ {criteria.min_duration_s}s、"
-            f"重复观测 ≥ {criteria.min_repeats_per_point} 次"
+            f"该并发点：全部 {criteria.min_repeats_per_point}+ 次观测均达标"
+            f"（失败率已知且 ≤ {criteria.max_error_rate}、时长 ≥ {criteria.min_duration_s}s）"
         )
     elif observed_stable is not None:
         flags.append("sustainable_capacity_needs_repeats")

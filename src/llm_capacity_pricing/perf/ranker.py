@@ -261,20 +261,36 @@ def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
     """
     base = runs[0]
     profile = base.profile
+    # V3.1 复审 P1-2b：**任一**参与聚合的记录缺某项指标，该指标就不聚合
+    # （否则会用"剩下的记录"凑出一个看似完整的值，掩盖证据缺口）
+    missing_in_some = {
+        field: [r.run_id for r in runs if getattr(r.profile, field) is None]
+        for field in (
+            "ttft_p99_ms",
+            "tpot_p99_ms",
+            "itl_p99_ms",
+            "e2e_p99_ms",
+            "output_throughput_tok_s",
+            "request_throughput_rps",
+        )
+    }
     maxes = {
-        field: max(
-            (getattr(r.profile, field) for r in runs if getattr(r.profile, field) is not None),
-            default=None,
+        field: (
+            max(getattr(r.profile, field) for r in runs)
+            if not missing_in_some[field]
+            else None
         )
         for field in ("ttft_p99_ms", "tpot_p99_ms", "itl_p99_ms", "e2e_p99_ms")
     }
     mins = {
-        field: min(
-            (getattr(r.profile, field) for r in runs if getattr(r.profile, field) is not None),
-            default=None,
+        field: (
+            min(getattr(r.profile, field) for r in runs)
+            if not missing_in_some[field]
+            else None
         )
         for field in ("output_throughput_tok_s", "request_throughput_rps")
     }
+    incomplete_fields = sorted(f for f, ids in missing_in_some.items() if ids)
     error_rates = [r.profile.error_rate for r in runs if r.profile.error_rate is not None]
     trust_rank = {
         "measured_internal": 0,
@@ -298,8 +314,23 @@ def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
             "quality_flags": sorted(
                 set(profile.quality_flags)
                 | {"aggregate_of_multiple_measurements", "conservative_worst_case"}
+                | (
+                    {f"aggregate_metric_missing_in_some_runs:{f}" for f in incomplete_fields}
+                    if incomplete_fields
+                    else set()
+                )
             ),
-            "consistency_notes": list(profile.consistency_notes) + [AGGREGATE_NOTE],
+            "consistency_notes": list(profile.consistency_notes)
+            + [AGGREGATE_NOTE]
+            + (
+                [
+                    "部分记录缺少指标 "
+                    f"{incomplete_fields}：这些指标在聚合结果中保持为空，"
+                    "不得据此声称全部观测支持对应 SLA"
+                ]
+                if incomplete_fields
+                else []
+            ),
         }
     )
     return base.model_copy(

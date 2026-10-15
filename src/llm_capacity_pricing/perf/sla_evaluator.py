@@ -24,6 +24,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Iterable
 
+from llm_capacity_pricing.perf.benchmark_matcher import signature_from_run
 from llm_capacity_pricing.schemas.performance import (
     BenchmarkMatchResult,
     BenchmarkRun,
@@ -173,6 +174,56 @@ def evaluate_sla(
                 "无法确认该实测数据是否适用于目标配置与负载"
             ],
         )
+    # ---- 门禁 2a：匹配结果必须确实针对本 Run（V3.1 复审 P0-2）------------
+    expected_ref = signature_from_run(run).signature_id
+    if match_result.signature_id != expected_ref and match_result.source_ref != run.run_id:
+        return SlaEvaluation(
+            requirement_id=requirement.requirement_id,
+            target_ref=target_ref,
+            status="not_evaluable",
+            policy_id=policy.policy_id,
+            matched_run_id=run.run_id,
+            data_trust=run.data_trust,
+            reasons=[
+                "match_result_run_mismatch: 提供的匹配判定指向 "
+                f"{match_result.source_ref!r}，与被评价的 run {run.run_id!r} 不一致"
+            ],
+        )
+
+    # ---- 门禁 2b：生产级结论**强制** exact_match（不可由策略放宽）----------
+    # 两个独立的阻断来源，原因要分别说清：
+    #   ① 匹配等级不是 exact_match —— 任何策略参数都不能放宽；
+    #   ② 匹配结论本身声明了 blocked_from 含 sla_proof（例如 synthetic 数据）——
+    #      只有"显式算法验证"这条被标记的路径可以例外。
+    level_not_exact = match_result.level != "exact_match"
+    proof_blocked = "sla_proof" in match_result.blocked_from
+    optin_algorithm_validation = policy.allow_synthetic and match_result.algorithm_validation_only
+    if level_not_exact or (proof_blocked and not optin_algorithm_validation):
+        reasons_block: list[str] = []
+        if level_not_exact:
+            reasons_block.append(
+                f"sla_requires_exact_match: 当前匹配等级为 {match_result.level}"
+            )
+            reasons_block.append(
+                "生产级 observed_pass / observed_fail 只接受 exact_match，"
+                "不得通过策略参数放宽（comparable_reference 仅供展示与建模）"
+            )
+        if proof_blocked and not optin_algorithm_validation:
+            reasons_block.append(
+                "sla_proof_blocked_by_match: 匹配结论声明该数据不得用于 SLA 证明"
+                "（如 synthetic 数据；如确为算法验证，请同时允许 synthetic）"
+            )
+        return SlaEvaluation(
+            requirement_id=requirement.requirement_id,
+            target_ref=target_ref,
+            status="not_evaluable",
+            policy_id=policy.policy_id,
+            matched_run_id=run.run_id,
+            match_level=match_result.level,
+            data_trust=run.data_trust,
+            reasons=reasons_block,
+        )
+
     if match_result is not None:
         if LEVEL_ORDER[match_result.level] > LEVEL_ORDER[policy.minimum_match_level]:
             return SlaEvaluation(

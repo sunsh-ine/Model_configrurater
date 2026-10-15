@@ -257,6 +257,49 @@ db.dispose()
 PY
 }
 
+step_sla_default_policy() { # 生产默认策略必须拒绝 synthetic（断言）
+  local out
+  if ! out=$($CLI evaluate-sla --requirement '{"requirement_id":"req-default","ttft_p99_ms_max":400}' \
+      --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" \
+      --model-revision synthetic-revision-1 --framework vllm \
+      --framework-version synthetic-fw-1.0 --precision bf16 \
+      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 \
+      --input-len 1024 --output-len 256 --dataset random \
+      --arrival-mode unbounded --concurrency 4 --db "$DB" 2>&1); then
+    printf '%s\n' "$out"
+    return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '^SLA 状态: not_evaluable'; then
+    printf '断言失败：生产默认策略应给出 not_evaluable\n'
+    return 1
+  fi
+}
+
+step_sla_algorithm_validation() { # 仅算法验证：显式 allow-synthetic 才可 observed_pass（断言）
+  local out
+  if ! out=$($CLI evaluate-sla --requirement '{"requirement_id":"req-algo","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
+      --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" \
+      --model-revision synthetic-revision-1 --framework vllm \
+      --framework-version synthetic-fw-1.0 --precision bf16 \
+      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 \
+      --input-len 1024 --output-len 256 --dataset random \
+      --arrival-mode unbounded --concurrency 4 \
+      --policy-id algorithm-validation-only --allow-synthetic --db "$DB" 2>&1); then
+    printf '%s\n' "$out"
+    return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '^SLA 状态: observed_pass'; then
+    printf '断言失败：算法验证路径应给出 observed_pass\n'
+    return 1
+  fi
+  if ! printf '%s' "$out" | grep -q '仅用于算法验证'; then
+    printf '断言失败：算法验证结论必须显式打标\n'
+    return 1
+  fi
+}
+
 run_step 0 "环境" 1 '^(Python|deps ok)' step_env
 
 run_step 1 "清理旧产物（全新数据库）" 1 '' step_cleanup
@@ -366,16 +409,11 @@ run_step 28 "match-benchmark（M19：Qwen3-32B/H100 不得命中 235B/B200 数�
   $CLI match-benchmark --model "Qwen/Qwen3-32B" --hardware "NVIDIA H100 SXM" --gpu-count 4 --tp 4 \
   --input-len 8192 --output-len 256 --db "$DB"
 
-run_step 29 "evaluate-sla（M23：默认策略拒绝 synthetic，应为 not_evaluable）" 1 '^SLA 状态: not_evaluable' \
-  $CLI evaluate-sla --requirement '{"requirement_id":"req-default","ttft_p99_ms_max":400}' \
-  --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" --hardware "SYNTHETIC-GPU-C" \
-  --gpu-count 4 --tp 4 --input-len 1024 --output-len 256 --db "$DB"
+run_step 29 "evaluate-sla（M23 断言：默认策略必须拒绝 synthetic → not_evaluable）" 1 '^SLA 状态:' \
+  step_sla_default_policy
 
-run_step 30 "evaluate-sla（仅算法验证：显式 allow-synthetic，结论打标）" 1 '^(SLA 状态: observed_pass|  注意：该结论仅用于算法验证)' \
-  $CLI evaluate-sla --requirement '{"requirement_id":"req-algo","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
-  --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" --hardware "SYNTHETIC-GPU-C" \
-  --gpu-count 4 --tp 4 --input-len 1024 --output-len 256 \
-  --policy-id algorithm-validation-only --allow-synthetic --db "$DB"
+run_step 30 "evaluate-sla（M23 断言：仅算法验证路径 → observed_pass 且打标）" 1 '^SLA 状态:|仅用于算法验证' \
+  step_sla_algorithm_validation
 
 run_step 31 "rank-deployments（M24：静态可行但无实测 -> requires_benchmark）" 1 '^(分桶:|阻塞:)' \
   $CLI rank-deployments --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \

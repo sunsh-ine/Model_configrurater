@@ -745,6 +745,7 @@ def evaluate_sla_cmd(
     precision: Optional[str] = typer.Option(None, "--precision", help="目标权重精度"),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="目标数据集"),
     arrival_mode: Optional[str] = typer.Option(None, "--arrival-mode", help="到达方式：unbounded/request_rate/max_concurrency"),
+    concurrency: Optional[int] = typer.Option(None, "--concurrency", help="目标配置并发（严格匹配必需）"),
     hardware: Optional[str] = typer.Option(None, "--hardware", help="目标硬件"),
     gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="目标 GPU 数"),
     tp: Optional[int] = typer.Option(None, "--tp", help="目标 TP"),
@@ -789,6 +790,7 @@ def evaluate_sla_cmd(
             output_len_target=output_len,
             dataset_name=dataset,
             arrival_mode=arrival_mode,
+            configured_concurrency=concurrency,
             allow_synthetic=allow_synthetic,
         )
     except Exception as exc:

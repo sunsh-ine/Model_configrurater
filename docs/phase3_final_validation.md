@@ -406,3 +406,117 @@ SLA 评估 → 候选排序或返回证据缺口*。
 | 失败率缺失的并发点 | 计入可持续容量 ❌ | 判不通过；单次达标只记 `observed_stable_candidate` ✅ |
 | 同配置多次实测 | 取第一条 ❌ | 保守聚合（P99 最大 / 吞吐最小 / 可信最弱）✅ |
 | 混合不同配置做插值 | 不检查 ❌ | `mixed_configurations_in_input` ✅ |
+
+
+---
+
+# 附：V3.1 复审加固（四类边界问题）
+
+复审确认 R1–R7 的核心修复已落地，同时指出四类**边界问题**。已全部加固，
+本节记录根因、修复与复现证据。
+
+## B.1 P0 目标侧身份完整性
+
+**根因**：`RECORD_IDENTITY_FIELDS` 只检查**记录侧**是否完整；目标侧缺
+`model_revision` / `framework_version` / 负载条件时，`_compare()` 仍把"缺失"视为相等，
+于是"记录完整 + 目标什么都没说"也能得到 `exact_match`。
+
+**修复**：新增 `TARGET_IDENTITY_FIELDS`（model_revision / weight_precision / framework_version）
+与 `TARGET_WORKLOAD_IDENTITY_FIELDS`（dataset_name / input_len_target / output_len_target /
+arrival_mode），目标侧缺任一即登记 `target_identity_incomplete:*`，不得 `exact_match`。
+**严格匹配现在要求"目标说清了要什么"且"记录说清了测了什么"。**
+
+**复现**：`test_review_target_identity_incomplete_blocks_exact_match`、
+`test_review_target_workload_incomplete_blocks_sla`。
+
+## B.2 P0 SLA 门禁不可放宽 + 匹配来源校验
+
+**根因（两处）**：① `evaluate_sla()` 只比较等级顺序，调用方传
+`SlaPolicy(minimum_match_level="comparable_reference")` 就能让负载不同的数据进入
+`observed_pass`；② 没有校验传入的匹配结论是否针对**被评价的那条 run**。
+
+**修复**：
+
+* 新增不可放宽的门禁：`observed_pass` / `observed_fail` **只接受 `exact_match`**，
+  与 `minimum_match_level` 无关；`comparable_reference` / `modeling_candidate` 一律
+  `not_evaluable`（`sla_requires_exact_match`）。
+* 匹配结论若声明 `blocked_from` 含 `sla_proof`，除非策略**同时**显式允许 synthetic
+  且该结论带 `algorithm_validation_only` 标记，否则阻断（`sla_proof_blocked_by_match`）。
+* 新增 `match_result_run_mismatch`：匹配结论的 `signature_id` / `source_ref` 必须与
+  被评价的 run 对应，否则阻断。
+
+**复现**：`test_review_relaxed_policy_cannot_produce_observed_pass`、
+`test_review_match_result_must_reference_this_run`。
+
+**实现过程中发现并修掉的相关 bug**：门禁 2b 最初把"等级不足"与"`sla_proof` 被阻断"
+混在一个判断里，导致**连合法的算法验证路径也被拦死**，且报错信息写成
+"当前匹配等级为 exact_match"（自相矛盾）。现已拆成两个独立原因码。
+
+## B.3 P1 重复观测必须"达标"才算，失败观测不得被忽略
+
+**根因**：`repeats` 统计的是同一并发点的**全部**测试次数；只要其中一次达标、
+总次数够门槛，就会写出 `maximum_sustainable_capacity`。例如两次观测中一次 0%、
+一次 20% 失败率，仍可能被认定为稳定。
+
+**修复**：按并发点归组，逐点统计"达标 / 不达标"观测；
+**任一次观测不达标即该点整体不计入稳定容量**，并把失败观测的 `run_id` 与原因
+写入 `notes` 与 `quality_flags`（`concurrency_has_failing_observation:cN`）。
+只有"全部观测达标且达标次数 ≥ 门槛"才给 `maximum_sustainable_capacity`。
+
+**复现**：`test_review_partial_repeats_do_not_become_sustainable`。
+
+## B.4 P1 估算器校验顺序与聚合的缺失指标
+
+**根因（两处）**：① `estimate()` 的精确查询发生在可信度/一致性校验**之前**，
+`target_run` 可以绕过后面的校验直接返回 `measured_reference`；
+② `_aggregate_runs()` 聚合时对 `None` 取 max/min 会**忽略缺失**，用剩余记录凑出
+一个看似完整的值（例如某条观测没有 TTFT P99，聚合结果却给出 TTFT）。
+
+**修复**：
+
+* 估算器顺序改为：**可信度/一致性/target_run 作用域校验 → 精确查询 → P99 红线 → 点数与覆盖**；
+  新增 `target_run_not_in_scope`（target_run 必须与输入 run 同组同负载）。
+* 聚合前先检查每条记录是否具备所需指标：**任一记录缺某项，该指标在聚合结果中保持为空**，
+  并打 `aggregate_metric_missing_in_some_runs:<field>` 标记 + 说明
+  "不得据此声称全部观测支持对应 SLA"。
+
+**复现**：`test_review_estimator_exact_query_respects_trust`、
+`test_review_estimator_target_run_must_be_in_scope`、
+`test_review_aggregate_does_not_hide_missing_metric`、
+`test_review_aggregate_takes_conservative_values`、
+`test_review_conservative_aggregate_fails_tight_sla`。
+
+## B.5 验证脚本改进：SLA 步骤改为**断言式**
+
+复审期间发现一个**验证脚本本身的缺陷**：`run_step` 的"关键行"只用于展示，
+命中与否不影响该步成败 —— 于是"算法验证路径失效"这种回归可以**静默通过**。
+
+已把两个 SLA 步骤改为断言式 shell 函数：
+
+* `step_sla_default_policy`：输出必须含 `SLA 状态: not_evaluable`，否则该步失败；
+* `step_sla_algorithm_validation`：必须含 `SLA 状态: observed_pass` **且**含
+  `仅用于算法验证`，否则失败。
+
+这个改动当场就抓出了"verify 脚本漏传 `--concurrency`、导致目标负载身份不全"的问题
+（该问题此前被展示式关键行掩盖）。
+
+## B.6 本轮结果
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | `步骤 36 项：通过 36，失败 0`（其中 2 步为断言式） |
+| 测试 | **487 passed**（第三阶段 73 → 83；新增 10 个复审专项用例） |
+| 第一阶段回归 | 32 / 160 / 192 / 0 超容差 / fixture 残留 0 —— 不变 |
+| 复审要求的 7 个验收用例 | 全部实现并通过（见 B.1–B.4 的复现列表） |
+
+## B.7 修复前后对照（本轮）
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 记录完整、目标未填 revision | 可能 `exact_match` ❌ | `target_identity_incomplete` → 不得 exact_match ✅ |
+| 自定义策略放宽到 comparable_reference | 可能 `observed_pass` ❌ | 一律 `not_evaluable`（门禁不可放宽）✅ |
+| 匹配结论指向另一条 run | 不校验 ❌ | `match_result_run_mismatch` ✅ |
+| 同并发两次观测，一次失败 | 总次数够即认定稳定 ❌ | 该点整体不计入；失败观测写入 notes ✅ |
+| 精确查询 target_run 可信度不足 | 绕过校验直接返回 ❌ | 先校验，`trust_level_not_allowed` ✅ |
+| 聚合时某条缺 TTFT P99 | 用剩余记录凑出值 ❌ | 该指标置空 + 明确标记 ✅ |
+| verify 脚本关键行未命中 | 静默通过 ❌ | 断言式，直接失败 ✅ |

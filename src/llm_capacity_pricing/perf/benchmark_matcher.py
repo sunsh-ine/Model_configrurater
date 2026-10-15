@@ -52,6 +52,22 @@ RECORD_IDENTITY_FIELDS: tuple[str, ...] = (
     "framework",
     "framework_version",
 )
+#: **目标侧**同样必须齐备的字段（V3.1 复审 P0-1）。
+#: 严格匹配要求"目标说清了要什么"**且**"记录说清了测了什么"——
+#: 目标没写 revision/框架版本/数据集/长度/到达方式时，无法确认这条实测适用于该需求，
+#: 因此不得因为"记录侧完整"就评为 exact_match。
+TARGET_IDENTITY_FIELDS: tuple[str, ...] = (
+    "model_revision",
+    "weight_precision",
+    "framework_version",
+)
+TARGET_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
+    "dataset_name",
+    "input_len_target",
+    "output_len_target",
+    "arrival_mode",
+)
+
 #: 负载侧的严格必需字段（同样要求记录侧具备）
 RECORD_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
     "dataset_name",
@@ -459,6 +475,18 @@ def match(target: TargetRequirement, sig: BenchmarkSignature) -> BenchmarkMatchR
             missing_identity.append(f"workload.{field_name}")
     if missing_identity:
         unverified.append("record_identity_incomplete:" + ",".join(missing_identity))
+
+    # ---- 7.6 目标侧身份完整性（V3.1 复审 P0-1）----------------------------
+    missing_target: list[str] = []
+    if workload_specified:
+        for field_name in TARGET_IDENTITY_FIELDS:
+            if is_absent(getattr(target, field_name, None)):
+                missing_target.append(field_name)
+        for field_name in TARGET_WORKLOAD_IDENTITY_FIELDS:
+            if is_absent(getattr(tw, field_name, None)):
+                missing_target.append(f"workload.{field_name}")
+        if missing_target:
+            unverified.append("target_identity_incomplete:" + ",".join(missing_target))
 
     # ---- 8. 定级 ---------------------------------------------------------
     # 硬阻断：数据来源/模型/硬件/精度层面的不一致，或指标缺失 —— 这些无法补救。
