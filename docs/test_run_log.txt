@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T17:22:43",
+  "generated_at": "2026-10-15T17:40:50",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T17:22:45",
+  "generated_at": "2026-10-15T17:40:52",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1355,20 +1355,20 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 26. capacity-profile（含 synthetic，算法验证） ===
 记录 5 条，分成 1 个配置组
-  组 SYNTHETIC-MODEL-C|?|?|SYNTHETIC-GPU-C|tp… 点数=5 覆盖=sufficient 峰值并发=16 输出=380.0 可持续容量=16
+  组 SYNTHETIC-MODEL-C|synthetic-revision-1|b… 点数=5 覆盖=sufficient 峰值并发=16 输出=380.0 可持续容量=None
 {
   "run_count": 5,
   "group_count": 1,
   "profiles": [
     {
-      "group_key": "SYNTHETIC-MODEL-C|?|?|SYNTHETIC-GPU-C|tp?|dp?|gpus4|vllm|?|fixed_length_standard",
+      "group_key": "SYNTHETIC-MODEL-C|synthetic-revision-1|bf16|SYNTHETIC-GPU-C|tp4|dp1|gpus4|vllm|synthetic-fw-1.0|fixed_length_standard|isl1024|osl256|random|unbounded|prefix_reuseNone|streamingNone",
       "model_name": "SYNTHETIC-MODEL-C",
       "hardware_model": "SYNTHETIC-GPU-C",
-      "tp_size": null,
-      "dp_size": null,
-      "tp_dp_combination": "tpNonexdpNone",
+      "tp_size": 4,
+      "dp_size": 1,
+      "tp_dp_combination": "tp4xdp1",
       "framework": "vllm",
-      "framework_version": null,
+      "framework_version": "synthetic-fw-1.0",
       "load_profile_kind": "fixed_length_standard",
       "points": [
         {
@@ -1462,10 +1462,9 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "error_rate": "0.000000",
         "data_trust": "synthetic_fixture"
       },
-      "maximum_sustainable_capacity": 16,
-      "sustainability_evidence": [
-        "该点满足持续时间 ≥ 60s 且失败率 ≤ 0.01"
-      ],
+      "observed_stable_candidate": 16,
+      "maximum_sustainable_capacity": null,
+      "sustainability_evidence": [],
       "covered_concurrency_points": [
         1,
         2,
@@ -1478,16 +1477,20 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
       ],
       "coverage_status": "sufficient",
       "notes": [
-        "吞吐峰值出现在配置并发 16（380.0 tok/s）；这只是**已测到的最优点**，不等于该配置的最大可持续产能"
+        "并发 16 单次观测满足失败率与时长要求，但重复次数不足 2，仅记为 observed_stable_candidate",
+        "吞吐峰值出现在配置并发 16（380.0 tok/s）；这只是**已测到的最优点**，不等于该配置的最大可持续产能",
+        "未给出 maximum_sustainable_capacity：需要失败率已知、时长达标**且**重复观测达到门槛（V3.1 R5）；单次达标只记为 observed_stable_candidate"
       ],
       "quality_flags": [
+        "sustainable_capacity_needs_repeats",
+        "sustainable_capacity_not_evidenced",
         "group_contains_synthetic_data_only_for_algorithm_validation"
       ]
     }
   ]
 }
 
-=== 27. calibrate-performance（M22 范围内插值 + 留出误差） ===
+=== 27. calibrate-performance（M22 范围内插值 + 留出误差；--allow-synthetic 仅算法验证） ===
 {
   "target_ref": "concurrency=6",
   "metric": "output_throughput_tok_s",
@@ -1518,7 +1521,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
     "holdout_leave_one_out_on_3_points",
     "estimate_is_within_measured_range_only"
   ],
-  "group_key": "SYNTHETIC-MODEL-C|?|?|SYNTHETIC-GPU-C|tp?|dp?|gpus4|vllm|?|fixed_length_standard",
+  "group_key": "SYNTHETIC-MODEL-C|synthetic-revision-1|bf16|SYNTHETIC-GPU-C|tp4|dp1|gpus4|vllm|synthetic-fw-1.0|fixed_length_standard|isl1024|osl256|random|unbounded|prefix_reuseNone|streamingNone",
   "note": "measured_reference=直接命中实测；calibrated_estimate=同配置范围内插值（附留出误差）；not_predictable=数据不足或超出覆盖范围"
 }
 
@@ -1559,6 +1562,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.tpot.p99",
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
+        "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1606,6 +1610,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.tpot.p99",
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
+        "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1653,6 +1658,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.tpot.p99",
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
+        "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1700,6 +1706,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.tpot.p99",
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
+        "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1747,6 +1754,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.tpot.p99",
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
+        "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1799,7 +1807,7 @@ SLA 状态: not_evaluable
   "data_trust": "synthetic_fixture",
   "constraints": [],
   "reasons": [
-    "match_level_below_policy:rejected<comparable_reference",
+    "match_level_below_policy:rejected<exact_match",
     "配置不匹配的实测数据不能作为该需求的 SLA 依据"
   ],
   "goodput_rps": null,
@@ -1943,7 +1951,7 @@ SLA 状态: observed_pass
 }
 
 === 32. performance-report（M25 第三阶段报告） ===
-报告已写入 data/exports/performance_report.md（2482 字节）
+报告已写入 data/exports/performance_report.md（2821 字节）
 {
   "inventory": {
     "signature_count": 59,
@@ -1969,29 +1977,29 @@ SLA 状态: observed_pass
 
 === 34. pytest（全量，离线） ===
 ........................................................................ [ 15%]
-........................................................................ [ 31%]
-........................................................................ [ 46%]
-........................................................................ [ 62%]
-........................................................................ [ 78%]
-........................................................................ [ 93%]
-............................                                             [100%]
-460 passed in 39.83s
+........................................................................ [ 30%]
+........................................................................ [ 45%]
+........................................................................ [ 60%]
+........................................................................ [ 75%]
+........................................................................ [ 90%]
+.............................................                            [100%]
+477 passed in 45.44s
 
 === 35. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1176
-drwxrwxr-x  2 ssa ssa   4096 10月 15 17:23 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 17:22 ..
--rw-rw-r--  1 ssa ssa  21022 10月 15 17:22 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 17:22 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 17:22 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 17:22 overview.md
--rw-rw-r--  1 ssa ssa   2482 10月 15 17:23 performance_report.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 17:22 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 17:22 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 15 17:22 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 15 17:41 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 17:41 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 15 17:41 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 17:40 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 17:40 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 17:40 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 15 17:41 performance_report.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 17:40 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 17:40 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 15 17:41 sizing_report.md
 
 ==== 汇总 ====
 步骤 36 项：通过 36，失败 0
-完成时间: 2026-10-15T17:23:49+08:00
+完成时间: 2026-10-15T17:42:03+08:00
 环境: Python 3.12.3
 全部步骤通过。

@@ -714,11 +714,20 @@ def calibrate_performance_cmd(
     metric: str = typer.Option("output_throughput_tok_s", "--metric", help="要估算的指标"),
     concurrency: int = typer.Option(..., "--concurrency", help="目标并发"),
     group_key: Optional[str] = typer.Option(None, "--group-key", help="指定配置组（默认取第一条所在组）"),
+    allow_synthetic: bool = typer.Option(
+        False, "--allow-synthetic", help="仅算法验证：允许 synthetic 数据参与估算"
+    ),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
-    """性能估算：精确查询 / 范围内插值 / 不可预测（M22）。"""
+    """性能估算：精确查询 / 范围内插值 / 不可预测（M22）。默认拒绝 synthetic。"""
     try:
-        info = calibrate_performance_for(db, metric=metric, target_concurrency=concurrency, group_key=group_key)
+        info = calibrate_performance_for(
+            db,
+            metric=metric,
+            target_concurrency=concurrency,
+            group_key=group_key,
+            allow_synthetic=allow_synthetic,
+        )
     except Exception as exc:
         _fail(str(exc))
         return
@@ -730,6 +739,12 @@ def evaluate_sla_cmd(
     requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON（requirement_id/ttft_p99_ms_max/...）"),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="指定用于判定的实测记录"),
     model: Optional[str] = typer.Option(None, "--model", help="目标模型（用于匹配判定）"),
+    model_revision: Optional[str] = typer.Option(None, "--model-revision", help="目标模型 revision（严格匹配必需）"),
+    framework: Optional[str] = typer.Option(None, "--framework", help="目标框架（sglang/vllm）"),
+    framework_version: Optional[str] = typer.Option(None, "--framework-version", help="目标框架版本（严格匹配必需）"),
+    precision: Optional[str] = typer.Option(None, "--precision", help="目标权重精度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="目标数据集"),
+    arrival_mode: Optional[str] = typer.Option(None, "--arrival-mode", help="到达方式：unbounded/request_rate/max_concurrency"),
     hardware: Optional[str] = typer.Option(None, "--hardware", help="目标硬件"),
     gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="目标 GPU 数"),
     tp: Optional[int] = typer.Option(None, "--tp", help="目标 TP"),
@@ -762,12 +777,18 @@ def evaluate_sla_cmd(
             policy=policy,
             run_id=run_id,
             model_name=model,
+            model_revision=model_revision,
             hardware_model=hardware,
             gpu_count=gpu_count,
             tp_size=tp,
             dp_size=dp,
+            weight_precision=precision,
+            framework=framework,
+            framework_version=framework_version,
             input_len_target=input_len,
             output_len_target=output_len,
+            dataset_name=dataset,
+            arrival_mode=arrival_mode,
             allow_synthetic=allow_synthetic,
         )
     except Exception as exc:
@@ -793,6 +814,10 @@ def rank_deployments_cmd(
     usable_source_kind: Optional[str] = typer.Option(None, "--usable-source-kind", help="来源性质"),
     runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时预留比例"),
     output_len: Optional[int] = typer.Option(None, "--output-len", help="目标输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="目标数据集"),
+    model_revision: Optional[str] = typer.Option(None, "--model-revision", help="目标模型 revision"),
+    framework: Optional[str] = typer.Option(None, "--framework", help="目标框架"),
+    framework_version: Optional[str] = typer.Option(None, "--framework-version", help="目标框架版本"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
     """部署候选性能比较与排序（M24）：静态筛选 + 性能证据。"""
@@ -822,6 +847,10 @@ def rank_deployments_cmd(
             server_id=server,
             input_len_target=ctx,
             output_len_target=output_len,
+            dataset_name=dataset,
+            model_revision=model_revision,
+            framework=framework,
+            framework_version=framework_version,
         )
     except Exception as exc:
         _fail(str(exc))

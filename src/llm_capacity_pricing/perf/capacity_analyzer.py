@@ -39,12 +39,23 @@ class SustainabilityCriteria:
     min_duration_s: Decimal = DEFAULT_MIN_DURATION_S
     max_error_rate: Decimal = DEFAULT_MAX_ERROR_RATE
     min_points: int = DEFAULT_MIN_POINTS
+    #: 同一并发点至少需要几次重复观测（V3.1 R5：单次测试不足以证明长期可持续）
+    min_repeats_per_point: int = 2
+    #: 该并发点还需满足的时延上限（可选；给出则必须实测满足）
+    ttft_p99_ms_max: Decimal | None = None
+    tpot_p99_ms_max: Decimal | None = None
 
 
 def grouping_key(run: BenchmarkRun) -> str:
-    """容量曲线的分组键：同组才可比较。"""
+    """容量曲线的分组键：**同配置 + 同负载**才可比较（V3.1 R4）。
+
+    除部署条件外，还必须包含 Workload 的关键字段——1K/1K 与 32K/256
+    是两条不同的曲线，混在一起会得出错误的吞吐/时延关系。
+    """
     sig = run.signature
+    w = sig.workload
     parts = (
+        # 部署与身份
         sig.model_name or "?",
         sig.model_revision or "?",
         sig.weight_precision or "?",
@@ -55,6 +66,13 @@ def grouping_key(run: BenchmarkRun) -> str:
         sig.framework or "?",
         sig.framework_version or "?",
         run.load_profile_kind,
+        # 负载（V3.1 R4）
+        f"isl{w.input_len_target if w.input_len_target is not None else '?'}",
+        f"osl{w.output_len_target if w.output_len_target is not None else '?'}",
+        w.dataset_name or "?",
+        w.arrival_mode,
+        f"prefix_reuse{w.prefix_reuse}",
+        f"streaming{w.streaming}",
     )
     return "|".join(str(p) for p in parts)
 
@@ -98,6 +116,8 @@ def analyze_group(
         )
 
     sig = runs[0].signature
+    notes: list[str] = []
+    flags: list[str] = []
     points = sorted(
         (_point(r) for r in runs),
         key=lambda p: (p.configured_concurrency if p.configured_concurrency is not None else 10**9),
@@ -116,25 +136,62 @@ def analyze_group(
     with_throughput = [p for p in points if p.output_throughput_tok_s is not None]
     best = max(with_throughput, key=lambda p: p.output_throughput_tok_s) if with_throughput else None
 
-    # ---- 可持续容量（需要证据）------------------------------------------
+    # ---- 可持续容量（V3.1 R5：失败率必须已知且达标；单次测试不足以证明长期可持续）----
     sustainability: list[str] = []
+    observed_stable: int | None = None
     max_sustainable: int | None = None
-    if best is not None:
-        pool = [p for p in with_throughput if p.error_rate is None or p.error_rate <= criteria.max_error_rate]
-        run_by_id = {r.run_id: r for r in runs}
-        for p in pool:
-            duration = run_by_id[p.run_id].profile.duration_s
-            if duration is not None and duration >= criteria.min_duration_s:
-                if max_sustainable is None or (
-                    p.configured_concurrency or 0
-                ) > (max_sustainable or 0):
-                    max_sustainable = p.configured_concurrency
-        if max_sustainable is not None:
-            sustainability.append(
-                f"该点满足持续时间 ≥ {criteria.min_duration_s}s 且失败率 ≤ {criteria.max_error_rate}"
-            )
+    run_by_id = {r.run_id: r for r in runs}
+    repeats: dict[int, int] = {}
+    for p in with_throughput:
+        if p.configured_concurrency is not None:
+            repeats[p.configured_concurrency] = repeats.get(p.configured_concurrency, 0) + 1
+
+    def _passes_basic(point: CapacityPoint) -> tuple[bool, list[str]]:
+        """单点证据：失败率**必须已知**且达标 + 持续时间达标 + 时延约束（若给定）。"""
+        why: list[str] = []
+        if point.error_rate is None:
+            return False, ["失败率未知（不得当作通过）"]
+        if point.error_rate > criteria.max_error_rate:
+            why.append(f"失败率 {point.error_rate} > {criteria.max_error_rate}")
+        duration = run_by_id[point.run_id].profile.duration_s
+        if duration is None:
+            why.append("测试时长未知")
+        elif duration < criteria.min_duration_s:
+            why.append(f"时长 {duration}s < {criteria.min_duration_s}s")
+        if criteria.ttft_p99_ms_max is not None:
+            if point.ttft_p99_ms is None or point.ttft_p99_ms > criteria.ttft_p99_ms_max:
+                why.append("TTFT P99 未达标或缺失")
+        if criteria.tpot_p99_ms_max is not None:
+            if point.tpot_p99_ms is None or point.tpot_p99_ms > criteria.tpot_p99_ms_max:
+                why.append("TPOT P99 未达标或缺失")
+        return not why, why
+
+    candidates: list[int] = []
+    for point in with_throughput:
+        if point.configured_concurrency is None:
+            continue
+        ok, why = _passes_basic(point)
+        if ok:
+            candidates.append(point.configured_concurrency)
+            if repeats.get(point.configured_concurrency, 0) >= criteria.min_repeats_per_point:
+                if max_sustainable is None or point.configured_concurrency > max_sustainable:
+                    max_sustainable = point.configured_concurrency
+            elif observed_stable is None or point.configured_concurrency > observed_stable:
+                observed_stable = point.configured_concurrency
         else:
-            sustainability.clear()
+            flags.append(f"point_not_stable:c{point.configured_concurrency}:{'；'.join(why)}")
+
+    if max_sustainable is not None:
+        sustainability.append(
+            f"该并发点：失败率已知且 ≤ {criteria.max_error_rate}、时长 ≥ {criteria.min_duration_s}s、"
+            f"重复观测 ≥ {criteria.min_repeats_per_point} 次"
+        )
+    elif observed_stable is not None:
+        flags.append("sustainable_capacity_needs_repeats")
+        notes.append(
+            f"并发 {observed_stable} 单次观测满足失败率与时长要求，但重复次数不足 "
+            f"{criteria.min_repeats_per_point}，仅记为 observed_stable_candidate"
+        )
 
     coverage_status = (
         "sufficient"
@@ -143,8 +200,6 @@ def analyze_group(
         else "insufficient_coverage"
     )
 
-    notes: list[str] = []
-    flags: list[str] = []
     if best is not None:
         notes.append(
             f"吞吐峰值出现在配置并发 {best.configured_concurrency}（"
@@ -153,8 +208,8 @@ def analyze_group(
         )
     if max_sustainable is None:
         notes.append(
-            "缺少持续时间/失败率证据，未给出 maximum_sustainable_capacity"
-            "（任务书 M21 强制要求）"
+            "未给出 maximum_sustainable_capacity：需要失败率已知、时长达标**且**重复观测"
+            "达到门槛（V3.1 R5）；单次达标只记为 observed_stable_candidate"
         )
         flags.append("sustainable_capacity_not_evidenced")
     if any(p.data_trust == "synthetic_fixture" for p in points):
@@ -174,6 +229,7 @@ def analyze_group(
         load_profile_kind=runs[0].load_profile_kind or "unknown",
         points=points,
         best_observed_point=best,
+        observed_stable_candidate=observed_stable,
         maximum_sustainable_capacity=max_sustainable,
         sustainability_evidence=sustainability,
         covered_concurrency_points=covered,

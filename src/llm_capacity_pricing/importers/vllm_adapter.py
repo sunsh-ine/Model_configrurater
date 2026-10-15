@@ -153,6 +153,11 @@ def _parse(
             framework="vllm",
             framework_version=metadata.get("framework_version"),
             model_revision=metadata.get("model_revision"),
+            # V3.1 R2：严格匹配需要这些身份字段；元数据声明了就带上，没声明保持 None
+            model_precision=metadata.get("weight_precision") or metadata.get("model_precision"),
+            tp_size=metadata.get("tp_size"),
+            dp_size=metadata.get("dp_size"),
+            dataset_name=metadata.get("dataset_name"),
             verification_status=metadata.get("verification_status", "partial_evidence"),
             format_version=fmt,
             metric_definitions=metrics_defs,

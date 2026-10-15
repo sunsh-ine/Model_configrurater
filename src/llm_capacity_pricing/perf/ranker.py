@@ -55,6 +55,7 @@ def rank_deployments(
     policy: SlaPolicy,
     workload: WorkloadSignature | None = None,
     model_by_id: Mapping[str, object] | None = None,
+    target_identity: Mapping[str, object] | None = None,
 ) -> DeploymentRanking:
     """对第二阶段候选做性能比较。``runs`` 为可用的实测记录池。"""
     entries: list[RankedDeployment] = []
@@ -79,8 +80,12 @@ def rank_deployments(
             )
             continue
 
+        identity = dict(target_identity or {})
         target = TargetRequirement(
             model_name=_model_name(candidate, model_by_id),
+            model_revision=identity.get("model_revision"),  # type: ignore[arg-type]
+            framework=identity.get("framework"),  # type: ignore[arg-type]
+            framework_version=identity.get("framework_version"),  # type: ignore[arg-type]
             hardware_model=_hardware_name(candidate),
             gpu_count=candidate.gpu_count,
             tp_size=candidate.tp_size,
@@ -190,6 +195,12 @@ def rank_deployments(
             "不用于跨配置排序"
         )
     notes.append("未使用经济性评分（币种与成本范围未确认前禁止）")
+    aggregated = [e for e in entries if (e.matched_run_id or "").startswith("aggregate:")]
+    if aggregated:
+        notes.append(
+            f"有 {len(aggregated)} 个候选使用**多次实测的保守聚合**作为 SLA 证据"
+            f"（{AGGREGATE_NOTE}）"
+        )
 
     blocker = None
     if not verified and others:
@@ -205,6 +216,13 @@ def rank_deployments(
         blocker=blocker,
         economic_scoring_used=False,
     )
+
+
+def matched_level_name(order: int) -> str:
+    for name, value in LEVEL_ORDER.items():
+        if value == order:
+            return name
+    return "unknown"
 
 
 def _model_name(candidate: DeploymentCandidate, model_by_id: Mapping[str, object] | None) -> str | None:
@@ -228,17 +246,90 @@ def _hardware_name(candidate: DeploymentCandidate) -> str | None:
     return mapping.get(candidate.hardware_id, candidate.hardware_id)
 
 
+#: 聚合多次实测时使用的保守规则说明
+AGGREGATE_NOTE = (
+    "同一配置存在多次实测：按**保守口径**聚合（P99 取最大、吞吐取最小、可信等级取最弱），"
+    "不使用单次最优值作为 SLA 证据"
+)
+
+
+def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
+    """把同一等级的多条实测聚合成一条保守代表（V3.1 R6）。
+
+    避免"任取第一条"——同一配置的多次实测可能存在性能波动，
+    取最优值会让 SLA 结论偏乐观。
+    """
+    base = runs[0]
+    profile = base.profile
+    maxes = {
+        field: max(
+            (getattr(r.profile, field) for r in runs if getattr(r.profile, field) is not None),
+            default=None,
+        )
+        for field in ("ttft_p99_ms", "tpot_p99_ms", "itl_p99_ms", "e2e_p99_ms")
+    }
+    mins = {
+        field: min(
+            (getattr(r.profile, field) for r in runs if getattr(r.profile, field) is not None),
+            default=None,
+        )
+        for field in ("output_throughput_tok_s", "request_throughput_rps")
+    }
+    error_rates = [r.profile.error_rate for r in runs if r.profile.error_rate is not None]
+    trust_rank = {
+        "measured_internal": 0,
+        "measured_vendor_published": 1,
+        "measured_third_party": 2,
+        "historical_external_no_latency": 3,
+        "synthetic_fixture": 4,
+        "unknown": 5,
+    }
+    weakest = max(runs, key=lambda r: trust_rank.get(r.data_trust, 5)).data_trust
+    metric_ids = sorted({mid for r in runs for mid in r.profile.metric_definition_ids})
+    aggregated_profile = profile.model_copy(
+        update={
+            **maxes,
+            **mins,
+            "error_rate": max(error_rates) if error_rates else None,
+            "num_requests": sum(r.profile.num_requests or 0 for r in runs) or None,
+            "success_count": sum(r.profile.success_count or 0 for r in runs) or None,
+            "statistics_window": f"aggregate_of_{len(runs)}_runs",
+            "metric_definition_ids": metric_ids,
+            "quality_flags": sorted(
+                set(profile.quality_flags)
+                | {"aggregate_of_multiple_measurements", "conservative_worst_case"}
+            ),
+            "consistency_notes": list(profile.consistency_notes) + [AGGREGATE_NOTE],
+        }
+    )
+    return base.model_copy(
+        update={
+            "run_id": "aggregate:" + ",".join(r.run_id for r in runs),
+            "profile": aggregated_profile,
+            "data_trust": weakest,
+            "quality_flags": sorted(set(base.quality_flags) | {"aggregate_of_multiple_measurements"}),
+            "notes": AGGREGATE_NOTE,
+        }
+    )
+
+
 def _best_match(
     target: TargetRequirement, runs: Sequence[BenchmarkRun]
 ) -> tuple[BenchmarkRun | None, BenchmarkMatchResult | None]:
-    """在 run 池里找匹配等级最高的一条（同级取首个，顺序稳定）。"""
+    """找匹配等级最高的一组实测；同一等级有多次时**保守聚合**（V3.1 R6）。"""
     from llm_capacity_pricing.perf.benchmark_matcher import match
 
-    best: tuple[BenchmarkRun, BenchmarkMatchResult] | None = None
+    matched: list[tuple[BenchmarkRun, BenchmarkMatchResult]] = []
     for run in runs:
         result = match(target, signature_from_run(run))
         if result.level == "rejected":
             continue
-        if best is None or LEVEL_ORDER[result.level] < LEVEL_ORDER[best[1].level]:
-            best = (run, result)
-    return best if best else (None, None)
+        matched.append((run, result))
+    if not matched:
+        return None, None
+    best_level = min(LEVEL_ORDER[r.level] for _run, r in matched)
+    best = [(run, r) for run, r in matched if LEVEL_ORDER[r.level] == best_level]
+    if len(best) == 1:
+        return best[0]
+    aggregated = _aggregate_runs([run for run, _r in best], matched_level_name(best_level))
+    return aggregated, best[0][1]

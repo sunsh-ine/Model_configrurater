@@ -43,6 +43,27 @@ from llm_capacity_pricing.perf.benchmark_matcher import (
 #: 由吞吐与累计 token / 时长比较的容差（与第一阶段口径一致）
 THROUGHPUT_TOLERANCE = Decimal("1e-3")
 
+#: ``performance_source_kind`` -> 数据可信等级（V3.1 R3）。
+#: **显式映射**：未知来源一律 ``unknown``，绝不默认成"内部实测"，
+#: 否则外部 Benchmark 会被错误升级为可支撑 SLA 的等级。
+SOURCE_KIND_TO_TRUST: dict[str, DataTrust] = {
+    "internal_measurement": "measured_internal",
+    "official_benchmark": "measured_vendor_published",
+    "third_party": "measured_third_party",
+    "internal_excel": "historical_external_no_latency",
+    "synthetic_fixture": "synthetic_fixture",
+}
+
+
+def trust_for_source_kind(source_kind: str | None) -> tuple[DataTrust, str | None]:
+    """返回 ``(可信等级, 警告)``；未知来源返回 ``unknown`` 并给出警告。"""
+    if not source_kind:
+        return "unknown", "performance_source_kind_missing:treat_as_unknown_trust"
+    trust = SOURCE_KIND_TO_TRUST.get(source_kind)
+    if trust is None:
+        return "unknown", f"unmapped_performance_source_kind:{source_kind}"
+    return trust, None
+
 
 def sha256_file(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -244,11 +265,7 @@ def run_from_numeric_candidate(c: SglangNumericCandidate, *, collected_at: datet
 
 def run_from_record(record: BenchmarkRecord) -> BenchmarkRun:
     """把第一阶段记录提升为 BenchmarkRun（用于构建容量曲线的历史点）。"""
-    trust: DataTrust = (
-        "synthetic_fixture"
-        if record.performance_source_kind == "synthetic_fixture"
-        else ("historical_external_no_latency" if record.performance_source_kind == "internal_excel" else "unknown")
-    )
+    trust, _ = trust_for_source_kind(record.performance_source_kind)
     sig = signature_from_record(record).model_copy(
         update={"signature_id": f"sig_run:{record.record_id}", "source_kind": "benchmark_record", "source_ref": record.record_id}
     )
@@ -274,13 +291,12 @@ def run_from_adapter(
 ) -> BenchmarkRun:
     """从 SGLang/vLLM 适配器的解析结果构造 run（真实导入路径）。"""
     sig = signature_from_record(record)
+    trust, trust_warning = trust_for_source_kind(record.performance_source_kind)
     sig = sig.model_copy(
         update={
             "signature_id": f"sig_run:{record.record_id}",
             "source_kind": "imported_benchmark_run",
-            "data_trust": "synthetic_fixture"
-            if record.performance_source_kind == "synthetic_fixture"
-            else "measured_internal",
+            "data_trust": trust,
         }
     )
     profile = profile_from_record(record)
@@ -299,7 +315,7 @@ def run_from_adapter(
         collected_at=datetime.now().astimezone(),
         load_profile_kind=metadata.get("load_profile_kind", "fixed_length_standard"),
         data_trust=sig.data_trust,
-        quality_flags=list(record.quality_flags),
+        quality_flags=list(record.quality_flags) + ([trust_warning] if trust_warning else []),
         notes=metadata.get("label"),
     )
     return run

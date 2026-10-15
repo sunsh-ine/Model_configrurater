@@ -45,6 +45,7 @@ MatchLevel = Literal[
 DataTrust = Literal[
     "measured_internal",  # 自有环境实测
     "measured_vendor_published",  # 厂商/框架官方公开发布的实测
+    "measured_third_party",  # 第三方（非厂商、非本项目）发布的实测
     "historical_external_no_latency",  # 历史外部数据，无时延口径（如 Excel 32 条）
     "synthetic_fixture",  # 人工构造，仅用于算法验证
     "unknown",
@@ -419,7 +420,9 @@ class CapacityProfile(BaseModel):
     points: list[CapacityPoint] = Field(default_factory=list)
     #: 观测到的吞吐峰值点（**只表示已测到的最优点**）
     best_observed_point: CapacityPoint | None = None
-    #: 可持续容量：必须另有持续性/失败率/稳定性证据，否则为 None
+    #: **单次观测**满足失败率与时长要求的最大并发（弱于可持续容量）
+    observed_stable_candidate: int | None = None
+    #: 可持续容量：必须另有重复观测/持续性/失败率证据，否则为 None（V3.1 R5）
     maximum_sustainable_capacity: int | None = None
     sustainability_evidence: list[str] = Field(default_factory=list)
 
@@ -539,8 +542,11 @@ class SlaPolicy(BaseModel):
     accepted_trust_levels: list[DataTrust] = Field(
         default_factory=lambda: ["measured_internal", "measured_vendor_published"]
     )
-    #: 允许的最低匹配等级
-    minimum_match_level: MatchLevel = "comparable_reference"
+    #: 允许的最低匹配等级。**默认要求 exact_match**（V3.1 R1）：
+    #:   * ``comparable_reference``（负载/细节不同）只用于展示、研究与对比；
+    #:   * ``modeling_candidate``（部署条件不同）只用于建模与校准；
+    #:   * 二者都**不得**直接用于 SLA 证明 —— 32K 的需求不能拿 1K 的实测来"达标"。
+    minimum_match_level: MatchLevel = "exact_match"
     #: 是否允许 synthetic 数据参与判定（**默认禁止**；仅算法验证时显式开启）
     allow_synthetic: bool = False
     #: 允许 predicted 值作为 observed_* 吗（默认禁止，恒为 False）

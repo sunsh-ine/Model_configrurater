@@ -12,6 +12,9 @@
 **第三阶段（M19–M25）**：性能评估与 SLA 引擎——Benchmark 配置匹配、统一性能指标、
 并发容量曲线、受限性能估算、SLA 判定与部署候选性能比较。
 核心纪律：**匹配等级 ≠ 数据可信等级 ≠ SLA 状态**；没有匹配实测就不宣称 SLA 达标。
+SLA **默认只接受 `exact_match`**（模型 revision、精度、硬件、卡数、TP/DP、框架版本、
+数据集、长度、到达方式、并发全部齐备且一致）；负载不同或记录身份不全的数据
+只能用于展示与建模，不得用于 SLA 证明。
 
 > **这不是私有化部署 SLA 预测系统，也不是对外报价系统。**
 > 所有金额为万元，`cost_scope = gpu_cost_only`（仅表内 GPU 成本，不是完整 TCO）。
@@ -160,8 +163,8 @@ bash scripts/verify_all.sh
 | `import-performance --file <json> --metadata <yaml> \| --curve-index <INDEX.json> [--kind vllm\|sglang]` | **M20**：导入性能压测记录（离线，无需 GPU） |
 | `match-benchmark --model <名> --hardware <型号> …` | **M19**：按配置与负载匹配已有 Benchmark，输出等级与 reason codes |
 | `capacity-profile [--target-concurrency N] [--exclude-synthetic]` | **M21**：并发容量与性能曲线 |
-| `calibrate-performance --metric <名> --concurrency N` | **M22**：精确查询 / 范围内插值（附留出误差）/ 不可预测 |
-| `evaluate-sla --requirement <json> --run-id <id> …` | **M23**：SLA 判定（默认策略拒绝 synthetic 与不匹配数据） |
+| `calibrate-performance --metric <名> --concurrency N [--allow-synthetic]` | **M22**：精确查询 / 范围内插值（附留出误差，≥3 个有效留出点）/ 不可预测。默认拒绝 synthetic |
+| `evaluate-sla --requirement <json> --run-id <id> [--model-revision/--framework-version/--precision/--dataset …]` | **M23**：SLA 判定。**默认只接受 `exact_match`**，且拒绝 synthetic 与不匹配数据 |
 | `rank-deployments --model <id> --hardware <id> --requirement <json> …` | **M24**：候选性能比较（静态筛选 + 性能证据） |
 | `performance-report --out <md>` | **M25**：第三阶段 Markdown 报告 |
 

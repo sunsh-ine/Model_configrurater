@@ -26,6 +26,7 @@ from llm_capacity_pricing.schemas.performance import (
     EstimateKind,
     PerformanceEstimate,
 )
+from llm_capacity_pricing.perf.capacity_analyzer import grouping_key
 
 #: 可插值的指标（只支持"随并发单调"的聚合量；P99 一律不做插值）
 INTERPOLATABLE_METRICS: dict[str, str] = {
@@ -42,6 +43,10 @@ NON_INTERPOLATABLE_METRICS: tuple[str, ...] = (
 
 #: 最少需要的独立并发点数（少于这个数不做插值）
 MIN_POINTS_FOR_CALIBRATION = 3
+#: 留出验证至少需要这么多**有效**留出点（V3.1 R6）
+MIN_HOLDOUT_POINTS = 3
+#: 默认可参与估算的数据可信等级（synthetic 只能验证算法）
+DEFAULT_ALLOWED_TRUST: tuple[str, ...] = ("measured_internal", "measured_vendor_published")
 #: 留出相对误差上限；超过则认为不可预测
 MAX_HOLDOUT_RELATIVE_ERROR = Decimal("0.15")
 
@@ -94,14 +99,22 @@ def estimate(
     target_concurrency: int,
     runs: Sequence[BenchmarkRun],
     target_run: BenchmarkRun | None = None,
+    allowed_trust: Sequence[str] | None = None,
 ) -> PerformanceEstimate:
     """估算某配置在某并发下的聚合性能指标。
 
-    ``target_run`` 给出且与目标并发一致时走"精确查询"。
+    判定顺序（先指标红线，再数据校验，最后才是能不能算）：
+
+    1. ``measured_reference``：目标并发已有实测点 —— 直接返回观测值，不调用模型；
+    2. ``p99_not_interpolatable``：指标属于 P99 家族 —— 与数据可信度无关，一律不插值；
+    3. 配置/负载一致性、可信等级校验（V3.1 R6，估算器**内部**再做一次，
+       不依赖调用方事先分组正确）；
+    4. 点数与覆盖范围检查；
+    5. 留出验证（leave-one-out）计算误差，有效留出点不足或误差过大 -> ``not_predictable``。
     """
     unit = INTERPOLATABLE_METRICS.get(metric) or "unknown"
 
-    # ---- 第一步：精确查询 -------------------------------------------------
+    # ---- 1. 精确查询 -----------------------------------------------------
     if target_run is not None:
         value = _value(target_run, metric)
         if value is not None and _concurrency(target_run) == target_concurrency:
@@ -115,7 +128,7 @@ def estimate(
                 reasons=["exact_observed_point_used_no_model"],
             )
 
-    # ---- 红线：P99 不做插值 ---------------------------------------------
+    # ---- 2. P99 红线 -----------------------------------------------------
     if metric in NON_INTERPOLATABLE_METRICS:
         return PerformanceEstimate(
             target_ref=f"concurrency={target_concurrency}",
@@ -128,7 +141,50 @@ def estimate(
             ],
         )
 
-    # ---- 同配置范围：点数与覆盖检查 --------------------------------------
+    # ---- 3. 数据校验（R6）------------------------------------------------
+    if runs:
+        group_keys = {grouping_key(r) for r in runs}
+        if len(group_keys) > 1:
+            return PerformanceEstimate(
+                target_ref=f"concurrency={target_concurrency}",
+                metric=metric,
+                estimate_kind="not_predictable",
+                unit=unit,
+                reasons=[
+                    "mixed_configurations_in_input:输入 run 不属于同一配置与负载组，"
+                    "不允许跨配置/跨负载插值"
+                ],
+                supporting_runs=[r.run_id for r in runs],
+            )
+    trust_levels = {r.data_trust for r in runs}
+    if len(trust_levels) > 1:
+        return PerformanceEstimate(
+            target_ref=f"concurrency={target_concurrency}",
+            metric=metric,
+            estimate_kind="not_predictable",
+            unit=unit,
+            reasons=[
+                f"mixed_trust_levels:{sorted(trust_levels)}"
+                "（不允许把不同可信等级的数据混在一起拟合）"
+            ],
+            supporting_runs=[r.run_id for r in runs],
+        )
+    allowed = set(allowed_trust or DEFAULT_ALLOWED_TRUST)
+    disallowed = sorted(trust_levels - allowed)
+    if disallowed:
+        return PerformanceEstimate(
+            target_ref=f"concurrency={target_concurrency}",
+            metric=metric,
+            estimate_kind="not_predictable",
+            unit=unit,
+            reasons=[
+                f"trust_level_not_allowed_for_estimation:{disallowed}"
+                "（synthetic 仅可验证算法，不可用于性能结论；如确为算法验证请显式允许）"
+            ],
+            supporting_runs=[r.run_id for r in runs],
+        )
+
+    # ---- 4. 点数与覆盖范围 -----------------------------------------------
     points = [
         run
         for run in runs
@@ -146,7 +202,7 @@ def estimate(
             ],
             supporting_runs=[r.run_id for r in points],
         )
-    points.sort(key=lambda r: _concurrency(r))  # type: ignore[arg-type,return-value]
+    points = sorted(points, key=lambda r: _concurrency(r))  # type: ignore[arg-type,return-value]
     xs = [Decimal(_concurrency(r)) for r in points]  # type: ignore[arg-type]
     lo, hi = xs[0], xs[-1]
     x = Decimal(target_concurrency)
@@ -157,14 +213,11 @@ def estimate(
             estimate_kind="not_predictable",
             unit=unit,
             covered_range=[lo, hi],
-            reasons=[
-                f"out_of_covered_range:{x}not_in[{lo},{hi}]："
-                "不外推到未测过的并发区间"
-            ],
+            reasons=[f"out_of_covered_range:{x}not_in[{lo},{hi}]：不外推到未测过的并发区间"],
             supporting_runs=[r.run_id for r in points],
         )
 
-    # ---- 留出验证（leave-one-out），不是拟合残差 -------------------------
+    # ---- 5. 留出验证（leave-one-out），不是拟合残差 -----------------------
     errors: list[Decimal] = []
     evaluated: list[str] = []
     failures: list[str] = []
@@ -179,20 +232,21 @@ def estimate(
             continue
         errors.append(abs(predicted - actual))
         evaluated.append(held_out.run_id)
-    if not errors:
+    if len(errors) < MIN_HOLDOUT_POINTS:
         return PerformanceEstimate(
             target_ref=f"concurrency={target_concurrency}",
             metric=metric,
             estimate_kind="not_predictable",
             unit=unit,
             covered_range=[lo, hi],
-            reasons=["holdout_validation_impossible"],
+            reasons=[
+                f"insufficient_holdout_points:{len(errors)}<{MIN_HOLDOUT_POINTS}"
+                "（有效留出样本太少，误差不可信）"
+            ],
             supporting_runs=[r.run_id for r in points],
         )
     mae = sum(errors) / Decimal(len(errors))
-    mean_actual = sum(
-        (_value(r, metric) or Decimal(0)) for r in points
-    ) / Decimal(len(points))
+    mean_actual = sum((_value(r, metric) or Decimal(0)) for r in points) / Decimal(len(points))
     rel = (mae / mean_actual).quantize(Decimal("0.000001")) if mean_actual else Decimal(0)
     if rel > MAX_HOLDOUT_RELATIVE_ERROR:
         return PerformanceEstimate(

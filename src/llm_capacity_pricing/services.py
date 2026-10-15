@@ -1805,6 +1805,7 @@ def calibrate_performance_for(
     metric: str,
     target_concurrency: int,
     group_key: str | None = None,
+    allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """M22：性能估算（精确查询 / 范围内插值 / 不可预测）。"""
     db, repo = open_db(db_path)
@@ -1822,8 +1823,16 @@ def calibrate_performance_for(
         # 未指定分组时按"第一条记录所在组"收窄，避免跨配置插值
         group_key = grouping_key(pool[0])
         pool = [r for r in pool if grouping_key(r) == group_key]
+    allowed = (
+        ("measured_internal", "measured_vendor_published", "synthetic_fixture")
+        if allow_synthetic
+        else ("measured_internal", "measured_vendor_published")
+    )
     result = _estimate_performance(
-        metric=metric, target_concurrency=target_concurrency, runs=pool
+        metric=metric,
+        target_concurrency=target_concurrency,
+        runs=pool,
+        allowed_trust=allowed,
     )
     payload = result.model_dump(mode="json")
     payload["group_key"] = group_key
@@ -1841,12 +1850,18 @@ def evaluate_sla_for(
     policy: SlaPolicy | None = None,
     run_id: str | None = None,
     model_name: str | None = None,
+    model_revision: str | None = None,
     hardware_model: str | None = None,
     gpu_count: int | None = None,
     tp_size: int | None = None,
     dp_size: int | None = None,
+    weight_precision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
     input_len_target: int | None = None,
     output_len_target: int | None = None,
+    dataset_name: str | None = None,
+    arrival_mode: str | None = None,
     allow_synthetic: bool = False,
 ) -> dict[str, Any]:
     """M23：SLA 评估（要求必须能挂到一条匹配的实测记录上）。"""
@@ -1874,12 +1889,20 @@ def evaluate_sla_for(
 
         target = TargetRequirement(
             model_name=model_name,
+            model_revision=model_revision,
             hardware_model=hardware_model,
             gpu_count=gpu_count,
             tp_size=tp_size,
             dp_size=dp_size,
+            weight_precision=weight_precision,
+            framework=framework,
+            framework_version=framework_version,
             workload=WorkloadSignature(
-                input_len_target=input_len_target, output_len_target=output_len_target
+                input_len_target=input_len_target,
+                output_len_target=output_len_target,
+                dataset_name=dataset_name,
+                # CLI 未指定时用 "unknown"（Literal 不接受 None）
+                arrival_mode=arrival_mode or "unknown",  # type: ignore[arg-type]
             ),
             require_measured=not allow_synthetic,
             allow_synthetic=allow_synthetic,
@@ -1909,6 +1932,10 @@ def rank_deployments_for(
     policy: SlaPolicy | None = None,
     input_len_target: int | None = None,
     output_len_target: int | None = None,
+    dataset_name: str | None = None,
+    model_revision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
     weight_precision: Precision | None = None,
     kv_precision: str = "bf16",
 ) -> dict[str, Any]:
@@ -1940,6 +1967,7 @@ def rank_deployments_for(
     workload = WorkloadSignature(
         input_len_target=input_len_target or assumptions.context_length_per_request,
         output_len_target=output_len_target,
+        dataset_name=dataset_name,
         configured_concurrency=assumptions.global_concurrency,
     )
     ranking = _rank_deployments(
@@ -1950,6 +1978,11 @@ def rank_deployments_for(
         policy=policy or SlaPolicy(),
         workload=workload,
         model_by_id=models,
+        target_identity={
+            "model_revision": model_revision,
+            "framework": framework,
+            "framework_version": framework_version,
+        },
     )
     payload = ranking.model_dump(mode="json")
     payload["static_status_counts"] = plan["status_counts"]

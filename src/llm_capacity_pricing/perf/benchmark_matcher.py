@@ -38,6 +38,35 @@ from llm_capacity_pricing.schemas.performance import (
 #: 本阶段**不建性能模型**的部署维度：一旦出现就明确阻断
 UNSUPPORTED_DEPLOYMENT_FIELDS: tuple[str, ...] = ("pp_size", "ep_size", "deployment_mode")
 
+#: **严格匹配必需字段**（V3.1 R2）。
+#: 这些字段描述"这条实测到底是什么"，只要记录侧缺失，就无法确认它适用于目标需求，
+#: 因此**不得**评为 exact_match；缺失不等于匹配成功。
+RECORD_IDENTITY_FIELDS: tuple[str, ...] = (
+    "model_name",
+    "model_revision",
+    "weight_precision",
+    "hardware_model",
+    "gpu_count",
+    "tp_size",
+    "dp_size",
+    "framework",
+    "framework_version",
+)
+#: 负载侧的严格必需字段（同样要求记录侧具备）
+RECORD_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
+    "dataset_name",
+    "input_len_target",
+    "output_len_target",
+    "arrival_mode",
+)
+#: 若两侧都有值且不一致，就**必须降级**（这些会改变实测数值）
+LOAD_SEMANTIC_FIELDS: tuple[str, ...] = (
+    "streaming",
+    "prefix_reuse",
+    "warmup",
+    "eos_policy",
+)
+
 #: 等级顺序（越小越接近目标）
 LEVEL_ORDER: dict[str, int] = {
     "exact_match": 0,
@@ -378,11 +407,14 @@ def match(target: TargetRequirement, sig: BenchmarkSignature) -> BenchmarkMatchR
     if not arrival_same:
         differences["arrival_mode"] = [tw.arrival_mode, sw.arrival_mode]
         reasons.append(f"arrival_mode_mismatch:{tw.arrival_mode}!={sw.arrival_mode}")
+    # R2：并发不一致必须降级（并发直接决定实测吞吐与时延）
+    concurrency_mismatch = False
     if (
         tw.configured_concurrency is not None
         and sw.configured_concurrency is not None
         and tw.configured_concurrency != sw.configured_concurrency
     ):
+        concurrency_mismatch = True
         differences["configured_concurrency"] = [
             tw.configured_concurrency,
             sw.configured_concurrency,
@@ -390,12 +422,43 @@ def match(target: TargetRequirement, sig: BenchmarkSignature) -> BenchmarkMatchR
         reasons.append(
             f"concurrency_mismatch:{tw.configured_concurrency}!={sw.configured_concurrency}"
         )
+    # 请求到达速率（数值比较）
+    rate_mismatch = False
+    if tw.request_rate_rps is not None and sw.request_rate_rps is not None:
+        if tw.request_rate_rps != sw.request_rate_rps:
+            rate_mismatch = True
+            differences["request_rate_rps"] = [tw.request_rate_rps, sw.request_rate_rps]
+            reasons.append(
+                f"request_rate_mismatch:{tw.request_rate_rps}!={sw.request_rate_rps}"
+            )
+    # 负载语义字段（流式/前缀复用/预热/EOS 策略）：两侧都有值时不一致 -> 降级
+    load_semantic_mismatch = False
+    for field_name in LOAD_SEMANTIC_FIELDS:
+        want = getattr(tw, field_name, None)
+        got = getattr(sw, field_name, None)
+        if want is None or got is None:
+            continue
+        if want != got:
+            load_semantic_mismatch = True
+            differences[field_name] = [want, got]
+            reasons.append(f"{field_name}_mismatch:{want}!={got}")
     if tw.load_profile_kind != "unknown" and sw.load_profile_kind != "unknown":
         if tw.load_profile_kind != sw.load_profile_kind:
             reasons.append(
                 f"load_profile_kind_mismatch:{tw.load_profile_kind}!={sw.load_profile_kind}"
                 "（固定长度与多轮/前缀复用两类负载不得混算）"
             )
+
+    # ---- 7.5 严格必需字段（R2）：记录侧缺一项就不能 exact_match -----------
+    missing_identity: list[str] = []
+    for field_name in RECORD_IDENTITY_FIELDS:
+        if is_absent(getattr(sig, field_name, None)):
+            missing_identity.append(field_name)
+    for field_name in RECORD_WORKLOAD_IDENTITY_FIELDS:
+        if is_absent(getattr(sw, field_name, None)):
+            missing_identity.append(f"workload.{field_name}")
+    if missing_identity:
+        unverified.append("record_identity_incomplete:" + ",".join(missing_identity))
 
     # ---- 8. 定级 ---------------------------------------------------------
     # 硬阻断：数据来源/模型/硬件/精度层面的不一致，或指标缺失 —— 这些无法补救。
@@ -428,8 +491,15 @@ def match(target: TargetRequirement, sig: BenchmarkSignature) -> BenchmarkMatchR
     elif deployment_mismatch:
         # 同模型同硬件但部署条件（TP/DP/卡数）不同：只能用于建模/校准，禁止外推
         level = "modeling_candidate"
-    elif not lengths_same or not dataset_same or not arrival_same:
-        # 部署条件一致、负载不同：可作参考，不能当作目标负载下的实测
+    elif (
+        not lengths_same
+        or not dataset_same
+        or not arrival_same
+        or concurrency_mismatch
+        or rate_mismatch
+        or load_semantic_mismatch
+    ):
+        # 部署条件一致、**负载不同**：可作参考，但不能当作目标负载下的实测
         level = "comparable_reference"
     elif not (framework_same and version_same):
         level = "comparable_reference"

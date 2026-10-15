@@ -11,9 +11,13 @@ deployment_gpu_count: 4
 tp_size: 4
 dp_size: 1
 framework: vllm
-framework_version: null
-model_revision: null
-dataset_name: null
+framework_version: synthetic-fw-1.0
+model_revision: synthetic-revision-1
+dataset_name: random
+weight_precision: bf16
+input_len_target: 1024
+output_len_target: 256
+arrival_mode: unbounded
 
 metric_definitions:
   ttft: "客户端 TTFT（含分位数；人工构造）"

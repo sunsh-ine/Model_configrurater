@@ -272,12 +272,14 @@ Paged KV：
 ## 11. 容量曲线（M21）
 
 ```text
-分组键 = (模型, revision, 权重精度, 硬件, TP, DP, 卡数, 框架, 框架版本, 负载类型)
+分组键 = (模型, revision, 权重精度, 硬件, TP, DP, 卡数, 框架, 框架版本, 负载类型,
+          输入长度目标, 输出长度目标, 数据集, 到达方式, 前缀复用, 流式)   # V3.1 R4
 曲线   = 按配置并发排序的 (并发, 输出吞吐, TTFT p99, TPOT p99, 失败率) 序列
 best_observed_point = 已测点中输出吞吐最大者        # 只是"测到的最优点"
-maximum_sustainable_capacity = 满足下列条件的最大并发：
-      持续时间 ≥ min_duration_s 且 失败率 ≤ max_error_rate
-      —— 否则为 None（缺少持续性证据时**不得**给出）
+observed_stable_candidate = 满足"失败率**已知**且 ≤ 阈值、时长 ≥ 门槛、（可选）时延 SLO"
+      的最大并发（单次观测）                          # V3.1 R5
+maximum_sustainable_capacity = 在上一行基础上再要求**重复观测 ≥ min_repeats_per_point**
+      —— 否则为 None（证据不足时**不得**给出）
 coverage_status = sufficient 当且仅当点数 ≥ 3 且覆盖目标并发
 ```
 
@@ -300,6 +302,8 @@ coverage_status = sufficient 当且仅当点数 ≥ 3 且覆盖目标并发
 门禁（顺序执行，任一不过 -> not_evaluable，不看数值）：
   a) 必须提供匹配判定（否则 match_result_required_for_sla_proof）
   b) 匹配等级 ≥ policy.minimum_match_level
+     **默认 exact_match（V3.1 R1）**：负载不同（长度/并发/到达方式）或记录身份字段
+     （revision/精度/框架版本/数据集）缺失的数据一律不得参与 SLA 证明
   c) 数据可信等级 ∈ policy.accepted_trust_levels
      （synthetic 仅当 policy.allow_synthetic 且结论打 algorithm_validation_only 标记）
 

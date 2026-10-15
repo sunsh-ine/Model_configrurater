@@ -249,3 +249,160 @@ SLA 评估 → 候选排序或返回证据缺口*。
 | 第一阶段回归 | **不变**（32 / 160 / 192 / 0 超容差） |
 
 **结论：第三阶段工程功能完成、可交付；性能可信度维度保持未验证，等待现场实测数据接入。**
+
+
+---
+
+# 附：V3.1 验收整改（按代码验收意见 R1–R7）
+
+验收意见指出 3 个 P0 与 4 个 P1 缺陷，其中 P0-1（SLA 默认允许负载不匹配）会直接导致
+"用 1K 的实测证明 32K 的 SLA"。本节记录**根因 → 修复 → 复现证据**，以及被推翻的旧结论。
+
+## A.1 R1（P0）SLA 默认只接受严格匹配
+
+**根因**：`SlaPolicy.minimum_match_level` 默认值是 `comparable_reference`，
+而 `comparable_reference` 恰恰包含"负载长度不同"的情形 —— 于是 1K/1K 的实测可以
+为 32K/256 的需求给出 `observed_pass`。
+
+**修复**：默认改为 `exact_match`；语义写进字段注释：
+`comparable_reference` 仅用于展示/研究/对比，`modeling_candidate` 仅用于建模，
+二者都**不得**直接用于 SLA 证明；即便 `exact_match`，仍需通过来源可信度与样本检查。
+
+**复现（修复后）**：`tests/test_phase3_performance.py::test_r1_long_context_cannot_use_short_context_benchmark`
+构造"模型/GPU/TP/DP 完全相同、仅输入长度 32K vs 1K、并发 32 vs 8"的一对数据，
+断言匹配等级为 `comparable_reference`、SLA 为 `not_evaluable`
+（`match_level_below_policy:comparable_reference<exact_match`）。
+
+**被推翻的旧结论**：第三阶段首版报告中"负载不同的实测可作可比参考并参与 SLA 判定"
+的描述**不成立**；现在这类数据只能用于展示与建模。
+
+## A.2 R2（P0）严格匹配必需字段
+
+**根因**：`_compare()` 把"任一侧缺失"视为相等，且 `concurrency_mismatch` 只记录不参与定级，
+`request_rate_rps` / `streaming` / `prefix_reuse` / `warmup` / `eos_policy` 完全没有参与匹配。
+
+**修复**：
+
+| 机制 | 规则 |
+|---|---|
+| `RECORD_IDENTITY_FIELDS` | model_name / model_revision / weight_precision / hardware_model / gpu_count / tp / dp / framework / framework_version —— 记录侧**缺失任一项**即登记 `record_identity_incomplete:*`，不得 `exact_match` |
+| `RECORD_WORKLOAD_IDENTITY_FIELDS` | dataset_name / input_len_target / output_len_target / arrival_mode —— 同样要求记录侧齐备 |
+| 并发不一致 | 降级为 `comparable_reference`（并发直接决定吞吐与时延） |
+| 请求速率不一致 | 降级 |
+| `LOAD_SEMANTIC_FIELDS` | streaming / prefix_reuse / warmup / eos_policy 两侧都有值且不一致时降级 |
+
+**连带发现**：适配器此前**没有**从元数据读取 `weight_precision` / `tp_size` / `dp_size` /
+`dataset_name`，导致严格匹配永远无法达成。已在 `vllm_adapter.py` 与 `sglang_adapter.py`
+补齐这四个字段的映射。
+
+**复现**：`test_exact_match_requires_full_identity_on_record`、
+`test_r2_concurrency_mismatch_downgrades`、`test_r2_strict_identity_fields_required`、
+`test_exact_match_needs_full_identity`（官方候选缺 revision/精度 → 只能 `comparable_reference`）。
+
+## A.3 R3（P0）来源可信等级显式映射
+
+**根因**：`run_from_adapter()` 写的是
+
+```python
+"synthetic_fixture" if record.performance_source_kind == "synthetic_fixture" else "measured_internal"
+```
+
+——**除 synthetic 外的一切来源都被标为"内部实测"**，包括官方公开发布与第三方数据。
+这是一次真实的"来源升级"，会让外部数据直接具备支撑 SLA 的资格。
+
+**修复**：新增显式映射表 `SOURCE_KIND_TO_TRUST` 与 `trust_for_source_kind()`：
+
+| `performance_source_kind` | 可信等级 |
+|---|---|
+| `internal_measurement` | `measured_internal` |
+| `official_benchmark` | `measured_vendor_published` |
+| `third_party` | `measured_third_party`（**新增等级**，默认策略不自动接受） |
+| `internal_excel` | `historical_external_no_latency` |
+| `synthetic_fixture` | `synthetic_fixture` |
+| 其它 / 缺失 | `unknown` + 质量标记 `unmapped_performance_source_kind:*` |
+
+**复现**：`test_r3_source_kind_trust_mapping`、`test_r3_official_benchmark_not_marked_internal`。
+
+## A.4 R4（P1）容量曲线分组纳入 Workload
+
+**根因**：`grouping_key()` 只含部署条件与负载类型，没有长度/数据集/到达方式，
+于是 1K/1K 与 32K/256 可能被算进同一条并发曲线（M22 也复用了这个键）。
+
+**修复**：分组键增加 `isl / osl / dataset_name / arrival_mode / prefix_reuse / streaming`。
+
+**复现**：`test_r4_workload_lengths_split_capacity_groups`、
+`test_r4_dataset_and_arrival_mode_split_groups`（并验证混合成组会直接报错）。
+
+## A.5 R5（P1）可持续容量证据收紧
+
+**根因**：筛选条件 `p.error_rate is None or p.error_rate <= criteria.max_error_rate`
+—— **失败率未知反而能通过**；且单次 60 秒测试就被当作"可持续"。
+
+**修复**：
+
+* 失败率**必须已知**且 ≤ 阈值，否则该点直接判不通过（并记 `point_not_stable:cN:失败率未知`）；
+* 新增重复观测门槛 `min_repeats_per_point`（默认 2）与可选时延 SLO 约束；
+* 单次达标只记入新字段 **`observed_stable_candidate`**；
+  `maximum_sustainable_capacity` 必须同时满足"失败率已知 + 时长达标 + 重复观测达标"。
+
+**复现**：`test_r5_unknown_error_rate_blocks_sustainable_capacity`、
+`test_r5_latency_slo_included_in_sustainability`（TTFT SLO 400ms 时，可持续容量从 16 降到 8）、
+`test_sustainability_requires_duration_and_error_evidence`。
+
+## A.6 R6（P1）估算与排序的多样本处理
+
+**根因（三处）**：① `estimate()` 不校验输入 run 的配置一致性与可信等级，完全依赖调用方；
+② 留出验证可能只有 1～2 个有效点却照常给出误差；③ `_best_match()` 同等级取第一条，
+可能选中波动中的"较好那一次"。
+
+**修复**：
+
+| 项 | 修复 |
+|---|---|
+| 输入校验 | 估算器内部再查：配置/负载必须同组（否则 `mixed_configurations_in_input`）、可信等级必须一致（`mixed_trust_levels`）且被允许（`trust_level_not_allowed_for_estimation`，默认拒绝 synthetic） |
+| 留出门槛 | 有效留出点 < 3（`MIN_HOLDOUT_POINTS`）→ `not_predictable: insufficient_holdout_points` |
+| 多次实测 | 新增 `_aggregate_runs()`：同等级多条实测按**保守口径**聚合（P99 取最大、吞吐取最小、可信等级取最弱），生成 `run_id="aggregate:..."`，并在排序说明中标注 |
+
+**复现**：`test_r6_estimator_rejects_mixed_configurations`、`test_r6_estimator_rejects_mixed_trust`、
+`test_r6_estimator_default_refuses_synthetic`、
+`test_ranking_uses_conservative_aggregate_not_best_run`
+（严格阈值下，取 c=1 的 120ms 会通过，但保守聚合取最大 P99 720ms → `measured_but_sla_unmet`）。
+
+## A.7 R7（P1）专项测试与重新封板
+
+新增 15 个反向用例，其中审核特别要求的端到端场景：
+
+`test_r7_end_to_end_no_false_verified_path` ——
+模型、GPU、TP/DP 相同，输入长度与配置并发不同的两条 Benchmark，
+依次执行**匹配 → SLA → 排序**，断言：
+
+* 匹配等级 ≠ `exact_match`；
+* 排序结果落在 `requires_benchmark`（**绝不进入 `verified_sla_met`**）；
+* 对照组 `test_r7_same_load_still_reaches_verified` 证明规则不是"无脑拦死"。
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | `步骤 36 项：通过 36，失败 0` |
+| 测试 | **477 passed**（第三阶段 58 → 73） |
+| 第一阶段回归 | 32 / 160 / 192 / 0 超容差 —— 不变 |
+
+## A.8 开发过程中额外修掉的两个问题
+
+1. **`analyze_group` 变量初始化顺序错误**：R5 的新逻辑在 `flags` 初始化之前就使用它，
+   导致 `capacity-profile` / `performance-report` 直接崩溃（被链路步骤抓到）。
+2. **CLI 无法表达严格匹配所需的身份字段**：`--model-revision` / `--framework` /
+   `--framework-version` / `--precision` / `--dataset` / `--arrival-mode` 全部补齐
+   （否则修复 R1/R2 后，SLA 判定永远无法达到 `exact_match`，功能形同虚设）。
+
+## A.9 修复前后行为对照
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 32K 需求 vs 1K 实测（其余相同） | 可能 `observed_pass` ❌ | `not_evaluable`（`match_level_below_policy`）✅ |
+| 并发 32 需求 vs 并发 8 实测 | 可能 `exact_match` ❌ | `comparable_reference` + `concurrency_mismatch` ✅ |
+| 记录缺 model_revision | 视为"相等" ❌ | `record_identity_incomplete` → 不得 exact_match ✅ |
+| 导入 `official_benchmark` | 标为 `measured_internal` ❌ | `measured_vendor_published` ✅ |
+| 1K/1K 与 32K/256 | 可能同组算曲线 ❌ | 分组键不同，混组直接报错 ✅ |
+| 失败率缺失的并发点 | 计入可持续容量 ❌ | 判不通过；单次达标只记 `observed_stable_candidate` ✅ |
+| 同配置多次实测 | 取第一条 ❌ | 保守聚合（P99 最大 / 吞吐最小 / 可信最弱）✅ |
+| 混合不同配置做插值 | 不检查 ❌ | `mixed_configurations_in_input` ✅ |

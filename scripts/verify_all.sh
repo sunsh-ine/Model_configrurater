@@ -359,8 +359,8 @@ run_step 25 "capacity-profile（M21 容量曲线，排除 synthetic）" 1 '^记�
 run_step 26 "capacity-profile（含 synthetic，算法验证）" 1 '^记录 [0-9]+ 条，分成|峰值并发' \
   $CLI capacity-profile --target-concurrency 8 --db "$DB"
 
-run_step 27 "calibrate-performance（M22 范围内插值 + 留出误差）" 1 '^  "(estimate_kind|value|holdout_mae|covered_range)"' \
-  $CLI calibrate-performance --metric output_throughput_tok_s --concurrency 6 --db "$DB"
+run_step 27 "calibrate-performance（M22 范围内插值 + 留出误差；--allow-synthetic 仅算法验证）" 1 '^  "(estimate_kind|value|holdout_mae|covered_range)"' \
+  $CLI calibrate-performance --metric output_throughput_tok_s --concurrency 6 --allow-synthetic --db "$DB"
 
 run_step 28 "match-benchmark（M19：Qwen3-32B/H100 不得命中 235B/B200 数据）" 1 '^匹配等级分布:' \
   $CLI match-benchmark --model "Qwen/Qwen3-32B" --hardware "NVIDIA H100 SXM" --gpu-count 4 --tp 4 \

@@ -20,7 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "fixtures" / "perf_curve"
 
 MODEL = "SYNTHETIC-MODEL-C"
+#: 合成样本也**完整声明身份字段**（revision / 框架版本 / 数据集）：
+#: 严格匹配要求这些字段齐备，缺一项就不能评为 exact_match（V3.1 R2）。
 GPU = "SYNTHETIC-GPU-C"
+REVISION = "synthetic-revision-1"
+FRAMEWORK_VERSION = "synthetic-fw-1.0"
+DATASET = "random"
 TP = 4
 DP = 1
 ISL, OSL, REQUESTS = 1024, 256, 100
@@ -100,9 +105,13 @@ deployment_gpu_count: {TP * DP}
 tp_size: {TP}
 dp_size: {DP}
 framework: vllm
-framework_version: null
-model_revision: null
-dataset_name: null
+framework_version: {FRAMEWORK_VERSION}
+model_revision: {REVISION}
+dataset_name: {DATASET}
+weight_precision: bf16
+input_len_target: {ISL}
+output_len_target: {OSL}
+arrival_mode: unbounded
 
 metric_definitions:
   ttft: "客户端 TTFT（含分位数；人工构造）"
@@ -126,6 +135,9 @@ evidence:
                 "notice": "合成性能曲线样本（synthetic_fixture），仅用于算法验证，不得用于 SLA 结论",
                 "model_name": MODEL,
                 "hardware_model": GPU,
+                "model_revision": REVISION,
+                "framework_version": FRAMEWORK_VERSION,
+                "dataset_name": DATASET,
                 "tp_size": TP,
                 "dp_size": DP,
                 "input_len_target": ISL,
