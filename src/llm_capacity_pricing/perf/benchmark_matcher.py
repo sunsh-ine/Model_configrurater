@@ -80,12 +80,16 @@ TARGET_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
     "configured_concurrency",
 )
 
-#: 负载侧的严格必需字段（同样要求记录侧具备）
+#: 负载侧的严格必需字段（同样要求记录侧具备）。
+#: **含配置并发**（V3.1 最终复审 P0）：并发直接决定实测吞吐与时延；
+#: 此前并发只在"双方都有值"时才比较，于是"需求并发 32 / 记录并发 None"
+#: 仍会被判 exact_match —— 这是最后一处严格匹配缺口。
 RECORD_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
     "dataset_name",
     "input_len_target",
     "output_len_target",
     "arrival_mode",
+    "configured_concurrency",
 )
 #: 若两侧都有值且不一致，就**必须降级**（这些会改变实测数值）
 LOAD_SEMANTIC_FIELDS: tuple[str, ...] = (

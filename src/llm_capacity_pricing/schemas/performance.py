@@ -229,8 +229,29 @@ class BenchmarkMatchResult(BaseModel):
     #: 该结论是否**仅用于算法验证**（目标显式 allow_synthetic 时置 True）
     algorithm_validation_only: bool = False
 
+    # ---- 证据构成（V3.1 最终复审 P1：聚合证据必须可追溯到每条 Run）--------
+    #: 该匹配结论覆盖的**全部**实测运行：单条匹配时只有一个元素，聚合时是全部参与运行。
+    supporting_run_ids: list[str] = Field(default_factory=list)
+    #: 每条参与运行各自的匹配等级（run_id -> level）
+    per_run_levels: dict[str, str] = Field(default_factory=dict)
+    #: 每条参与运行的来源标识（run_id -> source_ref）
+    per_run_source_refs: dict[str, str] = Field(default_factory=dict)
+
     @model_validator(mode="after")
     def _guard(self) -> "BenchmarkMatchResult":
+        if self.supporting_run_ids:
+            declared = set(self.supporting_run_ids)
+            if len(declared) != len(self.supporting_run_ids):
+                raise ValueError("supporting_run_ids 不得重复")
+            for label, mapping in (
+                ("per_run_levels", self.per_run_levels),
+                ("per_run_source_refs", self.per_run_source_refs),
+            ):
+                if mapping and set(mapping) != declared:
+                    raise ValueError(
+                        f"{label} 的键必须与 supporting_run_ids 完全一致"
+                        f"（缺 {sorted(declared - set(mapping))}，多 {sorted(set(mapping) - declared)}）"
+                    )
         if self.level == "exact_match" and any(
             r.startswith(("model_", "hardware_", "missing_metric", "unsupported_", "data_trust_rejected"))
             for r in self.reasons
@@ -640,6 +661,10 @@ class RankedDeployment(BaseModel):
     #: 第三阶段性能证据
     match_level: MatchLevel | None = None
     matched_run_id: str | None = None
+    #: 支撑该结论的**全部** run（聚合时不止一条；单条匹配时为 1 条）
+    evidence_run_ids: list[str] = Field(default_factory=list)
+    #: 每条支撑 run 各自的匹配等级（run_id -> level）
+    evidence_per_run_levels: dict[str, str] = Field(default_factory=dict)
     sla_status: SlaStatus | None = None
     output_throughput_tok_s: Decimal | None = None
     ttft_p99_ms: Decimal | None = None

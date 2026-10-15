@@ -116,6 +116,8 @@ def rank_deployments(
         sla_status = None
         match_level = None
         matched_run_id = None
+        evidence_run_ids: list[str] = []
+        evidence_levels: dict[str, str] = {}
         out_tps = ttft = tpot = None
 
         if best_run is None or best_match is None:
@@ -125,6 +127,9 @@ def rank_deployments(
         else:
             match_level = best_match.level
             matched_run_id = best_run.run_id
+            # 证据构成透传到排序条目：聚合时不止一条 run，必须全部列出
+            evidence_run_ids = list(best_match.supporting_run_ids) or [best_run.run_id]
+            evidence_levels = dict(best_match.per_run_levels)
             out_tps = best_run.profile.output_throughput_tok_s
             ttft = best_run.profile.ttft_p99_ms
             tpot = best_run.profile.tpot_p99_ms
@@ -161,6 +166,8 @@ def rank_deployments(
                 headroom_bytes=candidate.headroom_bytes,
                 match_level=match_level,
                 matched_run_id=matched_run_id,
+                evidence_run_ids=evidence_run_ids,
+                evidence_per_run_levels=evidence_levels,
                 sla_status=sla_status,
                 output_throughput_tok_s=out_tps,
                 ttft_p99_ms=ttft,
@@ -341,9 +348,17 @@ def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
             ),
         }
     )
+    aggregate_id = "aggregate:" + ",".join(r.run_id for r in runs)
+    # V3.1 最终复审 P1：聚合记录必须有**自己的签名身份**，不能沿用首条 Run 的
+    # signature_id —— 否则"这条证据由哪几条实测构成"在签名层面看不出来，
+    # 只能依赖 run_id 的字符串约定，证据关系不清晰。
+    aggregated_signature = base.signature.model_copy(
+        update={"signature_id": aggregate_id, "source_ref": aggregate_id}
+    )
     return base.model_copy(
         update={
-            "run_id": "aggregate:" + ",".join(r.run_id for r in runs),
+            "run_id": aggregate_id,
+            "signature": aggregated_signature,
             "profile": aggregated_profile,
             "data_trust": weakest,
             "quality_flags": sorted(set(base.quality_flags) | {"aggregate_of_multiple_measurements"}),
@@ -352,10 +367,77 @@ def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
     )
 
 
+def _attributed(result: BenchmarkMatchResult, run: BenchmarkRun) -> BenchmarkMatchResult:
+    """给单条匹配结论补上"它覆盖了哪一条 Run"的证据构成。"""
+    return result.model_copy(
+        update={
+            "supporting_run_ids": [run.run_id],
+            "per_run_levels": {run.run_id: result.level},
+            "per_run_source_refs": {run.run_id: result.source_ref},
+        }
+    )
+
+
+def _aggregate_match_proof(
+    aggregated: BenchmarkRun,
+    results: Sequence[tuple[BenchmarkRun, BenchmarkMatchResult]],
+    level: str,
+) -> BenchmarkMatchResult:
+    """为**聚合结果**建立独立匹配证明（V3.1 最终复审 P1）。
+
+    不再复用首条 Run 的匹配结论：聚合证据对应**全部**参与 Run，
+    因此必须逐条记录参与者的 run_id、匹配等级与来源，并在理由里说明聚合构成。
+    用途按**交集**收敛、禁用项按**并集**扩张、可信等级取最弱 —— 聚合不得比单条更宽松。
+    """
+    heads = [r for _run, r in results]
+    usable: list[str] | None = None
+    for r in heads:
+        usable = set(r.usable_for) if usable is None else (usable & set(r.usable_for))
+    blocked = sorted({b for r in heads for b in r.blocked_from})
+    differences: dict[str, list] = {}
+    for r in heads:
+        for field, values in r.differences.items():
+            differences.setdefault(field, values)
+
+    signature_id = signature_from_run(aggregated).signature_id
+    run_ids = [run.run_id for run, _r in results]
+    reasons = sorted({reason for r in heads for reason in r.reasons})
+    reasons = [r for r in reasons if not r.startswith("evidence_aggregate:")]
+    reasons.append(
+        f"evidence_aggregate: 由 {len(run_ids)} 条实测保守聚合成一条证据"
+        f"（supporting_run_ids={run_ids}）"
+    )
+    if len({r.level for r in heads}) > 1:
+        reasons.append(
+            "evidence_aggregate:mixed_levels:"
+            + ",".join(sorted({r.level for r in heads}))
+        )
+    return BenchmarkMatchResult(
+        target_ref=heads[0].target_ref,
+        signature_id=signature_id,
+        source_ref=aggregated.run_id,
+        level=level,  # type: ignore[arg-type]
+        reasons=sorted(set(reasons)),
+        differences=differences,
+        usable_for=sorted(usable or []),
+        blocked_from=blocked,
+        data_trust=aggregated.data_trust,
+        # 保守方向：只要**有任一**参与运行的结论仅限算法验证，聚合结论同样仅限算法验证
+        algorithm_validation_only=any(r.algorithm_validation_only for r in heads),
+        supporting_run_ids=run_ids,
+        per_run_levels={run.run_id: r.level for run, r in results},
+        per_run_source_refs={run.run_id: r.source_ref for run, r in results},
+    )
+
+
 def _best_match(
     target: TargetRequirement, runs: Sequence[BenchmarkRun]
 ) -> tuple[BenchmarkRun | None, BenchmarkMatchResult | None]:
-    """找匹配等级最高的一组实测；同一等级有多次时**保守聚合**（V3.1 R6）。"""
+    """找匹配等级最高的一组实测；同一等级有多次时**保守聚合**（V3.1 R6）。
+
+    返回的匹配结论始终带**证据构成**（supporting_run_ids / per_run_levels /
+    per_run_source_refs）：聚合时是全部参与 Run，单条时是它自己。
+    """
     from llm_capacity_pricing.perf.benchmark_matcher import match
 
     matched: list[tuple[BenchmarkRun, BenchmarkMatchResult]] = []
@@ -369,6 +451,11 @@ def _best_match(
     best_level = min(LEVEL_ORDER[r.level] for _run, r in matched)
     best = [(run, r) for run, r in matched if LEVEL_ORDER[r.level] == best_level]
     if len(best) == 1:
-        return best[0]
-    aggregated = _aggregate_runs([run for run, _r in best], matched_level_name(best_level))
-    return aggregated, best[0][1]
+        run, result = best[0]
+        return run, _attributed(result, run)
+    aggregated = _aggregate_runs(
+        [run for run, _r in best], matched_level_name(best_level)
+    )
+    return aggregated, _aggregate_match_proof(
+        aggregated, best, matched_level_name(best_level)
+    )

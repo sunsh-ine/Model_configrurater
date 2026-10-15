@@ -623,3 +623,120 @@ GPU / 卡数 / TP / DP / framework / concurrency，逐一断言等级 ≠ `exact
 仍**独立存在、与本阶段无关**的一项安全事项：仓库为 Public，历史提交中曾出现的内部
 定价数据风险尚未闭环。该事项**不能靠测试通过来替代处理**，需要用户明确授权后
 重写 git 历史（方案与影响评估见 `docs/security_remediation_report.md` §4）。
+
+---
+
+# 附：V3.1 最终加固（第四轮复审，两处遗留边界）
+
+第四轮复审确认 C.1–C.3 三项修复有效（并明确 C.2 "不再出现只保留指标齐全的 Run、
+忽略其他实测的原始问题"），同时指出两处**遗留边界**。均已修复。
+
+## D.1 P0 记录侧同样必须给出配置并发
+
+**根因**：C.1 只把 `configured_concurrency` 加进了**目标侧**清单
+（`TARGET_WORKLOAD_IDENTITY_FIELDS`），**记录侧**仍是
+`(dataset_name, input_len_target, output_len_target, arrival_mode)`。
+而并发差异**只在"双方都有值"时才比较**（`_compare` 对缺失一律视为相等），
+于是出现最后一处严格匹配缺口：
+
+> 需求并发 32、记录并发 `None`、其余字段全一致 → 匹配器返回 `exact_match`。
+
+**修复**：`RECORD_WORKLOAD_IDENTITY_FIELDS` 同样加入 `configured_concurrency`。
+记录缺并发即登记 `record_identity_incomplete:workload.configured_concurrency`，
+经 `unverified` 触发 `downgraded:unverified_details_present`，等级降为
+`comparable_reference`，SLA 因 `sla_requires_exact_match` 返回 `not_evaluable`。
+至此**目标侧与记录侧的部署身份、负载身份两张清单完全对称**。
+
+**复现**：
+
+* `test_review3_record_missing_concurrency_blocks_exact_match` —— 反向用例：
+  需求有并发 / 记录缺并发 → 不得 `exact_match`（并断言降级理由显式写出，不是悄悄放过）；
+  对照组：两侧齐备且一致时仍正常 `exact_match`。
+* `test_review3_record_missing_concurrency_blocks_sla_and_ranking` —— 全链路：
+  阈值给到极宽松（`ttft_p99_ms_max=99999`，数值上必然"达标"），
+  唯一阻断理由就是身份不完整 → SLA `not_evaluable`、排序桶不进 `verified_sla_met`。
+
+**关于"目标侧以 `workload_specified` 为门"的说明**：目标完全没写负载时并**不会**放过 ——
+`workload_specified=False` 会登记 `unverified:workload_not_specified_in_target`，
+同样触发降级。因此这一分支不构成缺口。
+
+## D.2 P1 聚合结果必须有独立的匹配证明与完整证据归属
+
+**根因**：`_best_match()` 在多条 Run 聚合后仍 `return aggregated, best[0][1]`
+—— 即直接复用**第一条** Run 的匹配结论。聚合记录的签名又继承首条 Run 的身份，
+所以它能通过 SLA 的来源关联检查，但证据关系不清晰：一条聚合记录应对应**全部**参与的
+Run，而不是首条 Run 的证明。
+
+**修复**（三处）：
+
+1. **聚合记录拥有自己的签名身份**：`_aggregate_runs()` 现在把 `signature.signature_id`
+   与 `source_ref` 一起改写为 `aggregate:<run_id 列表>`，不再沿用首条 Run 的签名。
+2. **新增 `_aggregate_match_proof()`**：为聚合结果单独构造匹配证明，逐条记录
+   `supporting_run_ids` / `per_run_levels`（每条 Run 的匹配等级）/ `per_run_source_refs`
+   （每条 Run 的来源），并在 `reasons` 写入 `evidence_aggregate:` 聚合构成说明
+   （参与者等级不一致时另加 `evidence_aggregate:mixed_levels:`）。
+   **放宽方向一律保守**：用途 `usable_for` 取**交集**、禁用项 `blocked_from` 取**并集**、
+   可信等级取**最弱**、`algorithm_validation_only` 取**保守为真**（任一参与者仅限算法验证，
+   则整体也仅限算法验证）。
+3. **单条匹配也补证据归属**：`_attributed()` 让 `supporting_run_ids` 恒为非空，
+   于是"单条结论"与"聚合结论"的证据结构统一，下游无需区分两种形态。
+
+**Schema 与报告同步**：
+
+* `BenchmarkMatchResult` 新增 `supporting_run_ids` / `per_run_levels` / `per_run_source_refs`，
+  并加校验：三者键集合必须完全一致、`supporting_run_ids` 不得重复
+  （防止"声明了 N 条证据、实际只记了 M 条"这类静默不一致）。
+* `RankedDeployment` 新增 `evidence_run_ids` / `evidence_per_run_levels`，
+  排序结果直接携带**全部**支撑 Run。
+* M25 报告新增 **3.1 证据构成**小节，逐条列出"哪条结论由哪几条 Run 支撑、每条 Run 各自的匹配等级"；
+  表格 `证据 Run` 列对多条证据显示 `聚合×N（见 3.1）`。已验证渲染输出。
+
+**复现**：
+
+* `test_review3_aggregate_proof_has_own_identity_and_full_attribution` ——
+  断言聚合记录的 `signature_id == 自己的 run_id`、且**不等于**首条 Run 的 `signature_id`；
+  断言 `supporting_run_ids` 覆盖全部 2 条参与者、`per_run_levels` / `per_run_source_refs`
+  逐条对应、每条 Run 的来源指向自己。
+* `test_review3_aggregate_proof_is_never_more_permissive_than_members` ——
+  一条 `measured_internal` + 一条 `synthetic_fixture` 参与聚合：单条 synthetic 已
+  `blocked_from sla_proof`，聚合后仍被阻断（并集），`data_trust` 取最弱，
+  `algorithm_validation_only` 保守为真。
+* `test_review3_ranking_entry_exposes_all_evidence_runs` —— 排序条目 `evidence_run_ids`
+  返回全部参与者，而非只有代表 Run。
+* `test_review3_single_run_evidence_is_attributed_too` —— 对照：单条匹配时证据就是它自己。
+
+## D.3 本轮结果
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | `步骤 36 项：通过 36，失败 0` |
+| 全量测试 | **499 passed** |
+| 第三阶段测试 | **95 passed**（C 轮 89 → 新增 6 个专项用例） |
+| 第一阶段回归 | 默认情景 160（32×5）、`pricing_result` 总数 192、超容差不匹配 0 —— 不变 |
+| M25 报告 | 新增 3.1 证据构成小节；已在有聚合证据的样例上验证渲染 |
+
+## D.4 修复前后对照（本轮）
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 需求并发 32 / 记录并发 `None`，其余一致 | `exact_match` ❌ | `record_identity_incomplete` → `comparable_reference` → SLA `not_evaluable` ✅ |
+| 单条匹配的证据构成 | 字段不存在，无法追溯 ❌ | `supporting_run_ids` = [自己] ✅ |
+| 多条实测聚合后的匹配证明 | 复用**首条** Run 的证明 ❌ | 独立证明，逐条记录参与者等级与来源 ✅ |
+| 聚合记录的签名身份 | 继承首条 Run 的 `signature_id` ❌ | 自己的 `aggregate:<run 列表>` 身份 ✅ |
+| 聚合证明的用途/禁用/可信 | 与首条一致，可能比整体更宽松 ❌ | 用途取交集、禁用取并集、可信取最弱、算法验证标记保守为真 ✅ |
+| 证据归属的可核对性 | 只能靠 `run_id` 字符串约定 ⚠️ | Schema 强校验三组键一致 + 排序条目与报告显式列出 ✅ |
+
+## D.5 第三阶段封板状态（更新）
+
+M19–M25 的主要功能、测试、CLI 与报告已形成完整链路；第四轮复审确认的三项修复与
+本轮新增的两项修复全部核实。**第三阶段工程交付可以验收，第四阶段的架构设计与
+模块接口开发现在可以开始。**
+
+| 维度 | 状态 |
+|---|---|
+| 第三阶段工程交付 | ✅ 可以验收 |
+| 生产级 SLA 自动决策 | ✅ 最后一道门禁（记录侧并发 + 聚合来源证明）已补齐 |
+| 真实部署性能验证 | ⛔ **仍未验证** —— 缺少目标模型与 GPU 的实测数据，现阶段不能承诺具体吞吐、TTFT 或 TPOT |
+| Public 仓库历史定价数据 | ⛔ **独立安全事项**，未闭环，需用户授权后重写历史 |
+
+按复审建议，本轮之后**不再进行全面复审或重构**，V3.1 核心接口就此冻结。

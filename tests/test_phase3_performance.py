@@ -1778,3 +1778,167 @@ def test_review2_estimator_allows_target_run_when_explicitly_permitted(curve_run
     )
     assert result.estimate_kind == "measured_reference"
     assert result.value == synthetic.profile.output_throughput_tok_s
+
+
+# ==========================================================================
+# V3.1 最终复审第三轮（记录侧并发 + 聚合证据归属）
+# ==========================================================================
+
+
+def _strip_record_concurrency(run: BenchmarkRun) -> BenchmarkRun:
+    """抹掉记录侧的配置并发（模拟"记了长度却没记并发"的实测记录）。"""
+    return run.model_copy(
+        update={
+            "signature": run.signature.model_copy(
+                update={
+                    "workload": run.signature.workload.model_copy(
+                        update={"configured_concurrency": None}
+                    )
+                }
+            )
+        }
+    )
+
+
+def test_review3_record_missing_concurrency_blocks_exact_match(measured_runs):
+    """P0 反向用例：**需求有并发、记录缺并发** -> 不得 exact_match。
+
+    此前并发只在"双方都有值"时才比较，于是"需求并发 8 / 记录并发 None"会因
+    `_compare` 把缺失当相等而判 exact_match —— 这是最后一处严格匹配缺口。
+    """
+    run = next(r for r in measured_runs if r.profile.configured_concurrency == 8)
+    sig = signature_from_run(run)
+    assert sig.workload.configured_concurrency == 8
+    # 对照：两侧并发齐备且一致 -> exact_match
+    assert match(_full_identity_target(run), sig).level == "exact_match"
+
+    result = match(_full_identity_target(run), _strip_record_concurrency(run).signature)
+    assert result.level == "comparable_reference", result.reasons
+    assert any(
+        "record_identity_incomplete" in r and "workload.configured_concurrency" in r
+        for r in result.reasons
+    ), result.reasons
+    # 降级理由必须显式写出"未确认"而不是悄悄放过
+    assert any("downgraded:unverified_details_present" in r for r in result.reasons)
+
+
+def test_review3_record_missing_concurrency_blocks_sla_and_ranking(measured_runs):
+    """全链路：记录缺并发 -> 等级降级 -> SLA not_evaluable -> 不进 verified_sla_met。"""
+    stripped = _strip_record_concurrency(
+        next(r for r in measured_runs if r.profile.configured_concurrency == 8)
+    )
+    evaluation = evaluate_sla(
+        # 阈值极其宽松：数值上一定"达标"，唯一的阻断理由是身份不完整
+        SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("99999")),
+        policy=ALGO_POLICY,
+        run=stripped,
+        match_result=match(_full_identity_target(stripped), signature_from_run(stripped)),
+    )
+    assert evaluation.status == "not_evaluable"
+    assert any("sla_requires_exact_match" in r for r in evaluation.reasons)
+
+    ranking = rank_deployments(
+        requirement_id="r3-concurrency",
+        candidates=[_candidate_x()],
+        runs=_aligned_runs([stripped]),
+        sla_requirement=SlaRequirement(requirement_id="r", ttft_p99_ms_max=Decimal("99999")),
+        policy=ALGO_POLICY,
+        workload=WorkloadSignature(
+            input_len_target=1024,
+            output_len_target=256,
+            dataset_name="random",
+            arrival_mode="unbounded",
+            configured_concurrency=8,
+        ),
+        target_identity={
+            "model_revision": "synthetic-revision-1",
+            "framework": "vllm",
+            "framework_version": "synthetic-fw-1.0",
+        },
+    )
+    assert ranking.entries[0].rank_bucket != "verified_sla_met"
+    assert ranking.entries[0].sla_status == "not_evaluable"
+
+
+def test_review3_aggregate_proof_has_own_identity_and_full_attribution(measured_runs):
+    """P1：聚合结果的匹配证明必须独立，并逐条记录参与 Run 的等级与来源。"""
+    from llm_capacity_pricing.perf.ranker import _best_match
+
+    runs = _aligned_runs(_with_repeats(measured_runs, concurrency=8))
+    target = _full_identity_target(next(r for r in runs if r.profile.configured_concurrency == 8))
+    best_run, proof = _best_match(target, runs)
+    assert best_run is not None and proof is not None
+    assert best_run.run_id.startswith("aggregate:")
+
+    participants = sorted(r.run_id for r in runs if r.profile.configured_concurrency == 8)
+    assert len(participants) == 2                      # 一次原始观测 + 一次重复观测
+    assert sorted(proof.supporting_run_ids) == participants
+    assert set(proof.per_run_levels) == set(participants)
+    assert all(v == "exact_match" for v in proof.per_run_levels.values())
+    assert set(proof.per_run_source_refs) == set(participants)
+    # 每条参与 Run 各自的来源可追溯（不是共用首条的身份）
+    assert all(proof.per_run_source_refs[rid] == rid for rid in participants)
+
+    # 聚合证据有自己的签名身份，不再是首条 Run 的签名
+    assert proof.signature_id == best_run.run_id
+    assert proof.source_ref == best_run.run_id
+    assert best_run.signature.signature_id == best_run.run_id
+    first = next(r for r in runs if r.profile.configured_concurrency == 8)
+    assert proof.signature_id != first.signature.signature_id
+    assert any("evidence_aggregate" in r for r in proof.reasons), proof.reasons
+
+
+def test_review3_aggregate_proof_is_never_more_permissive_than_members(measured_runs):
+    """聚合证明的用途取交集、禁用项取并集、可信取最弱：不得比单条更宽松。"""
+    from llm_capacity_pricing.perf.ranker import _aggregate_match_proof, _aggregate_runs
+
+    measured = measured_runs[0]
+    synthetic = measured.model_copy(
+        update={
+            "run_id": measured.run_id + "-synthetic",
+            "data_trust": "synthetic_fixture",
+            "signature": measured.signature.model_copy(
+                update={"data_trust": "synthetic_fixture"}
+            ),
+        }
+    )
+    target = _full_identity_target(measured).model_copy(update={"allow_synthetic": True})
+    results = [
+        (measured, match(target, signature_from_run(measured))),
+        (synthetic, match(target, signature_from_run(synthetic))),
+    ]
+    assert all(r.level == "exact_match" for _run, r in results)
+    assert "sla_proof" in results[1][1].blocked_from        # synthetic 单条已阻断 sla_proof
+
+    proof = _aggregate_match_proof(
+        _aggregate_runs([measured, synthetic], "exact_match"), results, "exact_match"
+    )
+    assert "sla_proof" in proof.blocked_from                # 并集：聚合同样被阻断
+    assert proof.data_trust == "synthetic_fixture"          # 最弱可信等级
+    assert proof.algorithm_validation_only is True          # 保守：仍只限算法验证
+    assert len(proof.supporting_run_ids) == 2
+
+
+def test_review3_ranking_entry_exposes_all_evidence_runs(measured_runs):
+    """排序条目必须列出**全部**支撑 Run，而不只是代表 Run。"""
+    ranking = _rank(_with_repeats(measured_runs, concurrency=8), "1000")
+    entry = ranking.entries[0]
+    assert entry.matched_run_id.startswith("aggregate:")
+    participants = sorted(
+        r.run_id
+        for r in _aligned_runs(_with_repeats(measured_runs, concurrency=8))
+        if r.profile.configured_concurrency == 8
+    )
+    assert sorted(entry.evidence_run_ids) == participants
+    assert set(entry.evidence_per_run_levels) == set(participants)
+
+
+def test_review3_single_run_evidence_is_attributed_too(measured_runs):
+    """单条匹配也要带证据构成（对照）：supporting_run_ids 恰好是自己。"""
+    from llm_capacity_pricing.perf.ranker import _best_match
+
+    run = next(r for r in _aligned_runs(measured_runs) if r.profile.configured_concurrency == 8)
+    best_run, proof = _best_match(_full_identity_target(run), [run])
+    assert best_run is not None and proof is not None and not best_run.run_id.startswith("aggregate:")
+    assert proof.supporting_run_ids == [run.run_id]
+    assert proof.per_run_levels == {run.run_id: "exact_match"}

@@ -22,6 +22,16 @@ def _fmt(value: Any) -> str:
     return "—" if value is None else str(value)
 
 
+def _evidence_label(entry: dict[str, Any]) -> str:
+    """证据 Run 一列的标签：单条给 run_id，多条给 ``聚合×N`` 并指向 3.1 节。"""
+    ids = list(entry.get("evidence_run_ids") or [])
+    if not ids:
+        return "—"
+    if str(entry.get("matched_run_id") or "").startswith("aggregate:") or len(ids) > 1:
+        return f"聚合×{len(ids)}（见 3.1）"
+    return f"`{ids[0]}`"
+
+
 def build_performance_report(
     *,
     inventory: dict[str, Any],
@@ -110,17 +120,37 @@ def build_performance_report(
         if ranking.get("blocker"):
             add(f"- **阻塞**：{ranking['blocker']}")
         add("")
-        add("| 候选 | 卡数 | TP×DP | 静态 | 匹配等级 | 可信 | SLA | 输出 tok/s | 依据 |")
-        add("|---|---|---|---|---|---|---|---|---|")
+        add("| 候选 | 卡数 | TP×DP | 静态 | 匹配等级 | 可信 | SLA | 输出 tok/s | 依据 | 证据 Run |")
+        add("|---|---|---|---|---|---|---|---|---|---|")
         for entry in ranking.get("entries", []):
             add(
                 f"| `{entry.get('candidate_id')}` | {entry.get('gpu_count')} "
                 f"| {entry.get('tp_size')}×{entry.get('dp_size')} | {_fmt(entry.get('static_status'))} "
                 f"| {_fmt(entry.get('match_level'))} | — | {_fmt(entry.get('sla_status'))} "
                 f"| {_fmt(entry.get('output_throughput_tok_s'))} "
-                f"| {entry.get('rank_bucket')} |"
+                f"| {entry.get('rank_bucket')} | {_evidence_label(entry)} |"
             )
         add("")
+        evidence_entries = [
+            e for e in ranking.get("entries", []) if e.get("evidence_run_ids")
+        ]
+        if evidence_entries:
+            add("### 3.1 证据构成（每条结论对应哪些 Run）")
+            add("")
+            for entry in evidence_entries:
+                ids = list(entry["evidence_run_ids"])
+                levels = entry.get("evidence_per_run_levels") or {}
+                detail = "、".join(
+                    f"`{rid}`（{levels.get(rid, 'unknown')}）" for rid in ids
+                )
+                add(f"- `{entry['candidate_id']}`：{len(ids)} 条 → {detail}")
+            add("")
+            add(
+                "> 同一配置存在多条实测时，结论由**保守聚合**得出，证据是**全部**参与 Run，"
+                "而不是其中某一条；表中 `证据 Run = 聚合×N` 表示该项由 N 条实测共同支撑。"
+                "缺指标的参与者不会改变该数量，但会使对应指标在聚合结果中保持为空。"
+            )
+            add("")
         for note in ranking.get("comparability_notes", []):
             add(f"> {note}")
         add("")
