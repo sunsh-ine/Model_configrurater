@@ -168,3 +168,121 @@ bash scripts/verify_all.sh      # 退出码 0；步骤 27 项：通过 27，失�
 2. 核实各 SKU 的**权重/KV 精度支持**与**框架内核支持**（当前为待核实）。
 3. 若需支持 MoE / PD 分离 / 量化显存，需先补齐对应结构与公式（返回 `unsupported_architecture` 的路径已就绪）。
 4. 第三阶段可在此基础上接入 Benchmark 与仿真数据，筛选满足 TTFT/TPOT/吞吐/并发要求的方案。
+
+
+---
+
+# 附：V2.1 验收整改（按代码验收意见）
+
+验收意见指出 6 项正确性问题（1 个 P0 拓扑复用、1 个 P0 容量口径、4 个 P1），已全部修复并加测试。
+本节记录**根因 → 修复 → 复现证据**，以及被推翻的旧结论。
+
+## A.1 P0-1 硬件兼容性被所有候选复用（拓扑风险错配）
+
+**根因**：`plan_deployment()` 在循环外用 `max(tp)×max(dp)`（默认 64 卡）调用一次
+`check_hardware_compatibility()`，把同一结果套给所有候选。
+
+**复现（修复前）**：单机 8 卡服务器下，TP1×DP1（1 卡）也带
+`requires_multi_node_interconnect_not_modelled`。
+
+**修复**：兼容性检查移入候选循环，使用**该候选实际的 `tp × dp` 与 `tp`**；
+并把跨节点情形拆成两类：
+`tp_group_spans_nodes_interconnect_not_modelled`（TP 组跨节点，需要跨节点 all-reduce）
+与 `dp_replicas_span_multiple_nodes_placement_unverified`（DP 副本分布在不同节点）。
+
+**复现（修复后）**：
+
+| 候选 | 卡数 | 节点相关未确认项 |
+|---|---|---|
+| TP1×DP1 | 1 | 无 |
+| TP8×DP1 | 8 | 无（正好一台机器） |
+| TP8×DP8 | 64 | `dp_replicas_span_multiple_nodes_placement_unverified`、`total_gpus_exceed_single_node_capacity` |
+
+测试：`test_v21_f1_topology_checked_per_candidate`、`test_v21_f1_topology_risk_is_not_shared`。
+
+## A.2 P0-2 可用显存与标称容量口径不自洽
+
+**根因**：硬件库把 80GB 按十进制归一化为 `80,000,000,000` 字节（≈74.51 GiB），
+而示例假设给了 76 GiB（81,604,378,624 字节）——**比标称容量还大**，系统未拒绝。
+
+**修复**：新增 `validate_usable_memory()`：可用显存**不得超过**同一硬件记录的标称容量；
+并强制声明**来源性质**（`measured` / `operator_estimate` / `synthetic_example`），
+`measured` 还必须给出测量来源描述。规划示例统一改为"标称 × 0.9 = 72 GB"并标
+`synthetic_example`。
+
+**被推翻的旧结论**：此前报告中"TP2 余量 +4.44 GiB"基于越界的 76 GiB 假设，**不成立**。
+按自洽口径（72 GB）重算：
+
+| TP×DP | 卡数 | 权重/卡 | KV/卡 | 合计/卡 | 余量 | 状态 |
+|---|---|---|---|---|---|---|
+| 1×1 | 1 | 65.52 GB | 68.72 GB | 141.44 GB | −69.44 GB | `infeasible` |
+| 2×1 | 2 | 34.32 GB | 34.36 GB | **75.88 GB** | **−3.88 GB** | `infeasible` |
+| 4×1 | 4 | 18.72 GB | 17.18 GB | 43.10 GB | +28.90 GB | `conditional_feasible` |
+| 8×1 | 8 | 10.91 GB | 8.59 GB | 26.70 GB | +45.30 GB | `conditional_feasible` |
+
+即：**Qwen3-32B 在 H100 SXM（80GB）上从 TP4 起才装得下**（TP2 差 3.88 GB）。
+
+## A.3 P0-3 服务器 SKU 匹配缺失
+
+**修复**：`server.gpu_hardware_id != spec.hardware_id` → **直接 infeasible**
+（`server_gpu_sku_mismatch`），不再静默复用另一种卡的节点拓扑。
+测试：`test_v21_f2_server_sku_mismatch_is_infeasible`、场景 C。
+
+## A.4 P1-1 上下文长度未与模型上限比较
+
+**修复**：请求上下文 > `max_position_embeddings` → `infeasible`
+（`context_length_exceeds_model_limit`）；只有提供**经过验证的扩展配置**
+（`--max-context-override` + `--max-context-override-source`）时才按新上限计算。
+测试：`test_v21_f3_context_beyond_model_limit_blocks`、`test_v21_f3_verified_extension_allows_long_context`。
+
+## A.5 P1-2 KV 需求量与预算容量混用
+
+**修复**：`logical_token_capacity` 拆成三个字段：
+
+| 字段 | 含义 |
+|---|---|
+| `required_resident_tokens` | 需求：每副本并发 × 上下文长度 |
+| `estimated_capacity_tokens` | 上限：按 KV 预算反推的最大可容纳 token 数（**未给预算时为 None，不再冒充"容量"**） |
+| `allocated_tokens` | 按 block 对齐后实际分配的 token 槽位 |
+
+测试：`test_v21_f4_kv_required_vs_capacity_separated`、`test_v21_f4_no_budget_means_no_capacity_claim`。
+
+## A.6 P1-3 状态与原因不一致
+
+**根因**：`_apply_memory_rules()` 在把 `insufficient_information` 收敛为
+`conditional_feasible` 时，沿用了上一个状态的原因列表，出现
+"条件可行 + 未给出任何假设"的矛盾描述。
+
+**修复**：状态变更时**重建**原因——`conditional_feasible` 的原因列表必须为空，
+`infeasible` 只保留"为什么放不下"这一条；`unverified_conditions` / `risk_flags` 照旧保留。
+测试：`test_v21_f5_no_stale_reasons_after_status_change`、`test_v21_f5_status_and_reasons_are_consistent`。
+
+## A.7 P1-4 精度与数值边界收紧
+
+| 项 | 修复 |
+|---|---|
+| 量化精度 | 权重只允许 `bf16/fp16/fp32`、KV 只允许 `bf16/fp16`；`fp8/int8/int4/unknown` → **`unsupported`**（不再按 1 字节硬算，int4 的打包问题一并消除） |
+| 硬件精度支持 | 若硬件已声明支持列表而请求不在其中 → `infeasible`（`weight_precision_not_supported_by_hardware`） |
+| 比例范围 | 可用显存比例 ∈ (0,1]、运行时预留 ∈ [0,1) |
+| 计数范围 | 并发 ≥ 1、上下文 ≥ 1、block size ≥ 1、tp/dp 集合非空且为正 |
+
+测试：`test_v21_f6_unsupported_precision_yields_unsupported`（4 个精度参数化）、
+`test_v21_f6_assumption_ranges_validated`（8 组越界输入参数化）、
+`test_unsupported_precision_is_rejected`。
+
+## A.8 回归与验收场景
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | `bash scripts/verify_all.sh` → **27 步全绿，退出码 0** |
+| 测试总数 | **404 passed**（第二阶段 49 → 79，新增 30 个整改测试） |
+| 第一阶段回归 | 32 / 160 / 192 / 0 超容差 / fixture 残留 0 —— 不变 |
+| 场景 A（32B + H100 SXM） | TP1、TP2 不可行；TP4、TP8 条件可行；无跨节点误报；假设标注为 `synthetic_example` |
+| 场景 B（8B + H200 SXM） | DP 增大时每副本并发 = 全局/DP，KV 按比例下降，权重复制不变（`per_rank_bytes` 相同）；未指定服务器时拓扑风险被标记 |
+| 场景 C（故意错误输入） | SKU 不匹配 → infeasible；可用显存超标称 → 拒绝；上下文超上限 → infeasible；负预留 → 拒绝；`fp8/int8` → unsupported |
+
+## A.9 仍未处理（需你决定）
+
+GitHub 仓库仍为 **public**，历史提交中的定价数据仍可通过 Git 历史访问。
+这不属于显存计算问题，属独立安全事项：处理方案与影响评估见
+`docs/security_remediation_report.md` §4（方案 A/B/C），**未授权前不重写历史**。

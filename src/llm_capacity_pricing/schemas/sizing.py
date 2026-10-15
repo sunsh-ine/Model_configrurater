@@ -45,7 +45,7 @@ ModelSpecStatus = Literal[
 Precision = Literal["bf16", "fp16", "fp32", "fp8", "int8", "int4", "unknown"]
 
 #: KV cache 精度
-KvPrecision = Literal["bf16", "fp16", "fp8", "int8", "unknown"]
+KvPrecision = Literal["bf16", "fp16", "fp8", "int8", "int4", "unknown"]
 
 #: Attention 类型（决定 KV 公式）
 AttentionKind = Literal["mha", "gqa", "mqa", "sliding_window", "unsupported"]
@@ -83,16 +83,35 @@ PerRankPrecision = Literal[
 
 
 class PrecisionByteSize:
-    """精度 -> 每元素字节数（权重/KV 通用）。"""
+    """精度 -> 每元素字节数。
+
+    **只收录"每个元素占用整数字节、且不需要打包/量化标定"的格式。**
+    ``fp8`` / ``int8`` / ``int4`` 等需要量化缩放因子与位打包规则，缺专用模型时
+    按字节数硬算会给出"看起来精确"的错误值，因此不在此表内——请求这些精度时
+    上层返回 ``unsupported``（V2.1 整改，见 docs/phase2_final_validation.md）。
+    """
 
     BYTES: dict[str, int] = {
         "bf16": 2,
         "fp16": 2,
         "fp32": 4,
-        "fp8": 1,
-        "int8": 1,
-        "int4": 1,  # 4bit 打包后每元素 0.5 字节，这里按"需成对打包"标注，实际按位计算
     }
+
+
+#: 第二阶段**可计算**的权重精度（每元素字节数确定，无打包/标定）
+SUPPORTED_WEIGHT_PRECISIONS: tuple[str, ...] = ("bf16", "fp16", "fp32")
+#: 第二阶段**可计算**的 KV 精度
+SUPPORTED_KV_PRECISIONS: tuple[str, ...] = ("bf16", "fp16")
+#: 已知但**本阶段不支持**的精度（需要专用显存模型）
+UNSUPPORTED_PRECISIONS: tuple[str, ...] = ("fp8", "int8", "int4", "unknown")
+
+
+def precision_supported(precision: str | None, *, kind: str = "weight") -> bool:
+    """该精度在本阶段是否可计算。"""
+    allowed = (
+        SUPPORTED_WEIGHT_PRECISIONS if kind == "weight" else SUPPORTED_KV_PRECISIONS
+    )
+    return precision in allowed
 
 
 # ---------------------------------------------------------------------------
@@ -445,8 +464,12 @@ class KVCacheEstimate(BaseModel):
     context_length_per_request: int | None = None
 
     # ---- 容量结果 -------------------------------------------------------
-    #: 逻辑 KV Token 容量（该副本同时可驻留的 token 数）
-    logical_token_capacity: int | None = None
+    #: **需求**：该副本按"并发 × 上下文长度"需要同时驻留的逻辑 token 数
+    required_resident_tokens: int | None = None
+    #: **上限**：按 KV 显存预算反推的最大可驻留 token 数（未给预算时为 None）
+    estimated_capacity_tokens: int | None = None
+    #: 按 block 对齐后**实际分配**的 token 槽位（含对齐放大）
+    allocated_tokens: int | None = None
     #: Paged KV：块大小与对齐后的块数
     block_size_tokens: int | None = None
     allocated_blocks: int | None = None
@@ -475,10 +498,15 @@ class KVCacheEstimate(BaseModel):
                 f"attention_kind={self.attention_kind} 时必须显式降级（readable=False），"
                 "不得套用 Full Attention 的 KV 公式"
             )
-        if self.logical_token_capacity is not None and self.physical_bytes is not None:
-            if self.allocated_blocks is not None and self.unaligned_bytes is not None:
-                if self.physical_bytes < self.unaligned_bytes:
-                    raise ValueError("对齐后的物理字节不应小于未对齐理论值")
+        if self.physical_bytes is not None and self.unaligned_bytes is not None:
+            if self.physical_bytes < self.unaligned_bytes:
+                raise ValueError("对齐后的物理字节不应小于未对齐理论值")
+        if (
+            self.allocated_tokens is not None
+            and self.required_resident_tokens is not None
+            and self.allocated_tokens < self.required_resident_tokens
+        ):
+            raise ValueError("对齐后分配的 token 槽位不应少于实际需求（除未分页场景）")
         return self
 
 

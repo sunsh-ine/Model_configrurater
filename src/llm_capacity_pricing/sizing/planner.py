@@ -36,9 +36,13 @@ from llm_capacity_pricing.schemas.sizing import (
     RuntimeReserve,
     ServerProfile,
 )
-from llm_capacity_pricing.sizing.hardware import check_hardware_compatibility
+from llm_capacity_pricing.sizing.hardware import (
+    check_hardware_compatibility,
+    validate_usable_memory,
+)
 from llm_capacity_pricing.sizing.kv_cache import default_runtime_items, estimate_kv_cache
 from llm_capacity_pricing.sizing.weights import estimate_weight_memory
+from llm_capacity_pricing.schemas.sizing import precision_supported
 
 #: 受支持的 TP 集合（本轮）
 SUPPORTED_TP_SIZES: tuple[int, ...] = (1, 2, 4, 8)
@@ -47,6 +51,14 @@ SUPPORTED_DP_SIZES: tuple[int, ...] = (1, 2, 4, 8)
 
 #: 单卡可用显存的假设来源标记（用于必须写明的假设项）
 USABLE_MEMORY_ASSUMED_FLAG = "usable_memory_assumed_not_measured"
+
+
+#: 可用显存来源性质（V2.1 F2/P0）：必须区分实测 / 人工经验 / 测试构造
+USABLE_SOURCE_KINDS: tuple[str, ...] = ("measured", "operator_estimate", "synthetic_example")
+
+
+class AssumptionError(ValueError):
+    """规划假设本身不合法（范围越界 / 来源缺失 / 上下文扩展未验证）。"""
 
 
 @dataclass
@@ -58,6 +70,12 @@ class PlanningAssumptions:
     #: 或：按标称容量的比例（假设值，需给出来源）
     usable_fraction_of_nominal: Decimal | None = None
     usable_memory_source: str | None = None
+    #: **来源性质**：measured（真实设备测量）/ operator_estimate（人工经验值）/
+    #: synthetic_example（为测试算法构造的示例值）。给出可用显存时**必须**声明。
+    usable_memory_source_kind: str | None = None
+    #: 经过验证的上下文扩展上限（超过模型 max_position_embeddings 时才需要）
+    max_context_override: int | None = None
+    max_context_override_source: str | None = None
     #: 运行时预留（按项给出；未给的项保持 unknown）
     runtime_items: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: 或：合并的运行时预留比例（相对可用显存），作为假设值参与判定
@@ -75,6 +93,49 @@ class PlanningAssumptions:
     notes: list[str] = field(default_factory=list)
 
 
+def validate_assumptions(assumptions: "PlanningAssumptions", hardware: HardwareSpec) -> None:
+    """校验假设的合法范围（V2.1 F6）。越界一律抛错，不静默夹取。"""
+    if assumptions.per_gpu_usable_bytes is not None and assumptions.usable_fraction_of_nominal is not None:
+        raise AssumptionError("可用显存请只给一种口径：显式字节数或标称比例")
+    if assumptions.usable_memory_source_kind is not None:
+        if assumptions.usable_memory_source_kind not in USABLE_SOURCE_KINDS:
+            raise AssumptionError(
+                f"usable_memory_source_kind 必须是 {USABLE_SOURCE_KINDS} 之一，"
+                f"收到 {assumptions.usable_memory_source_kind!r}"
+            )
+    if (
+        assumptions.per_gpu_usable_bytes is not None or assumptions.usable_fraction_of_nominal is not None
+    ) and assumptions.usable_memory_source_kind is None:
+        raise AssumptionError(
+            "给出可用显存时必须声明来源性质（measured / operator_estimate / "
+            "synthetic_example），避免把示例值当成实测数据"
+        )
+    frac = assumptions.usable_fraction_of_nominal
+    if frac is not None and not (Decimal(0) < frac <= Decimal(1)):
+        raise AssumptionError(f"可用显存比例必须落在 (0, 1]，收到 {frac}")
+    reserve = assumptions.runtime_reserve_fraction
+    if reserve is not None and not (Decimal(0) <= reserve < Decimal(1)):
+        raise AssumptionError(f"运行时预留比例必须落在 [0, 1)，收到 {reserve}")
+    if assumptions.global_concurrency is not None and assumptions.global_concurrency < 1:
+        raise AssumptionError(f"全局并发必须 ≥ 1，收到 {assumptions.global_concurrency}")
+    if assumptions.context_length_per_request is not None and assumptions.context_length_per_request < 1:
+        raise AssumptionError(
+            f"上下文长度必须 ≥ 1，收到 {assumptions.context_length_per_request}"
+        )
+    if assumptions.block_size_tokens is not None and assumptions.block_size_tokens < 1:
+        raise AssumptionError(f"block size 必须 ≥ 1，收到 {assumptions.block_size_tokens}")
+    for name, sizes in (("tp_sizes", assumptions.tp_sizes), ("dp_sizes", assumptions.dp_sizes)):
+        if not sizes or any(s < 1 for s in sizes):
+            raise AssumptionError(f"{name} 必须是非空的正整数集合，收到 {sizes}")
+    if assumptions.max_context_override is not None:
+        if assumptions.max_context_override < 1:
+            raise AssumptionError("max_context_override 必须 ≥ 1")
+        if not assumptions.max_context_override_source:
+            raise AssumptionError(
+                "使用 max_context_override 必须给出来源（经过验证的上下文扩展配置）"
+            )
+
+
 def resolve_usable_memory(
     hardware: HardwareSpec, assumptions: PlanningAssumptions
 ) -> tuple[int | None, str, list[str]]:
@@ -86,12 +147,20 @@ def resolve_usable_memory(
             [],
         )
     if assumptions.per_gpu_usable_bytes is not None:
+        validate_usable_memory(
+            hardware,
+            assumptions.per_gpu_usable_bytes,
+            source_kind=assumptions.usable_memory_source_kind,
+            source=assumptions.usable_memory_source,
+        )
+        kind = assumptions.usable_memory_source_kind
         return (
             assumptions.per_gpu_usable_bytes,
-            f"调用方提供的显式值（来源：{assumptions.usable_memory_source or '未注明'}）",
+            f"调用方提供的显式值（来源性质：{kind}；来源："
+            f"{assumptions.usable_memory_source or '未注明'}）",
             [
                 f"{USABLE_MEMORY_ASSUMED_FLAG}: 单卡可用显存取自调用方输入 "
-                f"{assumptions.per_gpu_usable_bytes} 字节，非实测"
+                f"{assumptions.per_gpu_usable_bytes} 字节，来源性质=**{kind}**，非硬件实测字段"
             ],
         )
     if (
@@ -99,14 +168,21 @@ def resolve_usable_memory(
         and hardware.total_memory_bytes is not None
     ):
         value = int(Decimal(hardware.total_memory_bytes) * assumptions.usable_fraction_of_nominal)
+        validate_usable_memory(
+            hardware,
+            value,
+            source_kind=assumptions.usable_memory_source_kind,
+            source=assumptions.usable_memory_source,
+        )
+        kind = assumptions.usable_memory_source_kind
         return (
             value,
             f"按标称容量 {hardware.hbm_capacity_declared} 的 "
-            f"{assumptions.usable_fraction_of_nominal} 折算（来源："
+            f"{assumptions.usable_fraction_of_nominal} 折算（来源性质：{kind}；来源："
             f"{assumptions.usable_memory_source or '未注明'}）",
             [
                 f"{USABLE_MEMORY_ASSUMED_FLAG}: 可用显存 = 标称 × "
-                f"{assumptions.usable_fraction_of_nominal}，属假设值，非实测"
+                f"{assumptions.usable_fraction_of_nominal}，来源性质=**{kind}**，非实测"
             ],
         )
     return None, "无实测值且未提供假设", []
@@ -225,7 +301,31 @@ def plan_deployment(
 ) -> list[DeploymentCandidate]:
     """枚举 TP/DP 组合并给出静态可行性。返回稳定排序的候选列表。"""
     precision = weight_precision or model.deployment_precision
+    validate_assumptions(assumptions, hardware)
     candidates: list[DeploymentCandidate] = []
+
+    # 精度门禁（V2.1 F6）：本阶段只支持每元素字节数确定的 bf16/fp16/fp32
+    unsupported_precision: list[str] = []
+    if not precision_supported(precision, kind="weight"):
+        unsupported_precision.append(f"weight_precision_not_supported_in_phase2:{precision}")
+    if not precision_supported(kv_precision, kind="kv"):
+        unsupported_precision.append(f"kv_precision_not_supported_in_phase2:{kv_precision}")
+    if unsupported_precision:
+        for tp in assumptions.tp_sizes:
+            for dp in assumptions.dp_sizes:
+                candidates.append(
+                    _candidate(
+                        model, hardware, server, tp=tp, dp=dp, precision=precision,
+                        kv_precision=kv_precision, assumptions=assumptions, memory=None,
+                        feasibility=ResourceFeasibilityResult(
+                            status="unsupported",
+                            reasons=unsupported_precision
+                            + ["fp8/int8/int4 等需要量化标定与位打包，本阶段无专用显存模型"],
+                            risk_flags=["unsupported_precision"],
+                        ),
+                    )
+                )
+        return _sorted(candidates)
 
     # 模型层面就不支持 -> 所有组合 unsupported（不生成显存结果）
     if model.status == "unsupported_architecture":
@@ -254,18 +354,27 @@ def plan_deployment(
                 )
         return _sorted(candidates)
 
-    compat = check_hardware_compatibility(
-        spec=hardware,
-        server=server,
-        gpu_count=max(assumptions.tp_sizes) * max(assumptions.dp_sizes),
-        precision=precision,
-    )
-
     for tp in assumptions.tp_sizes:
         for dp in assumptions.dp_sizes:
             gpu_count = tp * dp
+            # V2.1 F1/P0：兼容性必须**按候选实际卡数**判定。
+            # 之前用 max(tp)×max(dp) 算一次并复用，会让 TP1×DP1 错误继承 64 卡的跨节点风险。
+            compat = check_hardware_compatibility(
+                spec=hardware,
+                server=server,
+                gpu_count=gpu_count,
+                precision=precision,
+                tp_size=tp,
+            )
             feasibility = _assess(
-                model, hardware, server, compat, tp=tp, dp=dp, precision=precision
+                model,
+                hardware,
+                server,
+                compat,
+                tp=tp,
+                dp=dp,
+                precision=precision,
+                assumptions=assumptions,
             )
             memory = None
             if feasibility.status != "unsupported":
@@ -305,12 +414,13 @@ def _assess(
     tp: int,
     dp: int,
     precision: Precision,
+    assumptions: PlanningAssumptions,
 ) -> ResourceFeasibilityResult:
     """结构与硬件层面的前置判定（尚未看显存数字）。"""
     reasons: list[str] = []
     unverified: list[str] = list(compat.unverified_conditions)
     risks: list[str] = []
-    assumptions: list[str] = []
+    assumption_notes: list[str] = []
 
     if compat.status == "incompatible":
         return ResourceFeasibilityResult(
@@ -328,14 +438,26 @@ def _assess(
         )
     if model.num_key_value_heads is not None and model.num_key_value_heads < tp:
         risks.append("kv_heads_fewer_than_tp_requires_kv_replication")
-        assumptions.append(
+        assumption_notes.append(
             "KV 头数少于 TP：按 KV 复制估算（每 Rank 保留全部 KV 头），"
             "实际行为取决于推理框架实现"
         )
     elif model.num_key_value_heads is not None and model.num_key_value_heads % tp != 0:
         unverified.append("kv_head_split_not_divisible_by_tp")
-        assumptions.append("KV 头不能被 TP 整除：按复制口径估算，需框架侧确认")
+        assumption_notes.append("KV 头不能被 TP 整除：按复制口径估算，需框架侧确认")
 
+    # 上下文长度必须落在模型已确认的支持范围内（V2.1 F3/P1）
+    ctx = assumptions.context_length_per_request
+    if ctx is not None:
+        limit = assumptions.max_context_override or model.max_position_embeddings
+        if limit is None:
+            unverified.append("model_max_context_unknown")
+        elif ctx > limit:
+            reasons.append(
+                f"context_length_exceeds_model_limit: 请求 {ctx} > "
+                f"{'已验证扩展上限' if assumptions.max_context_override else '模型 max_position_embeddings'} "
+                f"{limit}；如需超长上下文，请提供经过验证的上下文扩展配置"
+            )
     if model.head_dim is None:
         unverified.append("head_dim_unknown")
     if server is None:
@@ -347,19 +469,23 @@ def _assess(
         return ResourceFeasibilityResult(
             status="infeasible",
             reasons=reasons,
-            assumptions=assumptions,
+            assumptions=assumption_notes,
             unverified_conditions=sorted(set(unverified)),
             risk_flags=sorted(set(risks)),
         )
     if unverified or risks:
         return ResourceFeasibilityResult(
-            status="conditional_feasible" if assumptions else "insufficient_information",
-            reasons=[] if assumptions else ["存在未确认的前置条件，且未给出任何假设"],
-            assumptions=assumptions,
+            status="conditional_feasible" if assumption_notes else "insufficient_information",
+            reasons=[] if assumption_notes else ["存在未确认的前置条件，且未给出任何假设"],
+            assumptions=assumption_notes,
             unverified_conditions=sorted(set(unverified)),
             risk_flags=sorted(set(risks)),
         )
-    return ResourceFeasibilityResult(status="conditional_feasible", assumptions=["结构与硬件前置条件均明确"])
+    return ResourceFeasibilityResult(
+        status="conditional_feasible",
+        reasons=[],
+        assumptions=["结构与硬件前置条件均明确（注意：显存与运行时仍需按 §2 的假设判定）"],
+    )
 
 
 def _apply_memory_rules(
@@ -385,7 +511,7 @@ def _apply_memory_rules(
         unverified.append("per_gpu_usable_memory_unknown_no_measurement_no_assumption")
         return ResourceFeasibilityResult(
             status="insufficient_information",
-            reasons=["单卡可用显存既无实测值也未提供假设，无法判断是否放得下"],
+            reasons=["单卡可用显存既无实测值也未提供带来源的假设，无法判断是否放得下"],
             assumptions=assumptions_out,
             unverified_conditions=sorted(set(unverified)),
             risk_flags=sorted(set(risks)),
@@ -417,13 +543,13 @@ def _apply_memory_rules(
     assert memory.total_required_bytes is not None
     if memory.total_required_bytes > memory.per_gpu_usable_bytes:
         over = memory.total_required_bytes - memory.per_gpu_usable_bytes
-        reasons.append(
-            f"每卡需求 {memory.total_required_bytes} 字节 > 可用 "
-            f"{memory.per_gpu_usable_bytes} 字节（超出 {over} 字节）"
-        )
         return ResourceFeasibilityResult(
             status="infeasible",
-            reasons=reasons,
+            # 状态变了，原因必须重写：只保留"为什么放不下"这一条
+            reasons=[
+                f"每卡需求 {memory.total_required_bytes} 字节 > 可用 "
+                f"{memory.per_gpu_usable_bytes} 字节（超出 {over} 字节）"
+            ],
             assumptions=assumptions_out,
             unverified_conditions=sorted(set(unverified)),
             risk_flags=sorted(set(risks)),
@@ -435,7 +561,9 @@ def _apply_memory_rules(
     )
     return ResourceFeasibilityResult(
         status="conditional_feasible",
-        reasons=reasons,
+        # V2.1 F5/P1：结论已是"条件可行"时，不得保留"未给出任何假设"这类
+        # 前后矛盾的原因描述；只保留与当前状态一致的原因。
+        reasons=[],
         assumptions=assumptions_out,
         unverified_conditions=sorted(set(unverified)),
         risk_flags=sorted(set(risks)),

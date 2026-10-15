@@ -144,6 +144,7 @@ def check_hardware_compatibility(
     server: ServerProfile | None,
     gpu_count: int,
     precision: str,
+    tp_size: int | None = None,
 ) -> HardwareCompatibility:
     """硬件与部署需求的兼容性。
 
@@ -161,15 +162,36 @@ def check_hardware_compatibility(
         unverified.append("gpu_usable_memory_not_measured")
     if not spec.supported_weight_precisions:
         unverified.append(f"weight_precision_support_unverified:{precision}")
+    elif precision not in spec.supported_weight_precisions:
+        reasons.append(
+            f"weight_precision_not_supported_by_hardware:{precision}"
+            f"（硬件已声明支持 {spec.supported_weight_precisions}）"
+        )
 
     if server is None:
         unverified.append("server_profile_not_specified")
     else:
+        # ---- 服务器必须与 GPU SKU 匹配（V2.1 F4/P0）----------------------
+        # 不匹配时**直接判不可行**：不允许拿另一种卡的节点拓扑继续做判断。
+        if server.gpu_hardware_id != spec.hardware_id:
+            reasons.append(
+                f"server_gpu_sku_mismatch: 服务器 {server.server_id} 面向 "
+                f"{server.gpu_hardware_id}，而候选使用 {spec.hardware_id}"
+            )
         if server.gpus_per_node is None:
             unverified.append("gpus_per_node_unknown")
-        elif gpu_count > server.gpus_per_node:
-            # 超出单机卡数时需要跨节点互联，本轮不做跨节点带宽建模
-            unverified.append("requires_multi_node_interconnect_not_modelled")
+        else:
+            per_node = server.gpus_per_node
+            effective_tp = tp_size if tp_size is not None else gpu_count
+            # TP 组跨节点：all-reduce 需要走跨节点互联，本轮不建模 -> 风险
+            if effective_tp > per_node:
+                unverified.append("tp_group_spans_nodes_interconnect_not_modelled")
+            # DP 副本跨节点：副本之间相互独立，但节点级资源与放置需核实
+            elif gpu_count > per_node:
+                unverified.append("dp_replicas_span_multiple_nodes_placement_unverified")
+            if gpu_count > per_node and effective_tp <= per_node:
+                # 仍需提醒：总卡数超过单机容量
+                unverified.append("total_gpus_exceed_single_node_capacity")
         if server.interconnect_declared is None:
             unverified.append("intra_node_interconnect_unverified")
     if "framework_kernel_support" in spec.fields_pending_verification:
@@ -179,3 +201,48 @@ def check_hardware_compatibility(
     return HardwareCompatibility(
         status=status, reasons=reasons, unverified_conditions=sorted(set(unverified))
     )
+
+#: 可用显存的来源性质（V2.1 F2：必须区分实测 / 人工经验 / 测试构造）
+UsableMemorySourceKind = str  # "measured" | "operator_estimate" | "synthetic_example"
+VALID_USABLE_SOURCE_KINDS: tuple[str, ...] = (
+    "measured",
+    "operator_estimate",
+    "synthetic_example",
+)
+
+
+class UsableMemoryError(ValueError):
+    """可用显存取值或来源不合法。"""
+
+
+def validate_usable_memory(
+    spec: HardwareSpec,
+    value: int | None,
+    *,
+    source_kind: str | None,
+    source: str | None = None,
+) -> None:
+    """校验"可用显存"输入（V2.1 F2）。
+
+    * 必须**显式声明来源性质**（实测 / 人工经验 / 测试构造）；
+    * 数值不得超过同一硬件记录的标称容量（单位口径不一致时先核实，不能放行）；
+    * 实测值必须给出可追溯的测量来源描述。
+    """
+    if value is None:
+        return
+    if source_kind not in VALID_USABLE_SOURCE_KINDS:
+        raise UsableMemoryError(
+            f"可用显存必须声明来源性质，取值为 {VALID_USABLE_SOURCE_KINDS} 之一，"
+            f"收到 {source_kind!r}"
+        )
+    if value <= 0:
+        raise UsableMemoryError(f"可用显存必须为正数，收到 {value}")
+    if spec.total_memory_bytes is not None and value > spec.total_memory_bytes:
+        raise UsableMemoryError(
+            f"可用显存 {value} 字节超过 {spec.hardware_id} 的标称容量 "
+            f"{spec.total_memory_bytes} 字节（{spec.hbm_capacity_declared}，"
+            f"归一化基准 {spec.capacity_normalization}）——"
+            "单位口径存在争议时应先核实并统一，不得直接放行"
+        )
+    if source_kind == "measured" and not source:
+        raise UsableMemoryError("来源性质为 measured 时必须给出测量来源描述（设备/时间/命令）")

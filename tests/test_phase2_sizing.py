@@ -292,8 +292,9 @@ def test_multi_node_requirement_is_flagged(hardware):
         server=servers["hgx-h100-8gpu"],
         gpu_count=16,
         precision="bf16",
+        tp_size=16,
     )
-    assert "requires_multi_node_interconnect_not_modelled" in compat.unverified_conditions
+    assert "tp_group_spans_nodes_interconnect_not_modelled" in compat.unverified_conditions
 
 
 def test_hardware_catalog_rejects_inconsistent_capacity(tmp_path: Path, root: Path):
@@ -381,11 +382,14 @@ def test_weight_memory_scales_with_tp(models):
     assert ranks[0] == m.weight_metadata.total_weight_bytes
 
 
-def test_missing_precision_yields_unavailable(models):
-    est = estimate_weight_memory(models["qwen3-8b"], tp_size=1, precision="unknown")
-    assert est.per_rank_precision == "unavailable"
-    assert est.total_weight_bytes is None
-    assert any("bytes_per_element" in f for f in est.missing_fields)
+def test_unsupported_precision_is_rejected(models):
+    """V2.1 F6：fp8/int8/int4/unknown 一律拒绝，不给"按 1 字节硬算"的假精度。"""
+    for precision in ("unknown", "fp8", "int8", "int4"):
+        est = estimate_weight_memory(models["qwen3-8b"], tp_size=1, precision=precision)
+        assert est.per_rank_precision == "unavailable", precision
+        assert est.total_weight_bytes is None, precision
+        assert "unsupported_weight_precision" in est.quality_flags, precision
+        assert any("not_supported_in_phase2" in f for f in est.missing_fields), precision
 
 
 # --------------------------------------------------------------------------
@@ -396,7 +400,8 @@ def test_missing_precision_yields_unavailable(models):
 def test_kv_bytes_per_token_per_layer():
     assert kv_bytes_per_token_per_layer(num_kv_heads=1, head_dim=128, kv_precision="bf16") == 512
     assert kv_bytes_per_token_per_layer(num_kv_heads=8, head_dim=128, kv_precision="bf16") == 4096
-    assert kv_bytes_per_token_per_layer(num_kv_heads=8, head_dim=128, kv_precision="fp8") == 2048
+    # V2.1 F6：fp8 需要量化标定，不在本阶段可计算范围内
+    assert kv_bytes_per_token_per_layer(num_kv_heads=8, head_dim=128, kv_precision="fp8") is None
     assert kv_bytes_per_token_per_layer(num_kv_heads=8, head_dim=128, kv_precision="unknown") is None
 
 
@@ -411,7 +416,9 @@ def test_kv_hand_calculated_case(models):
         block_size_tokens=16,
     )
     assert est.num_kv_heads_per_rank == 1
-    assert est.logical_token_capacity == 327_680
+    assert est.required_resident_tokens == 327_680
+    assert est.allocated_tokens == 327_680
+    assert est.estimated_capacity_tokens is None  # 未给 KV 预算时不给"容量"结论
     assert est.physical_bytes == 327_680 * 64 * 512 == 10_737_418_240
     assert est.alignment_overhead_bytes == 0  # 40960 能被 16 整除
 
@@ -426,6 +433,7 @@ def test_paged_block_alignment_overhead(models):
         block_size_tokens=16,
     )
     assert est.allocated_blocks == 2561  # ceil(40961/16)
+    assert est.allocated_tokens == 2561 * 16
     assert est.alignment_overhead_bytes == 15 * 64 * 512  # 多出的 15 个 token 槽位
 
 
@@ -515,20 +523,21 @@ def test_provided_runtime_items_used(models):
 # --------------------------------------------------------------------------
 
 
-def _plan(models, hardware, **assumption_kwargs):
+def _plan(models, hardware, *, kv_precision: str = "bf16", model_id: str = "qwen3-32b", **assumption_kwargs):
     specs, servers = hardware
     return plan_deployment(
-        models["qwen3-32b"],
+        models[model_id],
         specs["nvidia-h100-sxm-80gb"],
         server=servers["hgx-h100-8gpu"],
         assumptions=PlanningAssumptions(**assumption_kwargs),
+        kv_precision=kv_precision,
     )
 
 
 def test_gpu_count_is_tp_times_dp(models, hardware):
     candidates = _plan(
         models, hardware,
-        per_gpu_usable_bytes=76 * 2**30, usable_memory_source="test",
+        per_gpu_usable_bytes=76 * 10**9, usable_memory_source="test", usable_memory_source_kind="synthetic_example",
         runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
         global_concurrency=32, context_length_per_request=8192,
         tp_sizes=(1, 2, 4), dp_sizes=(1, 2),
@@ -549,22 +558,32 @@ def test_no_assumptions_gives_insufficient_information(models, hardware):
 def test_explicit_assumptions_yield_conditional_feasible(models, hardware):
     candidates = _plan(
         models, hardware,
-        per_gpu_usable_bytes=76 * 2**30, usable_memory_source="现场 nvidia-smi（示例）",
+        # 示例假设：标称 80 GB 的 90%（= 72 GB）。明确标为 synthetic_example，
+        # 不得当成实测值（V2.1 F2）
+        usable_fraction_of_nominal=Decimal("0.9"),
+        usable_memory_source="演示用构造值（非实测）",
+        usable_memory_source_kind="synthetic_example",
         runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="框架经验（示例）",
         global_concurrency=32, context_length_per_request=8192, block_size_tokens=16,
         tp_sizes=(1, 2, 4, 8), dp_sizes=(1,),
     )
     by_tp = {c.tp_size: c for c in candidates}
-    assert by_tp[1].feasibility.status == "infeasible"  # 61 GiB 权重 + 64 GiB KV 装不下
-    assert by_tp[2].feasibility.status == "conditional_feasible"
+    # 72 GB 可用显存（= 80 GB × 0.9，示例值）下的实际结果：
+    #   TP1：61 GiB 权重 + 64 GiB KV，远超预算
+    #   TP2：31.96 GiB 权重 + 32 GiB KV ≈ 68.7 GB，再加 10% 运行时预留即超出
+    #   TP4/TP8：留有余量
+    usable = int(80 * 10**9 * Decimal("0.9"))
+    assert by_tp[1].feasibility.status == "infeasible"
+    assert by_tp[2].feasibility.status == "infeasible"
+    assert by_tp[4].feasibility.status == "conditional_feasible"
     assert by_tp[8].feasibility.status == "conditional_feasible"
-    assert by_tp[2].feasibility.assumptions  # 条件可行必须列假设
-    assert by_tp[2].memory.headroom_bytes == 76 * 2**30 - by_tp[2].memory.total_required_bytes
+    assert by_tp[4].feasibility.assumptions  # 条件可行必须列假设
+    assert by_tp[4].memory.headroom_bytes == usable - by_tp[4].memory.total_required_bytes
 
 
 def test_infeasible_reports_overage(models, hardware):
     candidates = _plan(
-        models, hardware, per_gpu_usable_bytes=76 * 2**30, usable_memory_source="test",
+        models, hardware, per_gpu_usable_bytes=76 * 10**9, usable_memory_source="test", usable_memory_source_kind="synthetic_example",
         runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
         global_concurrency=32, context_length_per_request=8192,
         tp_sizes=(1,), dp_sizes=(1,),
@@ -581,7 +600,8 @@ def test_tp_divisibility_checked(models, hardware):
         specs["nvidia-h100-sxm-80gb"],
         server=servers["hgx-h100-8gpu"],
         assumptions=PlanningAssumptions(
-            per_gpu_usable_bytes=76 * 2**30, usable_memory_source="test",
+            per_gpu_usable_bytes=76 * 10**9, usable_memory_source="test",
+            usable_memory_source_kind="synthetic_example",
             runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
             global_concurrency=8, context_length_per_request=8192,
             tp_sizes=(3,), dp_sizes=(1,),
@@ -598,7 +618,7 @@ def test_kv_heads_fewer_than_tp_risk_flagged(models, hardware):
         specs["nvidia-h200-sxm-141gb"],
         server=None,
         assumptions=PlanningAssumptions(
-            per_gpu_usable_bytes=132 * 2**30, usable_memory_source="test",
+            per_gpu_usable_bytes=132 * 10**9, usable_memory_source="test", usable_memory_source_kind="synthetic_example",
             runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
             global_concurrency=8, context_length_per_request=8192,
             tp_sizes=(16,), dp_sizes=(1,),
@@ -645,7 +665,7 @@ def test_unsupported_model_returns_unsupported(tmp_path: Path, root: Path):
 
 def test_candidates_are_deterministically_sorted(models, hardware):
     kwargs = dict(
-        per_gpu_usable_bytes=76 * 2**30, usable_memory_source="test",
+        per_gpu_usable_bytes=76 * 10**9, usable_memory_source="test", usable_memory_source_kind="synthetic_example",
         runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
         global_concurrency=32, context_length_per_request=8192, block_size_tokens=16,
         tp_sizes=(1, 2, 4, 8), dp_sizes=(1, 2),
@@ -661,12 +681,14 @@ def test_candidates_are_deterministically_sorted(models, hardware):
 def test_usable_memory_resolution_prefers_measured(models, hardware):
     specs, _ = hardware
     measured = specs["nvidia-h100-sxm-80gb"].model_copy(
-        update={"usable_memory_bytes": 79 * 2**30, "usable_memory_status": "measured"}
+        update={"usable_memory_bytes": 70 * 10**9, "usable_memory_status": "measured"}
     )
     value, source, assumed = resolve_usable_memory(
-        measured, PlanningAssumptions(per_gpu_usable_bytes=1)
+        measured,
+        PlanningAssumptions(per_gpu_usable_bytes=1, usable_memory_source_kind="measured",
+                            usable_memory_source="测试夹具"),
     )
-    assert value == 79 * 2**30 and "实测值" in source and assumed == []
+    assert value == 70 * 10**9 and "实测值" in source and assumed == []
 
 
 def test_usable_memory_fraction_is_marked_assumed(hardware):
@@ -674,7 +696,9 @@ def test_usable_memory_fraction_is_marked_assumed(hardware):
     value, source, assumed = resolve_usable_memory(
         specs["nvidia-h200-sxm-141gb"],
         PlanningAssumptions(
-            usable_fraction_of_nominal=Decimal("0.93"), usable_memory_source="示例假设"
+            usable_fraction_of_nominal=Decimal("0.93"),
+            usable_memory_source="示例假设",
+            usable_memory_source_kind="synthetic_example",
         ),
     )
     assert value == int(141 * 10**9 * Decimal("0.93"))
@@ -699,7 +723,8 @@ def test_cli_inventory_and_plan(tmp_path: Path, root: Path):
         [
             "plan-deployment", "--model", "qwen3-32b", "--hardware", "nvidia-h100-sxm-80gb",
             "--context-length", "8192", "--concurrency", "32", "--block-size", "16",
-            "--usable-memory-bytes", str(76 * 2**30), "--usable-source", "test",
+            "--usable-memory-bytes", str(70 * 10**9), "--usable-source", "test",
+            "--usable-source-kind", "synthetic_example",
             "--runtime-reserve-fraction", "0.1", "--runtime-source", "test",
             "--tp-sizes", "1,2,4", "--dp-sizes", "1", "--db", db,
         ],
@@ -720,7 +745,8 @@ def test_cli_export_json_and_report(tmp_path: Path, root: Path):
         [
             "plan-deployment", "--model", "qwen3-8b", "--hardware", "nvidia-h200-sxm-141gb",
             "--context-length", "8192", "--concurrency", "16", "--block-size", "16",
-            "--usable-memory-bytes", str(132 * 2**30), "--usable-source", "test",
+            "--usable-memory-bytes", str(120 * 10**9), "--usable-source", "test",
+            "--usable-source-kind", "synthetic_example",
             "--runtime-reserve-fraction", "0.1", "--runtime-source", "test",
             "--out", str(out), "--report", str(report), "--db", db,
         ],
@@ -765,7 +791,8 @@ def test_service_estimate_memory_fields(tmp_path: Path, root: Path):
         tp_size=8,
         dp_size=1,
         assumptions=PlanningAssumptions(
-            per_gpu_usable_bytes=76 * 2**30, usable_memory_source="test",
+            per_gpu_usable_bytes=76 * 10**9, usable_memory_source="test",
+            usable_memory_source_kind="synthetic_example",
             runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="test",
             global_concurrency=32, context_length_per_request=8192, block_size_tokens=16,
         ),
@@ -775,4 +802,340 @@ def test_service_estimate_memory_fields(tmp_path: Path, root: Path):
     assert info["kv"]["allocated_blocks"] > 0
     assert info["runtime_known_bytes"] > 0
     assert info["known_unknowns"]  # 未知运行时项被列出，而不是当 0
-    assert info["headroom_bytes"] == 76 * 2**30 - info["total_required_bytes"]
+    assert info["headroom_bytes"] == 76 * 10**9 - info["total_required_bytes"]
+
+
+# ==========================================================================
+# V2.1 整改专项（按验收意见逐项）
+# ==========================================================================
+
+
+def _plan_assumed(models, hardware, **kw):
+    """带断言可用显存的规划（示例值，明确标为 synthetic_example）。"""
+    defaults = dict(
+        usable_fraction_of_nominal=Decimal("0.9"),
+        usable_memory_source="演示用构造值（非实测）",
+        usable_memory_source_kind="synthetic_example",
+        runtime_reserve_fraction=Decimal("0.1"),
+        runtime_reserve_source="演示用构造值",
+        global_concurrency=32,
+        context_length_per_request=8192,
+        block_size_tokens=16,
+    )
+    defaults.update(kw)
+    return _plan(models, hardware, **defaults)
+
+
+def test_v21_f1_topology_checked_per_candidate(models, hardware):
+    """V2.1 F1/P0：拓扑必须按候选实际卡数判定，TP1×DP1 不得继承 64 卡的风险。"""
+    candidates = _plan_assumed(
+        models, hardware, tp_sizes=(1, 2, 8), dp_sizes=(1, 2, 8)
+    )
+    by_key = {(c.tp_size, c.dp_size): c for c in candidates}
+    node_flags = ("tp_group_spans_nodes_interconnect_not_modelled",
+                  "dp_replicas_span_multiple_nodes_placement_unverified",
+                  "total_gpus_exceed_single_node_capacity")
+
+    single = by_key[(1, 1)]
+    assert single.gpu_count == 1
+    assert not [u for u in single.feasibility.unverified_conditions if u in node_flags]
+
+    on_node = by_key[(8, 1)]          # 8 卡正好一台机器
+    assert not [u for u in on_node.feasibility.unverified_conditions if u in node_flags]
+
+    multi = by_key[(8, 8)]            # 64 卡 -> 必然跨节点
+    assert "dp_replicas_span_multiple_nodes_placement_unverified" in multi.feasibility.unverified_conditions
+    assert "total_gpus_exceed_single_node_capacity" in multi.feasibility.unverified_conditions
+
+    tp_over_node = by_key[(8, 2)]
+    assert tp_over_node.gpu_count == 16
+    assert "total_gpus_exceed_single_node_capacity" in tp_over_node.feasibility.unverified_conditions
+
+
+def test_v21_f1_topology_risk_is_not_shared(models, hardware):
+    """同一批次内，不同候选的节点风险必须互不相同（防止再次复用同一份兼容性结果）。"""
+    candidates = _plan_assumed(models, hardware, tp_sizes=(1, 8), dp_sizes=(1, 8))
+    node_risk = {
+        (c.tp_size, c.dp_size): tuple(
+            u for u in c.feasibility.unverified_conditions
+            if "node" in u or "exceed" in u
+        )
+        for c in candidates
+    }
+    assert len(set(node_risk.values())) > 1, node_risk
+    assert node_risk[(1, 1)] == ()
+
+
+def test_v21_f2_server_sku_mismatch_is_infeasible(models, hardware):
+    """V2.1 F2/P0：服务器面向的 SKU 与候选不一致 -> 直接不可行，不静默复用拓扑。"""
+    specs, servers = hardware
+    candidates = plan_deployment(
+        models["qwen3-8b"],
+        specs["nvidia-h100-sxm-80gb"],
+        server=servers["hgx-h200-8gpu"],   # H200 的服务器配 H100 的卡
+        assumptions=PlanningAssumptions(
+            usable_fraction_of_nominal=Decimal("0.9"),
+            usable_memory_source_kind="synthetic_example",
+            usable_memory_source="演示值",
+            runtime_reserve_fraction=Decimal("0.1"),
+            runtime_reserve_source="演示值",
+            global_concurrency=8,
+            context_length_per_request=8192,
+            tp_sizes=(1,),
+            dp_sizes=(1,),
+        ),
+    )
+    assert candidates[0].feasibility.status == "infeasible"
+    assert any("server_gpu_sku_mismatch" in r for r in candidates[0].feasibility.reasons)
+
+
+@pytest.mark.parametrize(
+    "value,source_kind,source,expected",
+    [
+        (81 * 10**9, "synthetic_example", "x", "超过"),
+        (70 * 10**9, None, "x", "必须声明来源性质"),
+        (70 * 10**9, "measured", None, "测量来源"),
+        (70 * 10**9, "made_up_kind", "x", "必须声明来源性质"),
+        (0, "synthetic_example", "x", "必须为正数"),
+    ],
+)
+def test_v21_f2_usable_memory_validation(hardware, value, source_kind, source, expected):
+    specs, _ = hardware
+    from llm_capacity_pricing.sizing.hardware import UsableMemoryError, validate_usable_memory
+
+    with pytest.raises(UsableMemoryError, match=expected):
+        validate_usable_memory(
+            specs["nvidia-h100-sxm-80gb"], value, source_kind=source_kind, source=source
+        )
+
+
+def test_v21_f2_example_values_are_labelled_not_measured(models, hardware):
+    """示例假设必须在结果里标成 synthetic_example，不能像实测数据。"""
+    candidates = _plan_assumed(models, hardware, tp_sizes=(4,), dp_sizes=(1,))
+    c = candidates[0]
+    assert any("synthetic_example" in a for a in c.memory.assumptions)
+    assert all("synthetic_example" != s for s in [])  # 占位，真实断言在下一行
+    assert "非硬件实测字段" in c.memory.assumptions[0] or any(
+        "非实测" in a for a in c.memory.assumptions
+    )
+
+
+def test_v21_f3_context_beyond_model_limit_blocks(models, hardware):
+    """V2.1 F3/P1：超过模型声明的上下文上限且无验证扩展 -> 阻断。"""
+    candidates = _plan_assumed(models, hardware, context_length_per_request=65536, tp_sizes=(8,), dp_sizes=(1,))
+    assert candidates[0].feasibility.status == "infeasible"
+    assert any("context_length_exceeds_model_limit" in r for r in candidates[0].feasibility.reasons)
+
+
+def test_v21_f3_verified_extension_allows_long_context(models, hardware):
+    """有经过验证的上下文扩展配置时，按新上限计算。"""
+    candidates = _plan_assumed(
+        models,
+        hardware,
+        context_length_per_request=65536,
+        global_concurrency=4,
+        max_context_override=131072,
+        max_context_override_source="已核实的 RoPE 扩展配置（示例）",
+        tp_sizes=(8,),
+        dp_sizes=(1,),
+    )
+    assert candidates[0].feasibility.status == "conditional_feasible"
+    assert not any("exceeds_model_limit" in r for r in candidates[0].feasibility.reasons)
+
+
+def test_v21_f4_kv_required_vs_capacity_separated(models):
+    """V2.1 F4/P1：KV 需求、预算容量、对齐分配三者独立可查。"""
+    est = estimate_kv_cache(
+        models["qwen3-32b"],
+        tp_size=8,
+        kv_precision="bf16",
+        global_concurrency=8,
+        context_length_per_request=40960,
+        block_size_tokens=16,
+        kv_budget_bytes=20 * 2**30,
+    )
+    assert est.required_resident_tokens == 327_680          # 需求：8 × 40960
+    assert est.allocated_tokens == 327_680                  # 对齐后分配
+    assert est.estimated_capacity_tokens == 655_360         # 预算 20 GiB 可容纳
+    assert est.estimated_capacity_tokens > est.required_resident_tokens
+
+
+def test_v21_f4_no_budget_means_no_capacity_claim(models):
+    est = estimate_kv_cache(
+        models["qwen3-32b"],
+        tp_size=8,
+        kv_precision="bf16",
+        global_concurrency=8,
+        context_length_per_request=40960,
+        block_size_tokens=16,
+    )
+    assert est.required_resident_tokens == 327_680
+    assert est.estimated_capacity_tokens is None
+
+
+def test_v21_f5_no_stale_reasons_after_status_change(models, hardware):
+    """V2.1 F5/P1：结论变成条件可行后，不得保留"未给出任何假设"这类过时原因。"""
+    candidates = _plan_assumed(models, hardware, tp_sizes=(4, 8), dp_sizes=(1,))
+    for c in candidates:
+        if c.feasibility.status == "conditional_feasible":
+            assert c.feasibility.reasons == [], (c.candidate_id, c.feasibility.reasons)
+            assert c.feasibility.assumptions, c.candidate_id
+        if c.feasibility.status == "infeasible":
+            assert c.feasibility.reasons, c.candidate_id
+            assert all("未给出任何假设" not in r for r in c.feasibility.reasons)
+
+
+def test_v21_f5_status_and_reasons_are_consistent(models, hardware):
+    for c in _plan_assumed(models, hardware, tp_sizes=(1, 2, 4, 8), dp_sizes=(1, 2)):
+        f = c.feasibility
+        if f.status == "conditional_feasible":
+            assert not f.reasons
+        elif f.status == "infeasible":
+            assert f.reasons
+        elif f.status == "insufficient_information":
+            assert f.reasons
+        assert not (f.status == "unsupported" and c.memory is not None)
+
+
+@pytest.mark.parametrize("precision", ["fp8", "int8", "int4", "unknown"])
+def test_v21_f6_unsupported_precision_yields_unsupported(models, hardware, precision):
+    """V2.1 F6/P1：未验证的量化精度不得生成"看似精确"的规划结果。"""
+    candidates = _plan_assumed(
+        models, hardware, tp_sizes=(1,), dp_sizes=(1,), kv_precision=precision
+    )
+    assert candidates[0].feasibility.status == "unsupported"
+    assert candidates[0].memory is None
+    assert any("not_supported_in_phase2" in r for r in candidates[0].feasibility.reasons)
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        (dict(usable_fraction_of_nominal=Decimal("1.5")), "可用显存比例"),
+        (dict(runtime_reserve_fraction=Decimal("1.0")), "运行时预留比例"),
+        (dict(runtime_reserve_fraction=Decimal("-0.1")), "运行时预留比例"),
+        (dict(global_concurrency=0), "全局并发"),
+        (dict(context_length_per_request=0), "上下文长度"),
+        (dict(block_size_tokens=0), "block size"),
+        (dict(tp_sizes=()), "tp_sizes"),
+        (dict(max_context_override=65536), "来源"),
+    ],
+)
+def test_v21_f6_assumption_ranges_validated(models, hardware, kwargs, expected):
+    from llm_capacity_pricing.sizing.planner import AssumptionError
+
+    specs, servers = hardware
+    base = dict(
+        usable_memory_source_kind="synthetic_example",
+        usable_memory_source="演示值",
+        global_concurrency=8,
+        context_length_per_request=8192,
+    )
+    base.update(kwargs)
+    with pytest.raises(AssumptionError, match=expected):
+        plan_deployment(
+            models["qwen3-8b"],
+            specs["nvidia-h100-sxm-80gb"],
+            server=servers["hgx-h100-8gpu"],
+            assumptions=PlanningAssumptions(**base),
+        )
+
+
+# --------------------------------------------------------------------------
+# 正式验收场景 A / B / C
+# --------------------------------------------------------------------------
+
+
+def test_scenario_A_qwen3_32b_h100_tp_sweep(models, hardware):
+    """场景 A：Qwen3-32B + H100 SXM + BF16，同一组自洽假设下比较 TP 扫描。"""
+    candidates = _plan_assumed(
+        models, hardware, tp_sizes=(1, 2, 4, 8), dp_sizes=(1,)
+    )
+    by_tp = {c.tp_size: c for c in candidates}
+    # 不错误触发跨节点检查（单机 8 卡内）
+    for c in candidates:
+        assert "tp_group_spans_nodes_interconnect_not_modelled" not in c.feasibility.unverified_conditions
+        assert "total_gpus_exceed_single_node_capacity" not in c.feasibility.unverified_conditions
+    # 显存随 TP 单调下降
+    lower = [by_tp[tp].memory.weight.per_rank_bytes_lower_bound for tp in (1, 2, 4, 8)]
+    assert lower == sorted(lower, reverse=True)
+    # 假设标注明确，没有被描述成实测
+    for c in candidates:
+        assert any("synthetic_example" in a for a in c.memory.assumptions)
+    assert by_tp[1].feasibility.status == "infeasible"   # 61 GiB 权重 + 64 GiB KV 远超 72 GB
+    assert by_tp[2].feasibility.status == "infeasible"   # 合计 75.9 GB，略超预算
+    for tp in (4, 8):
+        assert by_tp[tp].feasibility.status == "conditional_feasible"
+
+
+def test_scenario_B_qwen3_8b_h200_dp_scaling(models, hardware):
+    """场景 B：Qwen3-8B + H200 SXM + BF16，检查 DP 增加时按每副本并发计算。"""
+    specs, servers = hardware
+    candidates = plan_deployment(
+        models["qwen3-8b"],
+        specs["nvidia-h200-sxm-141gb"],
+        server=None,   # 未指定服务器 -> 拓扑未确认
+        assumptions=PlanningAssumptions(
+            usable_fraction_of_nominal=Decimal("0.9"),
+            usable_memory_source="演示用构造值",
+            usable_memory_source_kind="synthetic_example",
+            runtime_reserve_fraction=Decimal("0.1"),
+            runtime_reserve_source="演示用构造值",
+            global_concurrency=64,
+            context_length_per_request=16384,
+            block_size_tokens=16,
+            tp_sizes=(1, 2),
+            dp_sizes=(1, 2, 4),
+        ),
+    )
+    by_key = {(c.tp_size, c.dp_size): c for c in candidates}
+    # 每副本并发 = 全局并发 / DP
+    for (tp, dp), c in by_key.items():
+        assert c.concurrency_per_replica == -(-64 // dp)
+    # DP 增大 -> 每副本 KV 下降；权重复制不变（DP 不切分权重）
+    kv_dp1 = by_key[(2, 1)].memory.kv.physical_bytes
+    kv_dp4 = by_key[(2, 4)].memory.kv.physical_bytes
+    assert kv_dp4 == kv_dp1 // 4
+    assert by_key[(2, 1)].memory.weight.per_rank_bytes == by_key[(2, 4)].memory.weight.per_rank_bytes
+    # 未指定服务器 -> 拓扑风险被标记
+    assert any(
+        "server_profile_not_specified" in u for u in by_key[(2, 1)].feasibility.unverified_conditions
+    )
+
+
+def test_scenario_C_invalid_inputs_all_rejected(models, hardware, root: Path):
+    """场景 C：故意输入错误数据，四种情况都必须失败或不可评估。"""
+    from llm_capacity_pricing.sizing.hardware import UsableMemoryError, validate_usable_memory
+    from llm_capacity_pricing.sizing.planner import AssumptionError
+
+    specs, servers = hardware
+
+    # ① GPU / 服务器型号不匹配
+    c = plan_deployment(
+        models["qwen3-8b"], specs["nvidia-h100-sxm-80gb"], server=servers["hgx-h200-8gpu"],
+        assumptions=PlanningAssumptions(
+            usable_fraction_of_nominal=Decimal("0.9"),
+            usable_memory_source_kind="synthetic_example",
+            usable_memory_source="演示值",
+            runtime_reserve_fraction=Decimal("0.1"), runtime_reserve_source="演示值",
+            global_concurrency=8, context_length_per_request=8192,
+            tp_sizes=(1,), dp_sizes=(1,),
+        ),
+    )[0]
+    assert c.feasibility.status == "infeasible"
+
+    # ② 可用显存超过标称
+    with pytest.raises(UsableMemoryError):
+        validate_usable_memory(
+            specs["nvidia-h100-sxm-80gb"], 90 * 10**9, source_kind="synthetic_example", source="x"
+        )
+
+    # ③ 上下文超过模型上限
+    c = _plan_assumed(models, hardware, context_length_per_request=131072, tp_sizes=(8,), dp_sizes=(1,))[0]
+    assert c.feasibility.status == "infeasible"
+
+    # ④ 负数运行时预留 / 未支持精度
+    with pytest.raises(AssumptionError):
+        _plan_assumed(models, hardware, runtime_reserve_fraction=Decimal("-0.01"))
+    c = _plan_assumed(models, hardware, kv_precision="int8", tp_sizes=(1,), dp_sizes=(1,))[0]
+    assert c.feasibility.status == "unsupported"

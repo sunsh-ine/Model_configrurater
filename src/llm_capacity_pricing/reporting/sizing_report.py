@@ -23,7 +23,8 @@ SIZING_DISCLAIMERS = (
     "本报告是**静态资源规划**：只回答『按给定假设，静态显存是否放得下』。",
     "**不代表**服务能成功启动：框架内核支持、通信、拓扑、驱动等均未验证。",
     "**不代表**满足 SLA：本阶段不做 TTFT/TPOT/吞吐预测（第二阶段边界）。",
-    "可用显存若来自假设而非实测，结论只能算『条件可行』，落地前必须实测复核。",
+    "可用显存若来自假设而非实测，结论只能算『条件可行』，落地前必须实测复核；"
+    "报告中会标注来源性质（measured / operator_estimate / synthetic_example）。",
 )
 
 
@@ -80,7 +81,18 @@ def build_sizing_report(
         )
     add(
         f"| 单卡可用显存 | {_gib(request.get('per_gpu_usable_bytes'))} | "
+        f"来源性质 **{request.get('usable_memory_source_kind') or '未声明'}**；"
         f"{request.get('usable_memory_source')} |"
+    )
+    add(
+        f"| 模型上下文上限 | {request.get('model_max_context_declared')} tokens"
+        + (
+            f"（已验证扩展至 {request.get('max_context_override')}，来源："
+            f"{request.get('max_context_override_source')}）"
+            if request.get("max_context_override")
+            else ""
+        )
+        + " | 结构声明 |"
     )
     add(
         f"| 运行时预留 | {request.get('runtime_reserve_description', '未提供')} | "
@@ -140,7 +152,9 @@ def build_sizing_report(
             add(f"  - 与官方权重总量一致性：{m.weight.consistency_note}")
             add(
                 f"- KV：{_gib(m.kv.physical_bytes)} / 卡（{m.kv.kv_head_distribution}）；"
-                f"依据：{m.kv.basis}"
+                f"需求 token {m.kv.required_resident_tokens}、预算可容纳 "
+                f"{m.kv.estimated_capacity_tokens if m.kv.estimated_capacity_tokens is not None else '—'}、"
+                f"按块分配 {m.kv.allocated_tokens}；依据：{m.kv.basis}"
             )
             if m.kv.degradation_notes:
                 add(f"  - 说明：{'；'.join(m.kv.degradation_notes)}")

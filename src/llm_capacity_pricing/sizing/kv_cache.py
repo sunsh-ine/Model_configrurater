@@ -26,6 +26,7 @@ from llm_capacity_pricing.schemas.sizing import (
     ModelSpec,
     PrecisionByteSize,
     RuntimeReserve,
+    precision_supported,
 )
 
 #: 默认 KV 精度换算（与权重共用同一张精度字节表）
@@ -99,6 +100,9 @@ def estimate_kv_cache(
     ):
         if value is None:
             missing.append(name)
+    if not precision_supported(kv_precision, kind="kv"):
+        missing.append(f"kv_precision_not_supported_in_phase2:{kv_precision}")
+        flags.append(f"unsupported_kv_precision:{kv_precision}")
     bpe = KV_BYTES.get(kv_precision)
     if bpe is None:
         missing.append(f"bytes_per_element_for_kv_precision:{kv_precision}")
@@ -143,7 +147,8 @@ def estimate_kv_cache(
             f"每副本按 {concurrency_per_replica} 条请求估算（DP 分摊并发，不切分单条请求的权重）"
         )
 
-    logical_tokens: int | None = None
+    required_tokens: int | None = None   # 需求：并发 × 上下文
+    allocated_tokens: int | None = None  # 对齐后实际分配
     unaligned: int | None = None
     physical: int | None = None
     blocks: int | None = None
@@ -159,12 +164,13 @@ def estimate_kv_cache(
         and context_length_per_request is not None
     ):
         per_token_per_layer = 2 * kv_heads_per_rank * head_dim * bpe
-        logical_tokens = concurrency_per_replica * context_length_per_request
-        unaligned = logical_tokens * per_token_per_layer * layers
+        required_tokens = concurrency_per_replica * context_length_per_request
+        unaligned = required_tokens * per_token_per_layer * layers
         if block_size_tokens:
             blocks_per_seq = _align_up(context_length_per_request, block_size_tokens) // block_size_tokens
             blocks = blocks_per_seq * concurrency_per_replica
-            physical = blocks * block_size_tokens * per_token_per_layer * layers
+            allocated_tokens = blocks * block_size_tokens
+            physical = allocated_tokens * per_token_per_layer * layers
             overhead = physical - unaligned
             alignment_note = (
                 f"Paged KV：block_size={block_size_tokens} token/块；"
@@ -174,6 +180,7 @@ def estimate_kv_cache(
             flags.append("paged_kv_block_alignment_applied")
         else:
             physical = unaligned
+            allocated_tokens = required_tokens
             alignment_note = "未指定 block_size_tokens：按未分页（连续）布局计算，无对齐放大"
             flags.append("kv_not_paged_block_size_unspecified")
 
@@ -211,7 +218,9 @@ def estimate_kv_cache(
         global_concurrency=global_concurrency,
         concurrency_per_replica=concurrency_per_replica,
         context_length_per_request=context_length_per_request,
-        logical_token_capacity=capacity_from_budget if capacity_from_budget is not None else logical_tokens,
+        required_resident_tokens=required_tokens,
+        estimated_capacity_tokens=capacity_from_budget,
+        allocated_tokens=allocated_tokens,
         block_size_tokens=block_size_tokens,
         allocated_blocks=blocks,
         physical_bytes=physical,

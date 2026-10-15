@@ -329,9 +329,10 @@ run_step 22 "plan-deployment（M17 TP/DP 候选 + M18 JSON/Markdown 报告）" 1
   $CLI plan-deployment \
   --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
   --context-length 8192 --concurrency 32 --block-size 16 \
-  --usable-memory-bytes $((76 * 1024 * 1024 * 1024)) \
-  --usable-source "示例假设：H100 SXM 标称 80GB 的实测可用口径（需现场复核）" \
-  --runtime-reserve-fraction 0.1 --runtime-source "示例假设：框架运行时合并预留" \
+  --usable-fraction 0.9 \
+  --usable-source "演示用构造值：标称 80GB 的 90%（非实测，落地前须用 nvidia-smi 复核）" \
+  --usable-source-kind synthetic_example \
+  --runtime-reserve-fraction 0.1 --runtime-source "演示用构造值：运行时合并预留 10%" \
   --tp-sizes 1,2,4,8 --dp-sizes 1,2 \
   --out "$OUT_DIR/deployment_plan.json" --report "$OUT_DIR/sizing_report.md" --db "$DB"
 
@@ -339,9 +340,10 @@ run_step 23 "estimate-memory（M15+M16 单配置显存构成）" 1 '^  "(per_gpu
   $CLI estimate-memory \
   --model qwen3-8b --hardware nvidia-h200-sxm-141gb --tp 2 --dp 1 \
   --context-length 16384 --concurrency 16 --block-size 16 \
-  --usable-memory-bytes $((132 * 1024 * 1024 * 1024)) \
-  --usable-source "示例假设（需现场复核）" \
-  --runtime-reserve-fraction 0.1 --runtime-source "示例假设" --db "$DB"
+  --usable-fraction 0.9 \
+  --usable-source "演示用构造值：标称 141GB 的 90%（非实测）" \
+  --usable-source-kind synthetic_example \
+  --runtime-reserve-fraction 0.1 --runtime-source "演示用构造值" --db "$DB"
 
 run_step 24 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan

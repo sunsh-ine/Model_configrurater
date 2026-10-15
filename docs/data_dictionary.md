@@ -366,11 +366,14 @@ Pydantic 把字符串还原为 `Decimal`，保证"落库—读回—复算"完�
 
 | 对象 | 关键字段 |
 |---|---|
-| `KVCacheEstimate` | `attention_kind` `kv_precision` `num_kv_heads_total/per_rank` `head_dim` `global_concurrency` `concurrency_per_replica` `context_length_per_request` `logical_token_capacity` `block_size_tokens` `allocated_blocks` `physical_bytes` `unaligned_bytes` `alignment_overhead_bytes` `kv_head_distribution` `readable` `degradation_notes` |
+| `KVCacheEstimate` | `attention_kind` `kv_precision` `num_kv_heads_total/per_rank` `head_dim` `global_concurrency` `concurrency_per_replica` `context_length_per_request` **`required_resident_tokens`**（需求）/**`estimated_capacity_tokens`**（预算上限，未给预算为 `None`）/**`allocated_tokens`**（对齐后分配）`block_size_tokens` `allocated_blocks` `physical_bytes` `unaligned_bytes` `alignment_overhead_bytes` `kv_head_distribution` `readable` `degradation_notes` |
 | `RuntimeReserve` | `item` `bytes_estimate` `origin`（measured/vendor_documented/assumed/**unknown**）`source` `assumption` |
 | `MemoryEstimate` | `weight` `kv` `runtime_items` `per_gpu_usable_bytes` `total_required_bytes` `headroom_bytes` `known_unknowns` |
 
 不变式：`origin=unknown` ⇒ `bytes_estimate=None`（**未知不是 0**）；`origin=assumed` ⇒ 必须写来源或假设。
+
+**可用显存（V2.1）**：来源性质 `measured`/`operator_estimate`/`synthetic_example` 必填，
+且不得超过 `HardwareSpec.total_memory_bytes`（标称容量）；`measured` 需附测量来源。
 
 ## 13. `DeploymentCandidate` / `ResourceFeasibilityResult`（M17）
 

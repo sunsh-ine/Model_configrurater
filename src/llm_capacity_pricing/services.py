@@ -1229,6 +1229,9 @@ def make_assumptions(
     per_gpu_usable_bytes: int | None = None,
     usable_fraction_of_nominal: Decimal | None = None,
     usable_memory_source: str | None = None,
+    usable_memory_source_kind: str | None = None,
+    max_context_override: int | None = None,
+    max_context_override_source: str | None = None,
     runtime_reserve_fraction: Decimal | None = None,
     runtime_reserve_source: str | None = None,
     runtime_items: dict[str, dict[str, Any]] | None = None,
@@ -1243,6 +1246,9 @@ def make_assumptions(
         per_gpu_usable_bytes=per_gpu_usable_bytes,
         usable_fraction_of_nominal=usable_fraction_of_nominal,
         usable_memory_source=usable_memory_source,
+        usable_memory_source_kind=usable_memory_source_kind,
+        max_context_override=max_context_override,
+        max_context_override_source=max_context_override_source,
         runtime_items=runtime_items or {},
         runtime_reserve_fraction=runtime_reserve_fraction,
         runtime_reserve_source=runtime_reserve_source,
@@ -1295,10 +1301,18 @@ def plan_deployment_for(
                 else assumptions.per_gpu_usable_bytes
             ),
             "usable_memory_source": (
-                "hardware.usable_memory_bytes（实测）"
+                "hardware.usable_memory_bytes（实测字段）"
                 if hardware.usable_memory_bytes is not None
                 else (assumptions.usable_memory_source or "未提供")
             ),
+            "usable_memory_source_kind": (
+                "measured"
+                if hardware.usable_memory_bytes is not None
+                else assumptions.usable_memory_source_kind
+            ),
+            "model_max_context_declared": model.max_position_embeddings,
+            "max_context_override": assumptions.max_context_override,
+            "max_context_override_source": assumptions.max_context_override_source,
             "runtime_reserve_description": (
                 f"合并预留 可用显存 × {assumptions.runtime_reserve_fraction}"
                 if assumptions.runtime_reserve_fraction is not None
@@ -1378,7 +1392,9 @@ def export_plan(
                     "weight_consistency_note": c.memory.weight.consistency_note,
                     "weight_basis": c.memory.weight.basis,
                     "kv_per_rank_bytes": c.memory.kv.physical_bytes,
-                    "kv_logical_tokens": c.memory.kv.logical_token_capacity,
+                    "kv_required_resident_tokens": c.memory.kv.required_resident_tokens,
+                    "kv_estimated_capacity_tokens": c.memory.kv.estimated_capacity_tokens,
+                    "kv_allocated_tokens": c.memory.kv.allocated_tokens,
                     "kv_blocks": c.memory.kv.allocated_blocks,
                     "kv_head_distribution": c.memory.kv.kv_head_distribution,
                     "kv_basis": c.memory.kv.basis,
@@ -1467,7 +1483,9 @@ def estimate_memory_for(
             "readable": mem.kv.readable,
             "kv_heads_per_rank": mem.kv.num_kv_heads_per_rank,
             "kv_head_distribution": mem.kv.kv_head_distribution,
-            "logical_tokens": mem.kv.logical_token_capacity,
+            "required_resident_tokens": mem.kv.required_resident_tokens,
+            "estimated_capacity_tokens": mem.kv.estimated_capacity_tokens,
+            "allocated_tokens": mem.kv.allocated_tokens,
             "allocated_blocks": mem.kv.allocated_blocks,
             "physical_bytes": mem.kv.physical_bytes,
             "unaligned_bytes": mem.kv.unaligned_bytes,

@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T16:25:02",
+  "generated_at": "2026-10-15T16:46:03",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T16:25:04",
+  "generated_at": "2026-10-15T16:46:05",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1214,8 +1214,8 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 22. plan-deployment（M17 TP/DP 候选 + M18 JSON/Markdown 报告） ===
 规划结果已写入 data/exports/deployment_plan.json
-报告已写入 data/exports/sizing_report.md（16599 字节）
-状态分布: {'conditional_feasible': 6, 'infeasible': 2}
+报告已写入 data/exports/sizing_report.md（16451 字节）
+状态分布: {'conditional_feasible': 5, 'infeasible': 3}
 
 === 23. estimate-memory（M15+M16 单配置显存构成） ===
 {
@@ -1259,7 +1259,9 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
     "readable": true,
     "kv_heads_per_rank": 4,
     "kv_head_distribution": "sharded",
-    "logical_tokens": 1602170,
+    "required_resident_tokens": 262144,
+    "estimated_capacity_tokens": 1421092,
+    "allocated_tokens": 262144,
     "allocated_blocks": 16384,
     "physical_bytes": 19327352832,
     "unaligned_bytes": 19327352832,
@@ -1302,26 +1304,26 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
     },
     {
       "item": "combined_runtime_reserve",
-      "bytes": 14173392076,
+      "bytes": 12690000000,
       "origin": "assumed",
-      "source": "示例假设",
-      "assumption": "合并运行时预留 = 可用显存 × 0.1（来源：示例假设）"
+      "source": "演示用构造值",
+      "assumption": "合并运行时预留 = 可用显存 × 0.1（来源：演示用构造值）"
     }
   ],
-  "runtime_known_bytes": 14173392076,
+  "runtime_known_bytes": 12690000000,
   "known_unknowns": [
     "framework_workspace: 未提供预留值",
     "cuda_graph_capture: 未提供预留值",
     "activation_peak: 未提供预留值",
     "framework_overhead: 未提供预留值"
   ],
-  "per_gpu_usable_bytes": 141733920768,
-  "total_required_bytes": 42936448204,
-  "headroom_bytes": 98797472564,
+  "per_gpu_usable_bytes": 126900000000,
+  "total_required_bytes": 41453056128,
+  "headroom_bytes": 85446943872,
   "assumptions": [
-    "usable_memory_assumed_not_measured: 单卡可用显存取自调用方输入 141733920768 字节，非实测",
+    "usable_memory_assumed_not_measured: 可用显存 = 标称 × 0.9，来源性质=**synthetic_example**，非实测",
     "运行时开销采用**合并预留**方式：可用显存 × 0.1",
-    "单卡可用显存来源：调用方提供的显式值（来源：示例假设（需现场复核））"
+    "单卡可用显存来源：按标称容量 141GB 的 0.9 折算（来源性质：synthetic_example；来源：演示用构造值：标称 141GB 的 90%（非实测））"
   ],
   "quality_flags": [
     "runtime_unknown_items_present_not_treated_as_zero"
@@ -1333,28 +1335,28 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
 === 25. pytest（全量，离线） ===
-........................................................................ [ 19%]
-........................................................................ [ 38%]
-........................................................................ [ 57%]
-........................................................................ [ 77%]
-........................................................................ [ 96%]
-..............                                                           [100%]
-374 passed in 64.10s (0:01:04)
+........................................................................ [ 17%]
+........................................................................ [ 35%]
+........................................................................ [ 53%]
+........................................................................ [ 71%]
+........................................................................ [ 89%]
+............................................                             [100%]
+404 passed in 90.43s (0:01:30)
 
 === 26. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1168
-drwxrwxr-x  2 ssa ssa   4096 10月 15 16:25 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 16:25 ..
--rw-rw-r--  1 ssa ssa  20471 10月 15 16:25 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 16:25 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 16:25 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 16:25 overview.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 16:25 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 16:25 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16599 10月 15 16:25 sizing_report.md
+总计 1172
+drwxrwxr-x  2 ssa ssa   4096 10月 15 16:46 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 16:46 ..
+-rw-rw-r--  1 ssa ssa  20930 10月 15 16:46 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 16:46 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 16:46 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 16:46 overview.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 16:46 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 16:46 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16451 10月 15 16:46 sizing_report.md
 
 ==== 汇总 ====
 步骤 27 项：通过 27，失败 0
-完成时间: 2026-10-15T16:26:33+08:00
+完成时间: 2026-10-15T16:48:12+08:00
 环境: Python 3.12.3
 全部步骤通过。

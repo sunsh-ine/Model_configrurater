@@ -74,11 +74,19 @@ data/
 
 | 对象 | 关键字段 |
 |---|---|
-| `KVCacheEstimate` | `attention_kind` `kv_precision` `num_kv_heads_total/per_rank` `head_dim` `global_concurrency` `concurrency_per_replica` `context_length_per_request` `logical_token_capacity` `block_size_tokens` `allocated_blocks` `physical_bytes` `unaligned_bytes` `alignment_overhead_bytes` `kv_head_distribution` `readable` `degradation_notes` |
+| `KVCacheEstimate` | `attention_kind` `kv_precision` `num_kv_heads_total/per_rank` `head_dim` `global_concurrency` `concurrency_per_replica` `context_length_per_request` **`required_resident_tokens`（需求）/ `estimated_capacity_tokens`（预算上限）/ `allocated_tokens`（对齐后分配）** `block_size_tokens` `allocated_blocks` `physical_bytes` `unaligned_bytes` `alignment_overhead_bytes` `kv_head_distribution` `readable` `degradation_notes` |
 | `RuntimeReserve` | `item` `bytes_estimate` `origin`（measured/vendor_documented/**assumed**/**unknown**）`source` `assumption` |
 | `MemoryEstimate` | `weight` + `kv` + `runtime_items` + `per_gpu_usable_bytes` + `total_required_bytes` + `headroom_bytes` + `known_unknowns` |
 
 不变式：`origin=unknown` ⇒ `bytes_estimate=None`（未知不是 0）；`origin=assumed` ⇒ 必须写 `assumption`/`source`。
+
+**可用显存输入纪律（V2.1）**：必须声明来源性质
+（`measured` / `operator_estimate` / `synthetic_example`），且不得超过标称容量；
+`measured` 需附测量来源。另可给出经过验证的上下文扩展
+（`max_context_override` + `max_context_override_source`）。
+
+**精度白名单（V2.1）**：权重 `bf16/fp16/fp32`、KV `bf16/fp16`；
+`fp8/int8/int4/unknown` 一律返回 `unsupported`（缺专用量化显存模型）。
 
 ### 2.5 `DeploymentCandidate` / `ResourceFeasibilityResult`（M17）
 

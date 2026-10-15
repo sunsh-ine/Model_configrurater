@@ -243,6 +243,14 @@ Paged KV：
 余量     = 预算 − 单卡需求
 ```
 
+**输入纪律（V2.1）**：
+
+* 可用显存必须声明来源性质（`measured` / `operator_estimate` / `synthetic_example`），
+  且**不得超过标称容量**（单位口径不一致时先核实，不放行）；
+* 权重精度只支持 `bf16/fp16/fp32`、KV 只支持 `bf16/fp16`；`fp8/int8/int4` 返回 `unsupported`；
+* 请求上下文不得超过模型 `max_position_embeddings`（除非提供已验证的扩展上限）；
+* 比例与计数范围：可用显存比例 ∈ (0,1]、运行时预留 ∈ [0,1)、并发/上下文/block size ≥ 1。
+
 判定（顺序即优先级）：
 
 | 顺序 | 条件 | 状态 |

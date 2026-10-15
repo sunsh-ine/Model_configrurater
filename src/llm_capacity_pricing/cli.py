@@ -470,7 +470,18 @@ def estimate_memory_cmd(
     block_size: Optional[int] = typer.Option(None, "--block-size", help="Paged KV 块大小（token）"),
     usable_bytes: Optional[int] = typer.Option(None, "--usable-memory-bytes", help="单卡可用显存（实测口径）"),
     usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="或按标称容量的比例（假设）"),
-    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="该可用显存数值的来源"),
+    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="该可用显存数值的来源描述"),
+    usable_source_kind: Optional[str] = typer.Option(
+        None,
+        "--usable-source-kind",
+        help="可用显存来源性质：measured / operator_estimate / synthetic_example（给出可用显存时必填）",
+    ),
+    max_context_override: Optional[int] = typer.Option(
+        None, "--max-context-override", help="经过验证的上下文扩展上限（超过模型声明上限时才需要）"
+    ),
+    max_context_override_source: Optional[str] = typer.Option(
+        None, "--max-context-override-source", help="上下文扩展的验证来源"
+    ),
     runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时合并预留比例（假设）"),
     runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留的来源"),
     kv_precision: str = typer.Option("bf16", "--kv-precision", help="KV cache 精度"),
@@ -481,6 +492,9 @@ def estimate_memory_cmd(
         per_gpu_usable_bytes=usable_bytes,
         usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
         usable_memory_source=usable_source,
+        usable_memory_source_kind=usable_source_kind,
+        max_context_override=max_context_override,
+        max_context_override_source=max_context_override_source,
         runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
         runtime_reserve_source=runtime_source,
         block_size_tokens=block_size,
@@ -516,7 +530,18 @@ def plan_deployment_cmd(
     block_size: Optional[int] = typer.Option(None, "--block-size", help="Paged KV 块大小"),
     usable_bytes: Optional[int] = typer.Option(None, "--usable-memory-bytes", help="单卡可用显存"),
     usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="按标称容量的比例（假设）"),
-    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="可用显存数值来源"),
+    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="可用显存数值来源描述"),
+    usable_source_kind: Optional[str] = typer.Option(
+        None,
+        "--usable-source-kind",
+        help="可用显存来源性质：measured / operator_estimate / synthetic_example（给出可用显存时必填）",
+    ),
+    max_context_override: Optional[int] = typer.Option(
+        None, "--max-context-override", help="经过验证的上下文扩展上限"
+    ),
+    max_context_override_source: Optional[str] = typer.Option(
+        None, "--max-context-override-source", help="上下文扩展的验证来源"
+    ),
     runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时合并预留比例"),
     runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留来源"),
     kv_precision: str = typer.Option("bf16", "--kv-precision", help="KV cache 精度"),
@@ -529,6 +554,9 @@ def plan_deployment_cmd(
         per_gpu_usable_bytes=usable_bytes,
         usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
         usable_memory_source=usable_source,
+        usable_memory_source_kind=usable_source_kind,
+        max_context_override=max_context_override,
+        max_context_override_source=max_context_override_source,
         runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
         runtime_reserve_source=runtime_source,
         block_size_tokens=block_size,

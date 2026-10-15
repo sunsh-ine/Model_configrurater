@@ -28,6 +28,7 @@ from llm_capacity_pricing.schemas.sizing import (
     TpDistribution,
     WeightBreakdown,
     WeightMemoryEstimate,
+    precision_supported,
 )
 
 #: 权重张量命名 -> 组件（按 Qwen3 系列已核实的命名；缺失的组件自动跳过）
@@ -187,16 +188,18 @@ def estimate_weight_memory(
     flags: list[str] = []
     missing: list[str] = []
 
-    if bytes_per_element is None:
-        missing.append(f"bytes_per_element_for_precision:{precision}")
+    if bytes_per_element is None or not precision_supported(precision, kind="weight"):
+        # V2.1 F6：fp8/int8/int4 等需要量化标定与位打包，本阶段没有专用模型，
+        # 直接拒绝而不是"按 1 字节硬算"给出貌似精确的结果。
+        missing.append(f"weight_precision_not_supported_in_phase2:{precision}")
         return WeightMemoryEstimate(
             model_id=spec.model_id,
             tp_size=tp_size,
             precision=precision,
             per_rank_precision="unavailable",
-            basis="精度未识别，无法换算字节数",
+            basis=f"精度 {precision} 在本阶段无可用显存模型（仅支持 bf16/fp16/fp32）",
             missing_fields=missing,
-            quality_flags=["unknown_precision"],
+            quality_flags=["unsupported_weight_precision"],
         )
 
     if not spec.supports_memory_estimate:
