@@ -95,7 +95,11 @@ def rank_deployments(
                 configured_concurrency=candidate.global_concurrency
             ),
             # 必须是**口径 ID**（m.latency.* ），不是 SLA 字段名
-            required_metrics=required_metric_ids(sla_requirement.constraints()),
+            # V3.1 复审 P0-2：**不**按 SLA 指标预筛（否则缺指标的记录会在匹配阶段
+            # 就被判 rejected，根本没机会进入聚合，导致"只凭一条完整记录"就下结论）。
+            # 指标完整性在聚合后统一检查：聚合结果里缺失的指标保持为空，
+            # SLA 判定因此返回 not_evaluable。
+            required_metrics=[],
             require_measured=True,
         )
 
@@ -200,6 +204,10 @@ def rank_deployments(
         notes.append(
             f"有 {len(aggregated)} 个候选使用**多次实测的保守聚合**作为 SLA 证据"
             f"（{AGGREGATE_NOTE}）"
+        )
+        notes.append(
+            "同配置实测集合是**按部署与负载身份**收集的（不按 SLA 指标预筛），"
+            "因此缺指标的观测也会进入聚合并在结果中留下空值，不会被静默丢弃"
         )
 
     blocker = None

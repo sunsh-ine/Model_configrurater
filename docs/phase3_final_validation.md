@@ -520,3 +520,106 @@ arrival_mode），目标侧缺任一即登记 `target_identity_incomplete:*`，�
 | 精确查询 target_run 可信度不足 | 绕过校验直接返回 ❌ | 先校验，`trust_level_not_allowed` ✅ |
 | 聚合时某条缺 TTFT P99 | 用剩余记录凑出值 ❌ | 该指标置空 + 明确标记 ✅ |
 | verify 脚本关键行未命中 | 静默通过 ❌ | 断言式，直接失败 ✅ |
+
+---
+
+# 附：V3.1 最终加固（第三轮复审，三项边界）
+
+第三轮复审确认 B 节修复有效，并定位三个**仍未闭环的边界**。均已修复并补齐
+"匹配 → 聚合 → SLA → 排序"的**全链路**测试（不再只单测 `_aggregate_runs()`）。
+
+## C.1 P0 目标侧严格字段不完整（部署身份 + 配置并发）
+
+**根因**：B.1 只补了 `model_revision` / `weight_precision` / `framework_version`，
+但 `TARGET_IDENTITY_FIELDS` 仍缺 `model_name` / `hardware_model` / `gpu_count` /
+`tp_size` / `dp_size` / `framework`；`configured_concurrency` 也**没有**进目标负载身份清单。
+于是"目标只说了一个模型名、硬件/卡数/TP/DP 全空"仍可能被判 `exact_match` ——
+而卡数、TP/DP、并发恰恰是**直接决定实测吞吐与时延**的字段，缺了它们无法与实测对齐。
+
+**修复**：目标侧严格清单与记录侧**完全对称**。
+
+* `TARGET_IDENTITY_FIELDS` = `model_name, model_revision, weight_precision, hardware_model,
+  gpu_count, tp_size, dp_size, framework, framework_version`
+* `TARGET_WORKLOAD_IDENTITY_FIELDS` 增加 `configured_concurrency`
+
+目标缺任一字段 → 登记 `target_identity_incomplete:*` → `unverified` → 即使其余字段全一致，
+也执行 `downgraded:unverified_details_present`，等级上限为 `comparable_reference`，
+SLA 因 `sla_requires_exact_match` 返回 `not_evaluable`。
+
+**复现**：`test_review2_strict_target_requires_deployment_identity`（同一记录，目标依次缺
+GPU / 卡数 / TP / DP / framework / concurrency，逐一断言等级 ≠ `exact_match`）；
+`test_review2_strict_target_blocks_sla_conclusion`（目标缺并发 → SLA 不得 `observed_pass`）。
+
+**连带修复**：目标身份变严后，`verify_all.sh` 与 CLI 测试中原本"没传 `--dp` / `--concurrency`"
+的调用会因身份不完整而无法达到 `observed_pass`。已补 `--dp 1` / `--concurrency 4`，
+并在 `step_sla_*` 断言式步骤中固化（这正是 B.5 断言式改造的价值：缺参会立刻失败而非静默通过）。
+
+## C.2 P0 全链路：缺指标的同配置运行必须进入聚合，而不是被提前丢弃
+
+**根因**：`_best_match()` 之前传入 `required_metrics=<SLA 所需指标>`，于是**缺少任一 SLA 指标**
+的同配置运行在**匹配阶段**就被判 `rejected`，根本进不到 `_aggregate_runs()`。
+后果：若同部署/同负载下只有一条"恰好指标齐全"的记录，排序器会**仅凭这一条**给出
+`verified_sla_met`，把本该"证据不足"的结论冒充成已验证。
+
+**修复**：匹配阶段**不再按指标预筛**（`required_metrics=[]`），改为
+**先按部署与负载身份收齐同一配置的完整实测集合 → 再聚合 → 聚合结果统一做指标完整性检查**。
+
+* 同一配置的所有运行都进入 `_aggregate_runs()`；
+* 聚合采用保守口径：P99 取最大值、吞吐取最小值、信任等级取最弱；
+* **任一运行中缺失的指标，在整个聚合结果中保持为 `None`**，并带
+  `aggregate_metric_missing_in_some_runs:<field>` 标记；
+* SLA 评估据此返回 `not_evaluable`，排序桶落到 `requires_benchmark`（而非 `verified_sla_met`）。
+
+**复现**：`test_review2_full_chain_metric_gap_blocks_verified`（同配置两条运行、其一缺 TTFT P99，
+断言最终桶 ≠ `verified_sla_met`）；`test_review2_aggregate_keeps_gap_visible_in_full_chain`
+（断言聚合结果中该指标为空且带缺失标记，即"缺口在全链路可见"）。
+
+## C.3 P1 估算器：`target_run` 必须独立通过可信度校验
+
+**根因**：B.4 把校验提到精确查询之前，但 `target_run` 的**作用域**校验写成了
+`if target_run is not None and runs:` —— 即**只在 `runs` 非空时**才校验。
+于是 `estimate(runs=[], target_run=<未授权信任等级>)` 可以绕过信任检查，
+直接凭一条 `target_run` 返回 `measured_reference`。
+
+**修复**：把 `target_run` 的信任校验**独立于 `runs`** 无条件执行：
+`target_run.data_trust ∉ allowed` → `not_predictable`，原因码
+`target_run_trust_not_allowed:<trust>（精确查询同样受可信等级约束，不能绕过校验）`。
+作用域校验（`target_run_not_in_scope`）仍在 `runs` 非空时执行。
+
+**复现**：`test_review2_estimator_rejects_unauthorized_target_run_alone`（`runs=[]` + 未授权
+`target_run` → `not_predictable`）；`test_review2_estimator_allows_target_run_when_explicitly_permitted`
+（显式传入 `allowed_trust` 后同一 `target_run` 正常返回 `measured_reference`，证明这不是
+"一刀切拒绝"，而是"按信任等级放行"）。
+
+## C.4 本轮结果
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | `步骤 36 项：通过 36，失败 0` |
+| 全量测试 | **493 passed** |
+| 第三阶段测试 | **89 passed**（B 轮 83 → 新增 6 个全链路/边界用例） |
+| 第一阶段回归 | 默认情景 160（32×5）、`pricing_result` 总数 192、超容差不匹配 0 —— 不变 |
+| 本轮新增用例 | 全部实现并通过（C.1–C.3 的复现列表） |
+
+## C.5 修复前后对照（本轮）
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 目标只填模型名、GPU/卡数/TP/DP 为空 | 可能 `exact_match` ❌ | `target_identity_incomplete` → 降级 ✅ |
+| 目标未填配置并发 | 可能 `exact_match` ❌ | 负载身份不完整 → 降级 ✅ |
+| 同配置两条运行、其一缺 SLA 指标 | 缺指标者匹配阶段即被丢弃，仅凭完整那条判 `verified_sla_met` ❌ | 两者都进入聚合，缺失指标保持为空 → `not_evaluable` / `requires_benchmark` ✅ |
+| 聚合结果中的指标缺口 | 聚合后可被"凑"平、对外不可见 ❌ | 缺口保留并标记 `aggregate_metric_missing_in_some_runs` ✅ |
+| `estimate(runs=[], target_run=未授权)` | 绕过信任检查直接返回 `measured_reference` ❌ | 独立校验 → `not_predictable` ✅ |
+| `estimate` 显式允许该信任等级 | —— | 正常返回 `measured_reference` ✅（非一刀切） |
+
+## C.6 第三阶段封板状态
+
+工程主体（M19–M25）可认定完成，**第四阶段的架构设计与模块接口开发可以开始**。
+但按复审意见，以下两条红线在 C.1 / C.2 修复前不得开放，**现均已修复**：
+
+1. 不得开放 **生产级 SLA 自动承诺**；
+2. 不得开放 **正式报价联动**。
+
+仍**独立存在、与本阶段无关**的一项安全事项：仓库为 Public，历史提交中曾出现的内部
+定价数据风险尚未闭环。该事项**不能靠测试通过来替代处理**，需要用户明确授权后
+重写 git 历史（方案与影响评估见 `docs/security_remediation_report.md` §4）。

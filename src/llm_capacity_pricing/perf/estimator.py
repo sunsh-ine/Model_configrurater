@@ -155,6 +155,20 @@ def estimate(
                 supporting_runs=[r.run_id for r in runs],
             )
     allowed = set(allowed_trust or DEFAULT_ALLOWED_TRUST)
+    # target_run 单独校验（V3.1 复审 P1-3）：即使 runs 为空，
+    # 也不能用一个未授权的 target_run 直接返回 measured_reference。
+    if target_run is not None and target_run.data_trust not in allowed:
+        return PerformanceEstimate(
+            target_ref=f"concurrency={target_concurrency}",
+            metric=metric,
+            estimate_kind="not_predictable",
+            unit=unit,
+            reasons=[
+                f"target_run_trust_not_allowed:{target_run.data_trust}"
+                "（精确查询同样受可信等级约束，不能绕过校验）"
+            ],
+            supporting_runs=[target_run.run_id],
+        )
     disallowed = sorted(trust_levels - allowed)
     if disallowed:
         return PerformanceEstimate(

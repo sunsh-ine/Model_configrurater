@@ -263,7 +263,7 @@ step_sla_default_policy() { # 生产默认策略必须拒绝 synthetic（断言�
       --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" \
       --model-revision synthetic-revision-1 --framework vllm \
       --framework-version synthetic-fw-1.0 --precision bf16 \
-      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 \
+      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 --dp 1 \
       --input-len 1024 --output-len 256 --dataset random \
       --arrival-mode unbounded --concurrency 4 --db "$DB" 2>&1); then
     printf '%s\n' "$out"
@@ -282,7 +282,7 @@ step_sla_algorithm_validation() { # 仅算法验证：显式 allow-synthetic 才
       --run-id fixture_perf_curve_c4 --model "SYNTHETIC-MODEL-C" \
       --model-revision synthetic-revision-1 --framework vllm \
       --framework-version synthetic-fw-1.0 --precision bf16 \
-      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 \
+      --hardware "SYNTHETIC-GPU-C" --gpu-count 4 --tp 4 --dp 1 \
       --input-len 1024 --output-len 256 --dataset random \
       --arrival-mode unbounded --concurrency 4 \
       --policy-id algorithm-validation-only --allow-synthetic --db "$DB" 2>&1); then

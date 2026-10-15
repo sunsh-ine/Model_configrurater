@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T17:55:11",
+  "generated_at": "2026-10-15T18:06:51",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T17:55:13",
+  "generated_at": "2026-10-15T18:06:52",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1563,7 +1563,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
         "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
-        "unverified:target_identity_incomplete:model_revision,weight_precision,framework_version,workload.dataset_name,workload.arrival_mode",
+        "unverified:target_identity_incomplete:model_revision,weight_precision,dp_size,framework,framework_version,workload.dataset_name,workload.arrival_mode,workload.configured_concurrency",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1612,7 +1612,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
         "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
-        "unverified:target_identity_incomplete:model_revision,weight_precision,framework_version,workload.dataset_name,workload.arrival_mode",
+        "unverified:target_identity_incomplete:model_revision,weight_precision,dp_size,framework,framework_version,workload.dataset_name,workload.arrival_mode,workload.configured_concurrency",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1661,7 +1661,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
         "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
-        "unverified:target_identity_incomplete:model_revision,weight_precision,framework_version,workload.dataset_name,workload.arrival_mode",
+        "unverified:target_identity_incomplete:model_revision,weight_precision,dp_size,framework,framework_version,workload.dataset_name,workload.arrival_mode,workload.configured_concurrency",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1710,7 +1710,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
         "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
-        "unverified:target_identity_incomplete:model_revision,weight_precision,framework_version,workload.dataset_name,workload.arrival_mode",
+        "unverified:target_identity_incomplete:model_revision,weight_precision,dp_size,framework,framework_version,workload.dataset_name,workload.arrival_mode,workload.configured_concurrency",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1759,7 +1759,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
         "missing_metric:m.latency.ttft.p99",
         "model_name_mismatch:Qwen/Qwen3-32B!=KIMI-K3",
         "unverified:record_identity_incomplete:model_revision,weight_precision,tp_size,dp_size,framework,framework_version,workload.dataset_name,workload.input_len_target,workload.output_len_target",
-        "unverified:target_identity_incomplete:model_revision,weight_precision,framework_version,workload.dataset_name,workload.arrival_mode",
+        "unverified:target_identity_incomplete:model_revision,weight_precision,dp_size,framework,framework_version,workload.dataset_name,workload.arrival_mode,workload.configured_concurrency",
         "workload_length_mismatch:8192/256!=None/None"
       ],
       "differences": {
@@ -1984,28 +1984,28 @@ SLA 状态: observed_pass
 === 34. pytest（全量，离线） ===
 ........................................................................ [ 14%]
 ........................................................................ [ 29%]
-........................................................................ [ 44%]
-........................................................................ [ 59%]
+........................................................................ [ 43%]
+........................................................................ [ 58%]
 ........................................................................ [ 73%]
-........................................................................ [ 88%]
-.......................................................                  [100%]
-487 passed in 48.85s
+........................................................................ [ 87%]
+.............................................................            [100%]
+493 passed in 46.77s
 
 === 35. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1176
-drwxrwxr-x  2 ssa ssa   4096 10月 15 17:55 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 17:55 ..
--rw-rw-r--  1 ssa ssa  21022 10月 15 17:55 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 17:55 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 17:55 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 17:55 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 15 17:55 performance_report.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 17:55 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 17:55 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 15 17:55 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 15 18:07 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 18:07 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 15 18:07 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 18:06 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 18:06 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 18:06 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 15 18:07 performance_report.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 18:06 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 18:06 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 15 18:07 sizing_report.md
 
 ==== 汇总 ====
 步骤 36 项：通过 36，失败 0
-完成时间: 2026-10-15T17:56:29+08:00
+完成时间: 2026-10-15T18:08:03+08:00
 环境: Python 3.12.3
 全部步骤通过。

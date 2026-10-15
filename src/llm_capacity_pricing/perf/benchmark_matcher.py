@@ -56,16 +56,28 @@ RECORD_IDENTITY_FIELDS: tuple[str, ...] = (
 #: 严格匹配要求"目标说清了要什么"**且**"记录说清了测了什么"——
 #: 目标没写 revision/框架版本/数据集/长度/到达方式时，无法确认这条实测适用于该需求，
 #: 因此不得因为"记录侧完整"就评为 exact_match。
+#: 目标侧必须齐备的**部署身份**。与 ``RECORD_IDENTITY_FIELDS`` 对称 ——
+#: 只有"需求说清了要什么部署"且"记录说清了测了什么部署"，才可能 exact_match。
+#: 名单不完整时仍然可以匹配（返回 comparable_reference / modeling_candidate），
+#: 只是**永远达不到 exact_match**，因此不会被 SLA 采纳。
 TARGET_IDENTITY_FIELDS: tuple[str, ...] = (
+    "model_name",
     "model_revision",
     "weight_precision",
+    "hardware_model",
+    "gpu_count",
+    "tp_size",
+    "dp_size",
+    "framework",
     "framework_version",
 )
+#: 目标侧必须齐备的**负载身份**（含配置并发：并发直接决定实测吞吐与时延）
 TARGET_WORKLOAD_IDENTITY_FIELDS: tuple[str, ...] = (
     "dataset_name",
     "input_len_target",
     "output_len_target",
     "arrival_mode",
+    "configured_concurrency",
 )
 
 #: 负载侧的严格必需字段（同样要求记录侧具备）
