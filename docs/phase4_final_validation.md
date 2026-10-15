@@ -130,14 +130,19 @@
 
 | 维度 | 通过条件 |
 |---|---|
-| `cost_estimate_status` | `TcoResult.incomplete == False` 且币种已确认 且不含合成价格 |
-| `sla_verification_status` | 第三阶段 `observed_pass` **且**匹配等级 `exact_match` |
+| `cost_estimate_status` | `TcoResult.incomplete == False`、币种已确认、不含合成价格、**无未确认条目** |
+| `sla_verification_status` | 存在持久化证据记录，服务端**重新推导**得到 `observed_pass` + `exact_match`，且与记录一致 |
 | `commercial_confirmation_status` | 币种 / 价格 / 条款三项**人工**确认（且齐备确认人、时间、有效期、凭据） |
-| `approval_status` | 人工审批 **且**提供审批凭据 `approval_ref` |
+| `approval_status` | 存在**持久化审批记录**、作用域匹配、**成本快照指纹一致**、且在有效期内 |
 
 `quote_publishable = AND(四维通过)`，且 schema 层禁止"未通过却标记可发布"。
 任一维度未过，报告输出**阻断说明**并逐条列出原因，**不输出任何金额**
 （水印："⛔ 草稿已阻断（不具备发布资格）"）。
+
+> **V4.1 F4.1 修正**：本表最初版本只检查"状态字符串是否自洽"，
+> 调用方可以声明 `observed_pass` / `approved` 就得到可发布资格。
+> 现在门禁只接受**证据引用**（`sla_evaluation_id` / `approval_id`），
+> 服务端从持久化记录读取并重新推导结论；详见附录 A.1。
 
 ## 五、验证命令与结果
 
