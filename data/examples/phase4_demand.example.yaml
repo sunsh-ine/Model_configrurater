@@ -1,0 +1,66 @@
+# 第四阶段（M29）业务需求情景 —— **合成示例**
+#
+# ⚠️ 请求量、token 分布、缓存占比全部是**合成**的，不是任何客户的实际用量。
+#
+# 口径说明：
+#   * 收入从"请求量 × 输入输出分布 × 计费规则"推算，**不用**第一阶段的理论满载收入；
+#   * cached_input_fraction 是业务侧的**可复用前缀估计**，
+#     不是引擎的物理 prefix cache 命中率；
+#   * 峰值时段（is_peak: true）会被用于与第三阶段可信容量比对，
+#     没有可信实测时结论恒为 unknown_no_measurement。
+
+schema_version: "1.0"
+notice: >-
+  合成示例需求情景。收入结论仅作情景分析，不构成商业承诺：
+  在缺少目标配置可信实测时，容量校验恒为 unknown_no_measurement。
+
+demand_scenarios:
+  - scenario_id: syn-demand-base
+    model_name: qwen3-32b
+    billing_rule_id: syn-billing-qwen3-32b
+    periods_cover: one_day
+    days_per_year: 365
+    scope_notes:
+      - "合成示例：日均 30 万请求，高峰 8 小时占 2/3"
+    periods:
+      - label: 高峰
+        duration_hours: 8
+        request_count: 200000
+        avg_input_tokens: 1024
+        avg_output_tokens: 256
+        cached_input_fraction: "0.3"
+        is_peak: true
+        batch: false
+      - label: 平峰
+        duration_hours: 16
+        request_count: 100000
+        avg_input_tokens: 1024
+        avg_output_tokens: 256
+        cached_input_fraction: "0.3"
+        is_peak: false
+        batch: false
+
+  - scenario_id: syn-demand-with-batch
+    model_name: qwen3-32b
+    billing_rule_id: syn-billing-qwen3-32b
+    periods_cover: one_day
+    days_per_year: 365
+    scope_notes:
+      - "合成示例：平峰时段走批处理折扣（50% off）"
+    periods:
+      - label: 高峰
+        duration_hours: 8
+        request_count: 200000
+        avg_input_tokens: 1024
+        avg_output_tokens: 256
+        cached_input_fraction: "0.3"
+        is_peak: true
+        batch: false
+      - label: 平峰批处理
+        duration_hours: 16
+        request_count: 100000
+        avg_input_tokens: 1024
+        avg_output_tokens: 256
+        cached_input_fraction: "0.3"
+        is_peak: false
+        batch: true

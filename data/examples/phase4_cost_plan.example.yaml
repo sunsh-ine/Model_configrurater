@@ -1,0 +1,96 @@
+# 第四阶段（M28）部署成本方案模板 —— **合成示例**
+#
+# ⚠️ 全部数值来自 data/examples/phase4_cost_inputs.example.yaml 的**合成**成本目录。
+#    这里只声明"买断/租赁口径 + 假设 + 选用哪些成本项"，卡数/服务器数由
+#    第二阶段候选（DeploymentCandidate）在运行时绑定，避免把资源事实抄一遍。
+
+schema_version: "1.0"
+notice: >-
+  合成示例方案模板。买断与租赁是**互斥**的两套模板：租赁模板不产生 capex，
+  也不计折旧；买断模板不含租金。缺假设的项会被标为不可算，而不是按 0 处理。
+
+plan_templates:
+  # ---- 买断（自有）-----------------------------------------------------
+  - template_id: syn-owned-3y
+    name: "【合成示例】买断自建，3 年周期"
+    cost_basis: owned
+    assumptions:
+      horizon_years: 3
+      depreciation_years: 3
+      residual_value_fraction: "0.1"
+      discount_rate_per_year: "0.08"
+      escalation_rate_per_year: null
+      pue: "1.3"
+      pue_basis: assumed
+      gpu_power_watts: "700"
+      gpu_power_basis: assumed
+      server_overhead_watts: "1500"
+      it_power_utilization: "0.8"
+    selections:
+      - syn-gpu-purchase
+      - syn-server-chassis
+      - syn-network-port
+      - syn-storage
+      - syn-power-energy
+      - syn-rack-space
+      - syn-cooling
+      - syn-software-license
+      - syn-operations
+      - syn-maintenance
+    scope_notes:
+      - "合成示例：假设 PUE 1.3、单卡功耗 700W（均为假定值，非厂商实测）"
+
+  # ---- 租赁 ------------------------------------------------------------
+  - template_id: syn-leased-3y
+    name: "【合成示例】租赁，3 年周期"
+    cost_basis: leased
+    assumptions:
+      horizon_years: 3
+      depreciation_years: null
+      residual_value_fraction: null
+      discount_rate_per_year: "0.08"
+      pue: "1.3"
+      pue_basis: assumed
+      gpu_power_watts: "700"
+      gpu_power_basis: assumed
+      server_overhead_watts: "1500"
+      it_power_utilization: "0.8"
+    selections:
+      # 故意把"买断专属"的 GPU 采购价也列进来：引擎必须把它标成
+      # excluded_by_cost_basis 并给出原因——用来验证"排除 ≠ 零成本"这条规则
+      # 在真实链路上确实生效（而不是靠"没选它"来回避）。
+      - syn-gpu-purchase
+      - syn-gpu-lease
+      - syn-network-port
+      - syn-storage
+      - syn-power-energy
+      - syn-rack-space
+      - syn-cooling
+      - syn-software-license
+      - syn-operations
+    scope_notes:
+      - "合成示例：租赁口径不含采购（syn-gpu-purchase 会被显式排除并记录原因）"
+      - "合成示例：租赁口径不计折旧"
+
+  # ---- 故意不完整：验证"未知不等于零"与报价阻断 ------------------------
+  - template_id: syn-owned-incomplete
+    name: "【合成示例】含待确认成本项（故意不完整）"
+    cost_basis: owned
+    assumptions:
+      horizon_years: 3
+      depreciation_years: 3
+      residual_value_fraction: "0.1"
+      discount_rate_per_year: "0.08"
+      pue: "1.3"
+      pue_basis: assumed
+      gpu_power_watts: "700"
+      gpu_power_basis: assumed
+      server_overhead_watts: "1500"
+      it_power_utilization: "0.8"
+    selections:
+      - syn-gpu-purchase
+      - syn-server-chassis
+      - syn-power-energy
+      - syn-infiniband-fabric
+    scope_notes:
+      - "含 unit_price 为空的成本项，用于验证 TCO incomplete 与报价阻断"

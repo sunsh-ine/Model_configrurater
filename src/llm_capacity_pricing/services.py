@@ -2011,3 +2011,829 @@ def export_performance_report(
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text, encoding="utf-8")
     return {"report": str(p), "bytes": len(text.encode("utf-8"))}
+
+
+# --------------------------------------------------------------------------
+# 第四阶段（M26-M33）：TCO、业务收益情景、报价门禁与部署决策
+# --------------------------------------------------------------------------
+
+#: 第四阶段全部合成数据的显式提示（任何报告都必须带上）
+PHASE4_SYNTHETIC_NOTICE = (
+    "本仓库中的第四阶段成本/计费数据为**合成示例**（synthetic_example 或"
+    " pending_business_confirmation），不是任何真实报价；真实商务数据不入版本库。"
+)
+
+#: 允许作为"可信容量证据"的数据信任等级（与第三阶段 SLA 门禁一致）
+PHASE4_TRUSTED_LEVELS = ("measured_internal", "measured_vendor_published")
+
+
+def _load_yaml_file(path: str | Path) -> dict[str, Any]:
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise ServiceError(f"{path} 顶层必须是映射")
+    return raw
+
+
+def import_cost_catalog(
+    file: str | Path, db_path: str | Path = "data/local.db"
+) -> dict[str, Any]:
+    """M27：导入成本目录与计费规则（离线，幂等）。"""
+    from llm_capacity_pricing.importers.cost_catalog import load_cost_catalog
+
+    info = load_cost_catalog(file)
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_evidence(session, info["evidence"])
+            item_count = repo.upsert_cost_catalog_items(session, info["cost_items"])
+            rule_count = repo.upsert_billing_rules(session, info["billing_rules"])
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "file": str(file),
+        "cost_item_count": item_count,
+        "billing_rule_count": rule_count,
+        "evidence_count": len(info["evidence"]),
+        "synthetic_item_count": info["synthetic_item_count"],
+        "currency": info["currency"],
+        "currency_status": info["currency_status"],
+        "notice": info["notice"],
+        "synthetic_disclaimer": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def cost_catalog_summary(db_path: str | Path = "data/local.db") -> dict[str, Any]:
+    """成本目录库存：按类别/口径/状态分布，并显式标明是否含合成数据。"""
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            items = repo.list_cost_catalog_items(session)
+            rules = repo.list_billing_rules(session)
+            confirmations = repo.list_commercial_confirmations(session)
+    finally:
+        db.dispose()
+
+    by_category: dict[str, int] = {}
+    by_basis: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    missing_price: list[str] = []
+    for item in items:
+        by_category[item.category] = by_category.get(item.category, 0) + 1
+        by_basis[item.basis or "both"] = by_basis.get(item.basis or "both", 0) + 1
+        by_status[item.status] = by_status.get(item.status, 0) + 1
+        if item.unit_price is None:
+            missing_price.append(item.item_id)
+
+    return {
+        "item_count": len(items),
+        "billing_rule_count": len(rules),
+        "confirmation_count": len(confirmations),
+        "by_category": by_category,
+        "by_basis": by_basis,
+        "by_status": by_status,
+        "items_missing_price": sorted(missing_price),
+        "currencies": sorted({i.currency for i in items if i.currency}),
+        "currency_confirmed_count": sum(
+            1 for i in items if i.currency_status == "confirmed"
+        ),
+        "contains_synthetic": any(i.status == "synthetic_example" for i in items),
+        "synthetic_disclaimer": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def import_commercial_confirmations(
+    file: str | Path, db_path: str | Path = "data/local.db"
+) -> dict[str, Any]:
+    """M30：导入**人工**商务确认记录（本函数只做持久化，不生成确认）。"""
+    from llm_capacity_pricing.schemas.commercial import CommercialConfirmation
+
+    raw = _load_yaml_file(file)
+    entries = raw.get("confirmations") or []
+    if not entries:
+        raise ServiceError(f"{file} 中没有任何 confirmations")
+    confirmations = [CommercialConfirmation.model_validate(e) for e in entries]
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            n = repo.upsert_commercial_confirmations(session, confirmations)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        "file": str(file),
+        "confirmation_count": n,
+        "statuses": {
+            c.confirmation_id: c.status for c in confirmations
+        },
+    }
+
+
+def load_cost_plan_templates(file: str | Path) -> dict[str, dict[str, Any]]:
+    """读取成本方案模板（按 template_id 索引）。"""
+    raw = _load_yaml_file(file)
+    templates = raw.get("plan_templates") or []
+    if not templates:
+        raise ServiceError(f"{file} 中没有任何 plan_templates")
+    out: dict[str, dict[str, Any]] = {}
+    for tpl in templates:
+        tid = tpl.get("template_id")
+        if not tid:
+            raise ServiceError(f"{file}: 存在缺少 template_id 的模板")
+        out[tid] = tpl
+    return out
+
+
+def load_demand_scenarios(file: str | Path) -> dict[str, dict[str, Any]]:
+    raw = _load_yaml_file(file)
+    scenarios = raw.get("demand_scenarios") or []
+    if not scenarios:
+        raise ServiceError(f"{file} 中没有任何 demand_scenarios")
+    out: dict[str, dict[str, Any]] = {}
+    for sc in scenarios:
+        sid = sc.get("scenario_id")
+        if not sid:
+            raise ServiceError(f"{file}: 存在缺少 scenario_id 的情景")
+        out[sid] = sc
+    return out
+
+
+def build_cost_plan_from_template(
+    template: dict[str, Any],
+    *,
+    candidate_id: str,
+    hardware_id: str,
+    gpu_count: int,
+    server_count: int,
+    tp_size: int | None = None,
+    dp_size: int | None = None,
+    plan_id: str | None = None,
+) -> Any:
+    """把模板 + 第二阶段候选事实合成一个 ``DeploymentCostPlan``。"""
+    from llm_capacity_pricing.schemas.tco import (
+        CostLineSelection,
+        DeploymentCostPlan,
+        FinancingAssumptions,
+    )
+
+    raw_assumptions = {
+        k: v for k, v in (template.get("assumptions") or {}).items() if v is not None
+    }
+    return DeploymentCostPlan(
+        plan_id=plan_id or f"{template['template_id']}::{candidate_id}",
+        candidate_id=candidate_id,
+        hardware_id=hardware_id,
+        gpu_count=gpu_count,
+        server_count=server_count,
+        tp_size=tp_size,
+        dp_size=dp_size,
+        cost_basis=template["cost_basis"],
+        assumptions=FinancingAssumptions(**raw_assumptions),
+        selections=[
+            CostLineSelection(item_id=s) for s in (template.get("selections") or [])
+        ],
+        scope_notes=list(template.get("scope_notes") or []),
+    )
+
+
+def tco_for(
+    db_path: str | Path,
+    *,
+    plan_file: str | Path,
+    template_id: str,
+    candidate_id: str,
+    hardware_id: str,
+    gpu_count: int,
+    server_count: int,
+    tp_size: int | None = None,
+    dp_size: int | None = None,
+    annual_revenue: Decimal | None = None,
+    revenue_basis: str = "none",
+) -> dict[str, Any]:
+    """M28：按模板 + 成本目录计算完整 TCO 与现金流。"""
+    from llm_capacity_pricing.engines.tco import build_cash_flow, compute_tco
+
+    templates = load_cost_plan_templates(plan_file)
+    if template_id not in templates:
+        raise ServiceError(
+            f"未知模板 {template_id!r}；可用：{sorted(templates)}"
+        )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            items = repo.list_cost_catalog_items(session)
+    finally:
+        db.dispose()
+    if not items:
+        raise ServiceError("成本目录为空：请先运行 import-cost-catalog")
+
+    plan = build_cost_plan_from_template(
+        templates[template_id],
+        candidate_id=candidate_id,
+        hardware_id=hardware_id,
+        gpu_count=gpu_count,
+        server_count=server_count,
+        tp_size=tp_size,
+        dp_size=dp_size,
+    )
+    tco = compute_tco(plan, items)
+    cash_flow = build_cash_flow(
+        tco, annual_revenue=annual_revenue, revenue_basis=revenue_basis
+    )
+    return {
+        "plan": plan.model_dump(mode="json"),
+        "tco": tco.model_dump(mode="json"),
+        "cash_flow": cash_flow.model_dump(mode="json"),
+        "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def capacity_evidence_for(
+    db_path: str | Path,
+    *,
+    model_name: str,
+    hardware_model: str,
+    gpu_count: int | None,
+    tp_size: int | None,
+    dp_size: int | None,
+    weight_precision: str | None,
+    configured_concurrency: int | None,
+    input_len_target: int | None,
+    output_len_target: int | None,
+    dataset_name: str | None = None,
+    arrival_mode: str | None = None,
+    model_revision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
+) -> Any:
+    """从第三阶段证据池里挑一条**可信**容量证据。
+
+    只有在匹配等级达到 ``exact_match`` 且可信等级属于测量类时才算 verified；
+    否则返回一个 ``is_verified=False`` 的证据（用于在报告中说明"为什么不能判定"）。
+    """
+    from llm_capacity_pricing.perf.benchmark_matcher import signature_from_run
+    from llm_capacity_pricing.perf.ranker import _best_match
+    from llm_capacity_pricing.engines.revenue import CapacityEvidence
+    from llm_capacity_pricing.schemas.performance import (
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    if not runs:
+        return None
+
+    target = TargetRequirement(
+        model_name=model_name,
+        model_revision=model_revision,
+        weight_precision=weight_precision,
+        hardware_model=hardware_model,
+        gpu_count=gpu_count,
+        tp_size=tp_size,
+        dp_size=dp_size,
+        framework=framework,
+        framework_version=framework_version,
+        workload=WorkloadSignature(
+            input_len_target=input_len_target,
+            output_len_target=output_len_target,
+            dataset_name=dataset_name,
+            arrival_mode=arrival_mode or "unknown",
+            configured_concurrency=configured_concurrency,
+        ),
+        required_metrics=[],
+        require_measured=True,
+    )
+    best_run, best_match = _best_match(target, runs)
+    if best_run is None or best_match is None:
+        return None
+    verified = (
+        best_match.level == "exact_match"
+        and best_run.data_trust in PHASE4_TRUSTED_LEVELS
+    )
+    return CapacityEvidence(
+        run_id=best_run.run_id,
+        is_verified=verified,
+        configured_concurrency=best_run.profile.configured_concurrency,
+        request_throughput_rps=best_run.profile.request_throughput_rps,
+        output_throughput_tok_s=best_run.profile.output_throughput_tok_s,
+        match_level=best_match.level,
+        data_trust=best_run.data_trust,
+    )
+
+
+def revenue_for(
+    db_path: str | Path,
+    *,
+    demand_file: str | Path,
+    scenario_id: str,
+    capacity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """M29：按业务需求情景计算收入；``capacity`` 为候选事实时顺便做容量比对。"""
+    from llm_capacity_pricing.engines.revenue import compute_revenue
+    from llm_capacity_pricing.schemas.commercial import DemandPeriod, RevenueScenario
+
+    scenarios = load_demand_scenarios(demand_file)
+    if scenario_id not in scenarios:
+        raise ServiceError(f"未知情景 {scenario_id!r}；可用：{sorted(scenarios)}")
+    raw = scenarios[scenario_id]
+    scenario = RevenueScenario(
+        scenario_id=raw["scenario_id"],
+        model_name=raw["model_name"],
+        billing_rule_id=raw["billing_rule_id"],
+        days_per_year=raw.get("days_per_year", 365),
+        periods_cover=raw.get("periods_cover", "one_day"),
+        scope_notes=list(raw.get("scope_notes") or []),
+        periods=[DemandPeriod.model_validate(p) for p in raw["periods"]],
+    )
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
+    finally:
+        db.dispose()
+    rule = rules.get(scenario.billing_rule_id)
+    if rule is None:
+        raise ServiceError(
+            f"计费规则 {scenario.billing_rule_id!r} 不在库中；可用：{sorted(rules)}"
+        )
+
+    evidence = None
+    if capacity is not None:
+        evidence = capacity_evidence_for(db_path, **capacity)
+    result = compute_revenue(scenario, rule, capacity_evidence=evidence)
+    return {
+        "scenario": scenario.model_dump(mode="json"),
+        "billing_rule": rule.model_dump(mode="json"),
+        "revenue": result.model_dump(mode="json"),
+        "capacity_evidence": (
+            {
+                "run_id": evidence.run_id,
+                "is_verified": evidence.is_verified,
+                "match_level": evidence.match_level,
+                "data_trust": evidence.data_trust,
+            }
+            if evidence
+            else None
+        ),
+        "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def quote_eligibility_for(
+    db_path: str | Path,
+    *,
+    candidate_id: str,
+    plan_file: str | Path | None = None,
+    template_id: str | None = None,
+    hardware_id: str | None = None,
+    gpu_count: int | None = None,
+    server_count: int | None = None,
+    sla_status: str | None = None,
+    match_level: str | None = None,
+    confirmation_id: str | None = None,
+    approval_status: str = "missing",
+    approval_ref: str | None = None,
+    demand_file: str | Path | None = None,
+    scenario_id: str | None = None,
+) -> dict[str, Any]:
+    """M30：四维报价门禁。任何维度缺证据都不通过（fail-closed）。"""
+    from llm_capacity_pricing.engines.quote_gate import evaluate_quote_eligibility
+    from llm_capacity_pricing.schemas.tco import TcoResult
+
+    tco = None
+    plan_id = None
+    if plan_file and template_id and hardware_id and gpu_count and server_count:
+        info = tco_for(
+            db_path,
+            plan_file=plan_file,
+            template_id=template_id,
+            candidate_id=candidate_id,
+            hardware_id=hardware_id,
+            gpu_count=gpu_count,
+            server_count=server_count,
+        )
+        tco = TcoResult.model_validate(info["tco"])
+        plan_id = info["tco"]["plan_id"]
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            confirmation = (
+                repo.get_commercial_confirmation(session, confirmation_id)
+                if confirmation_id
+                else None
+            )
+            rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
+    finally:
+        db.dispose()
+
+    billing_rule_id = None
+    if demand_file and scenario_id:
+        raw = load_demand_scenarios(demand_file).get(scenario_id)
+        if raw:
+            billing_rule_id = raw.get("billing_rule_id")
+
+    if approval_status == "approved" and not approval_ref:
+        raise ServiceError(
+            "approval_status=approved 必须提供 --approval-ref（人工审批凭据）；"
+            "无凭据的审批不算通过，Agent 不得自行声明已审批"
+        )
+
+    eligibility = evaluate_quote_eligibility(
+        candidate_id=candidate_id,
+        tco=tco,
+        sla_status=sla_status,
+        match_level=match_level,
+        confirmation=confirmation,
+        approval_status=approval_status,
+        approval_ref=approval_ref,
+        plan_id=plan_id,
+        scenario_id=scenario_id,
+        billing_rule_id=billing_rule_id,
+    )
+    return {
+        "eligibility": eligibility.model_dump(mode="json"),
+        "tco_used": tco.model_dump(mode="json") if tco else None,
+        "confirmation_used": (
+            confirmation.model_dump(mode="json") if confirmation else None
+        ),
+        "billing_rules_available": sorted(rules),
+        "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def _build_ranking(
+    *,
+    requirement_id: str,
+    candidates: Sequence[DeploymentCandidate],
+    runs: Sequence[Any],
+    requirement: dict[str, Any],
+    policy: Any,
+    workload: Any,
+    models: dict[str, Any],
+    target_identity: dict[str, Any],
+) -> Any:
+    from llm_capacity_pricing.schemas.performance import SlaRequirement
+
+    return _rank_deployments(
+        requirement_id=requirement_id,
+        candidates=candidates,
+        runs=runs,
+        sla_requirement=SlaRequirement.model_validate(requirement),
+        policy=policy or SlaPolicy(),
+        workload=workload,
+        model_by_id=models,
+        target_identity=target_identity,
+    )
+
+
+def phase4_decision_for(
+    db_path: str | Path,
+    *,
+    requirement: dict[str, Any],
+    model_id: str,
+    hardware_id: str,
+    plan_file: str | Path,
+    template_id: str,
+    assumptions: Any,
+    server_id: str | None = None,
+    policy: Any = None,
+    input_len_target: int | None = None,
+    output_len_target: int | None = None,
+    dataset_name: str | None = None,
+    model_revision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
+    weight_precision: Any = None,
+    kv_precision: str = "bf16",
+    demand_file: str | Path | None = None,
+    scenario_id: str | None = None,
+    confirmation_id: str | None = None,
+    approval_status: str = "missing",
+    approval_ref: str | None = None,
+    budgets: Sequence[dict[str, Any]] = (),
+) -> dict[str, Any]:
+    """M31/M32：把第二/三/四阶段串成一条可审计的部署决策链。
+
+    链路：静态候选 → 性能与 SLA（只读第三阶段结论）→ TCO → 收益情景 →
+    报价门禁 → 多候选比较 + 预算/敏感性/盈亏平衡。
+
+    任何一步缺证据都不会被"补齐"：缺就留空并写明原因。
+    """
+    from llm_capacity_pricing.decision.comparison import CandidateEconomics, compare_deployments
+    from llm_capacity_pricing.decision.sensitivity import (
+        analyze_breakeven,
+        analyze_sensitivity,
+        check_budget,
+    )
+    from llm_capacity_pricing.engines.quote_gate import evaluate_quote_eligibility
+    from llm_capacity_pricing.engines.revenue import compute_revenue
+    from llm_capacity_pricing.engines.tco import build_cash_flow, compute_tco
+    from llm_capacity_pricing.schemas.commercial import DemandPeriod, RevenueScenario
+    from llm_capacity_pricing.schemas.performance import (
+        SlaRequirement,
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    plan = plan_deployment_for(
+        db_path,
+        model_id=model_id,
+        hardware_id=hardware_id,
+        server_id=server_id,
+        assumptions=assumptions,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+    )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+            models = {m.model_id: m for m in repo.list_model_specs(session)}
+            items = repo.list_cost_catalog_items(session)
+            rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
+            confirmation = (
+                repo.get_commercial_confirmation(session, confirmation_id)
+                if confirmation_id
+                else None
+            )
+    finally:
+        db.dispose()
+
+    sla_req = SlaRequirement.model_validate(requirement)
+    workload = WorkloadSignature(
+        input_len_target=input_len_target or assumptions.context_length_per_request,
+        output_len_target=output_len_target,
+        dataset_name=dataset_name,
+        configured_concurrency=assumptions.global_concurrency,
+    )
+    target_identity = {
+        "model_revision": model_revision,
+        "framework": framework,
+        "framework_version": framework_version,
+    }
+    ranking = _build_ranking(
+        requirement_id=sla_req.requirement_id,
+        candidates=plan["candidates"],
+        runs=runs,
+        requirement=requirement,
+        policy=policy,
+        workload=workload,
+        models=models,
+        target_identity=target_identity,
+    )
+
+    if not items:
+        raise ServiceError("成本目录为空：请先运行 import-cost-catalog")
+
+    templates = load_cost_plan_templates(plan_file)
+    if template_id not in templates:
+        raise ServiceError(f"未知模板 {template_id!r}；可用：{sorted(templates)}")
+    template = templates[template_id]
+
+    scenario = None
+    rule = None
+    if demand_file and scenario_id:
+        raw = load_demand_scenarios(demand_file).get(scenario_id)
+        if raw is None:
+            raise ServiceError(f"未知情景 {scenario_id!r}")
+        scenario = RevenueScenario(
+            scenario_id=raw["scenario_id"],
+            model_name=raw["model_name"],
+            billing_rule_id=raw["billing_rule_id"],
+            days_per_year=raw.get("days_per_year", 365),
+            periods_cover=raw.get("periods_cover", "one_day"),
+            scope_notes=list(raw.get("scope_notes") or []),
+            periods=[DemandPeriod.model_validate(p) for p in raw["periods"]],
+        )
+        rule = rules.get(scenario.billing_rule_id)
+        if rule is None:
+            raise ServiceError(f"计费规则 {scenario.billing_rule_id!r} 不在库中")
+
+    ranked_by_id = {e.candidate_id: e for e in ranking.entries}
+    economics: list[CandidateEconomics] = []
+    sensitivities: list[Any] = []
+    breakevens: list[Any] = []
+    budget_checks: list[Any] = []
+    per_candidate: dict[str, Any] = {}
+    tco_details: list[dict[str, Any]] = []
+    revenue_representative: Any = None
+
+    for candidate in plan["candidates"]:
+        server_count = candidate.nodes_required
+        if server_count is None:
+            per_candidate[candidate.candidate_id] = {
+                "reason": "nodes_required_missing: 候选未给出所需服务器数，无法核算机房相关成本"
+            }
+            economics.append(CandidateEconomics(candidate_id=candidate.candidate_id))
+            continue
+
+        cost_plan = build_cost_plan_from_template(
+            template,
+            candidate_id=candidate.candidate_id,
+            hardware_id=candidate.hardware_id,
+            gpu_count=candidate.gpu_count,
+            server_count=server_count,
+            tp_size=candidate.tp_size,
+            dp_size=candidate.dp_size,
+        )
+        tco = compute_tco(cost_plan, items)
+
+        revenue = None
+        if scenario is not None and rule is not None:
+            evidence = capacity_evidence_for(
+                db_path,
+                model_name=_signature_model_name(candidate, models),
+                hardware_model=_hardware_product_name(candidate),
+                gpu_count=candidate.gpu_count,
+                tp_size=candidate.tp_size,
+                dp_size=candidate.dp_size,
+                weight_precision=candidate.weight_precision,
+                configured_concurrency=assumptions.global_concurrency,
+                input_len_target=input_len_target
+                or assumptions.context_length_per_request,
+                output_len_target=output_len_target,
+                dataset_name=dataset_name,
+                model_revision=model_revision,
+                framework=framework,
+                framework_version=framework_version,
+            )
+            revenue = compute_revenue(scenario, rule, capacity_evidence=evidence)
+
+        ranked = ranked_by_id.get(candidate.candidate_id)
+        eligibility = evaluate_quote_eligibility(
+            candidate_id=candidate.candidate_id,
+            tco=tco,
+            sla_status=ranked.sla_status if ranked else None,
+            match_level=ranked.match_level if ranked else None,
+            confirmation=confirmation,
+            approval_status=approval_status,
+            approval_ref=approval_ref,
+            plan_id=cost_plan.plan_id,
+            scenario_id=scenario.scenario_id if scenario else None,
+            billing_rule_id=rule.rule_id if rule else None,
+        )
+
+        cash_flow = build_cash_flow(
+            tco,
+            annual_revenue=revenue.annual_revenue if revenue else None,
+            revenue_basis="scenario_only" if revenue else "none",
+        )
+        economics.append(
+            CandidateEconomics(
+                candidate_id=candidate.candidate_id,
+                plan=cost_plan,
+                tco=tco,
+                revenue=revenue,
+                eligibility=eligibility,
+            )
+        )
+        sensitivities.append(analyze_sensitivity(plan=cost_plan, items=items))
+        breakevens.append(analyze_breakeven(tco=tco, revenue=revenue, rule=rule))
+        for budget in budgets:
+            kind = budget.get("budget_kind", "total_horizon")
+            compared = {
+                "one_time_capex": tco.capex_one_time,
+                "annual_opex": tco.annual_cash_opex,
+                "total_horizon": tco.total_cash_over_horizon,
+            }[kind]
+            budget_checks.append(
+                check_budget(
+                    budget_id=f"{budget['budget_id']}::{candidate.candidate_id}",
+                    budget_amount=(
+                        Decimal(str(budget["budget_amount"]))
+                        if budget.get("budget_amount") is not None
+                        else None
+                    ),
+                    budget_kind=kind,
+                    compared_value=compared,
+                    currency=tco.currency,
+                    currency_confirmed=tco.currency_confirmed,
+                )
+            )
+        tco_details.append(
+            {
+                "plan": cost_plan.model_dump(mode="json"),
+                "tco": tco.model_dump(mode="json"),
+                "cash_flow": cash_flow.model_dump(mode="json"),
+                "revenue": revenue.model_dump(mode="json") if revenue else None,
+            }
+        )
+        if revenue_representative is None and revenue is not None:
+            revenue_representative = revenue.model_dump(mode="json")
+        per_candidate[candidate.candidate_id] = {
+            "plan_id": cost_plan.plan_id,
+            "tco_incomplete": tco.incomplete,
+            "total_cash_over_horizon": tco.total_cash_over_horizon,
+            "annual_total_cost": tco.annual_total_cost,
+            "annual_revenue": revenue.annual_revenue if revenue else None,
+            "capacity_check": revenue.capacity_check if revenue else None,
+            "quote_publishable": eligibility.quote_publishable,
+            "cash_flow_npv": cash_flow.npv,
+            "cash_flow_payback_year": cash_flow.payback_year,
+        }
+
+    comparison = compare_deployments(
+        requirement_id=sla_req.requirement_id,
+        ranking=ranking,
+        economics=economics,
+    )
+
+    limitations = [
+        "成本数据为合成示例或待确认状态时，TCO 结论只用于验证计算链路，不得对外报价",
+        "性能与 SLA 结论原样取自第三阶段，本阶段不做重新判定",
+        "报价资格四维独立，任一未过即不可发布；本阶段不提供任何绕过参数",
+        "没有可信实测容量时，收入情景只作情景分析，不构成产能承诺",
+        "不产出跨维度的综合评分或加权排名",
+    ]
+    return {
+        "requirement_id": sla_req.requirement_id,
+        "ranking": ranking.model_dump(mode="json"),
+        "comparison": comparison.model_dump(mode="json"),
+        "eligibilities": [
+            e.model_dump(mode="json")
+            for e in (ec.eligibility for ec in economics)
+            if e is not None
+        ],
+        "budget_checks": [b.model_dump(mode="json") for b in budget_checks],
+        "sensitivity": [x.model_dump(mode="json") for x in sensitivities],
+        "breakeven": [b.model_dump(mode="json") for b in breakevens],
+        "per_candidate": per_candidate,
+        "tco_details": tco_details,
+        "revenue": revenue_representative,
+        "limitations": limitations,
+        "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
+    }
+
+
+def _signature_model_name(candidate: DeploymentCandidate, models: dict[str, Any]) -> str:
+    spec = models.get(candidate.model_id)
+    repo_id = getattr(spec, "repo_id", None) if spec else None
+    return repo_id or candidate.model_id
+
+
+def _hardware_product_name(candidate: DeploymentCandidate) -> str:
+    mapping = {
+        "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
+        "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
+        "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
+        "nvidia-b200-sxm": "NVIDIA B200 SXM",
+        "ascend-910c": "Ascend 910C",
+    }
+    return mapping.get(candidate.hardware_id, candidate.hardware_id)
+
+
+def export_phase4_report(
+    db_path: str | Path,
+    out_path: str | Path,
+    *,
+    decision: dict[str, Any] | None = None,
+    tco_details: Sequence[dict[str, Any]] = (),
+    revenue: dict[str, Any] | None = None,
+    eligibilities: Sequence[dict[str, Any]] = (),
+    request: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """M33：生成第四阶段 Markdown 报告（含报价草稿或阻断说明）。"""
+    from llm_capacity_pricing.reporting.tco_report import build_tco_report
+
+    catalog = cost_catalog_summary(db_path)
+    comparison = decision.get("comparison") if decision else None
+    if decision and decision.get("eligibilities"):
+        eligibilities = list(decision["eligibilities"])
+    if decision:
+        # 决策载荷里已经带上 TCO 明细与收益情景，报告直接用它们渲染第 3/4 节
+        if not tco_details:
+            tco_details = list(decision.get("tco_details") or [])
+        if revenue is None:
+            revenue = decision.get("revenue")
+    md = build_tco_report(
+        catalog=catalog,
+        comparison=comparison,
+        tco_details=tco_details,
+        revenue=revenue,
+        eligibilities=eligibilities,
+        budget_checks=decision.get("budget_checks", []) if decision else (),
+        sensitivities=decision.get("sensitivity", []) if decision else (),
+        breakevens=decision.get("breakeven", []) if decision else (),
+        cash_flows=[d.get("cash_flow", {}) for d in tco_details if d.get("cash_flow")],
+        decision=decision,
+        request=request,
+        synthetic_notice=PHASE4_SYNTHETIC_NOTICE,
+    )
+    path = Path(out_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(md, encoding="utf-8")
+    return {
+        "report": str(path),
+        "bytes": len(md.encode("utf-8")),
+        "quote_publishable": any(
+            e.get("quote_publishable") for e in (eligibilities or [])
+        ),
+        "synthetic_disclaimer": PHASE4_SYNTHETIC_NOTICE,
+    }

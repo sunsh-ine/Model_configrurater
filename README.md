@@ -127,6 +127,62 @@ python3 -m venv .venv
 > 不给实测值或带来源的假设，规划只会返回 `insufficient_information`（这是刻意设计）。
 > 只提供假设时结论为 `conditional_feasible`，落地前必须用 `nvidia-smi` 复核。
 
+### 第三阶段（性能与 SLA）与第四阶段（TCO 与报价门禁）
+
+第三阶段的命令见下方命令清单；第四阶段在此基础上串起成本、收益与报价门禁：
+
+```bash
+# 1) 导入成本目录与计费规则（**仓库内的是合成示例**，不是真实报价）
+python -m llm_capacity_pricing.cli import-cost-catalog \
+  --file data/examples/phase4_cost_inputs.example.yaml --db data/local.db
+
+# 2) 查看成本目录库存（类别 / 买断租赁口径 / 状态 / 缺价项）
+python -m llm_capacity_pricing.cli cost-catalog --db data/local.db
+
+# 3) 完整 TCO：一次性 / 年现金 / 折旧分开，含逐项成本分解
+python -m llm_capacity_pricing.cli tco \
+  --plan-file data/examples/phase4_cost_plan.example.yaml --template syn-owned-3y \
+  --candidate demo-owned --hardware nvidia-h100-sxm-80gb \
+  --gpu-count 8 --server-count 1 --db data/local.db
+
+# 4) 业务需求收益情景（按请求量算，**不是**理论满载收入）
+python -m llm_capacity_pricing.cli revenue-scenario \
+  --demand-file data/examples/phase4_demand.example.yaml \
+  --scenario syn-demand-base --db data/local.db
+
+# 5) 报价门禁（四维独立、fail-closed；默认 approval-status=missing）
+python -m llm_capacity_pricing.cli quote-eligibility \
+  --candidate demo-owned --plan-file data/examples/phase4_cost_plan.example.yaml \
+  --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
+  --gpu-count 8 --server-count 1 --sla-status observed_pass \
+  --match-level exact_match --db data/local.db
+
+# 6) 全链路决策：资源 → 性能 → TCO → 收益 → 门禁 → 比较
+python -m llm_capacity_pricing.cli phase4-decision \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --plan-file data/examples/phase4_cost_plan.example.yaml --template syn-owned-3y \
+  --demand-file data/examples/phase4_demand.example.yaml --scenario syn-demand-base \
+  --context-length 8192 --concurrency 32 --tp-sizes 2,4,8 --dp-sizes 1 \
+  --usable-fraction 0.9 --usable-source-kind synthetic_example \
+  --runtime-reserve-fraction 0.1 \
+  --requirement '{"requirement_id":"req","ttft_p99_ms_max":400}' \
+  --out data/exports/phase4_decision.json --db data/local.db
+
+# 7) 方案报告（含四个独立结论 + 报价草稿或阻断说明）
+python -m llm_capacity_pricing.cli phase4-report \
+  --out data/exports/phase4_report.md \
+  --decision-json data/exports/phase4_decision.json --db data/local.db
+```
+
+> **报价门禁不会被任何参数放宽**。四个维度（成本完整+币种确认、SLA 实测、
+> 人工商务确认、人工审批+凭据）必须同时通过才可能 `quote_publishable=True`；
+> 合成示例成本、未确认币种、估算型 SLA 一律阻断，报告只输出阻断说明、不输出金额。
+
+> **买断与租赁互斥**：不属于当前口径的成本项会被标成 `excluded_by_cost_basis`
+> 并写明原因（排除**不等于**零成本）；**缺价格/缺假设**的成本项标为
+> `unknown_missing_price` / `unknown_missing_basis`，使 TCO 标为 `incomplete`
+> （未知**不等于**零）。
+
 ### 一键复现以上全部步骤
 
 ```bash
@@ -167,6 +223,14 @@ bash scripts/verify_all.sh
 | `evaluate-sla --requirement <json> --run-id <id> [--model-revision/--framework-version/--precision/--dataset …]` | **M23**：SLA 判定。**默认只接受 `exact_match`**，且拒绝 synthetic 与不匹配数据 |
 | `rank-deployments --model <id> --hardware <id> --requirement <json> …` | **M24**：候选性能比较（静态筛选 + 性能证据） |
 | `performance-report --out <md>` | **M25**：第三阶段 Markdown 报告 |
+| `import-cost-catalog --file <yaml> --db <path>` | **M27**：导入成本目录（GPU/机房/电力/网络/软件/运维）与计费规则 |
+| `cost-catalog --db <path>` | **M27**：成本目录库存（类别/口径/状态/缺价项） |
+| `import-commercial-confirmations --file <yaml> --db <path>` | **M30**：导入**人工**商务确认记录（本命令不生成确认） |
+| `tco --plan-file <yaml> --template <id> --candidate <id> --hardware <id> --gpu-count N --server-count N` | **M28**：完整 TCO、成本分解与现金流 |
+| `revenue-scenario --demand-file <yaml> --scenario <id>` | **M29**：业务请求量 → Token 计费与收益情景（含容量比对） |
+| `quote-eligibility --candidate <id> [--sla-status … --match-level … --confirmation … --approval-status … --approval-ref …]` | **M30**：四维报价门禁（fail-closed） |
+| `phase4-decision --model <id> --hardware <id> --plan-file <yaml> --template <id> …` | **M31/M32**：资源-性能-TCO-收益-门禁全链路 + 比较/敏感性/盈亏平衡 |
+| `phase4-report --out <md> [--decision-json <json>]` | **M33**：第四阶段报告（四个独立结论 + 报价草稿或阻断说明） |
 
 所有命令成功返回 `0`，失败返回非零并输出明确错误信息（缺文件、非法百分比、
 负价格、无效单位、找不到记录等）。
@@ -408,3 +472,6 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/security_remediation_report.md`](docs/security_remediation_report.md) | 内部定价数据暴露清单、凭证扫描、历史影响评估 |
 | [`docs/risk_register.md`](docs/risk_register.md) | 风险清单（数据安全 / 证据 / 口径 / 商业 / 工程） |
 | [`docs/phase3_final_validation.md`](docs/phase3_final_validation.md) | 第三阶段验证报告（工程功能 / 性能可信度两个维度） |
+| [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
+| [`docs/phase4_interface_design.md`](docs/phase4_interface_design.md) | **M26** 第四阶段模块划分、接口签名与禁止事项 |
+| [`docs/phase4_final_validation.md`](docs/phase4_final_validation.md) | 第四阶段验证报告（工程功能 / 商业数据 / SLA 实测 / 报价发布四个独立结论） |

@@ -8,12 +8,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -356,4 +357,81 @@ class BenchmarkRunRow(Base):
     raw_file: Mapped[str | None] = mapped_column(Text)
     raw_sha256: Mapped[str | None] = mapped_column(String(64))
     collected_at: Mapped[datetime | None] = mapped_column(DateTime)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# 第四阶段（M27）：成本目录与计费规则
+# ---------------------------------------------------------------------------
+
+
+class CostCatalogItemRow(Base):
+    """成本目录项（GPU / 机房 / 电力 / 网络 / 软件 / 运维 等）。
+
+    与第一阶段 ``hardware_price`` **并列存在**：第一阶段只覆盖 GPU 成本，
+    本表是完整 TCO 的成本来源，两者口径不同，不得互相覆盖。
+    """
+
+    __tablename__ = "cost_catalog_item"
+
+    item_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    category: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    basis: Mapped[str | None] = mapped_column(String(16), index=True)
+    price_basis: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    unit_price: Mapped[str | None] = mapped_column(Text)
+    unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    currency: Mapped[str | None] = mapped_column(String(16))
+    currency_status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    applies_to_hardware_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    region: Mapped[str | None] = mapped_column(String(64))
+    default_quantity: Mapped[str | None] = mapped_column(Text)
+    valid_from: Mapped[date | None] = mapped_column(Date)
+    valid_to: Mapped[date | None] = mapped_column(Date)
+    evidence_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("evidence.evidence_id"), nullable=False
+    )
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class BillingRuleRow(Base):
+    """Token 计费规则（M29）。与第一阶段 ``token_price`` 并存：
+    ``token_price`` 是历史复算用的参考单价，本表是**面向业务的计费口径**
+    （含可计费缓存比例、批处理折扣、最小计费量）。
+    """
+
+    __tablename__ = "billing_rule"
+
+    rule_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    currency: Mapped[str | None] = mapped_column(String(16))
+    currency_status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    price_uncached_input_per_1m: Mapped[str | None] = mapped_column(Text)
+    price_cached_input_per_1m: Mapped[str | None] = mapped_column(Text)
+    price_output_per_1m: Mapped[str | None] = mapped_column(Text)
+    billable_cache_ratio: Mapped[str | None] = mapped_column(Text)
+    billable_cache_basis: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    evidence_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("evidence.evidence_id"), nullable=False
+    )
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class CommercialConfirmationRow(Base):
+    """商务确认记录（M30）。**只能由人工写入**，Agent 不生成确认。"""
+
+    __tablename__ = "commercial_confirmation"
+
+    confirmation_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    currency_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    price_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    terms_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    confirmed_by: Mapped[str | None] = mapped_column(String(128))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    valid_until: Mapped[date | None] = mapped_column(Date)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)

@@ -27,6 +27,11 @@ INCOMING="data/incoming/sglang_official_benchmark_candidates_20261015.json"
 MODEL_MANIFEST="data/models/model_manifest.yaml"
 HW_CATALOG="data/hardware/hardware_catalog.yaml"
 PERF_CURVE_INDEX="data/fixtures/perf_curve/INDEX.json"
+# 第四阶段（M26-M33）合成示例输入
+P4_CATALOG="data/examples/phase4_cost_inputs.example.yaml"
+P4_PLAN="data/examples/phase4_cost_plan.example.yaml"
+P4_DEMAND="data/examples/phase4_demand.example.yaml"
+P4_CONFIRMATION="data/examples/phase4_commercial_confirmation.example.yaml"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -300,6 +305,75 @@ step_sla_algorithm_validation() { # 仅算法验证：显式 allow-synthetic 才
   fi
 }
 
+step_tco_leased() { # 租赁口径：不得出现一次性投入与折旧（断言）
+  local out
+  if ! out=$($CLI tco --plan-file "$P4_PLAN" --template syn-leased-3y \
+      --candidate demo-leased --hardware nvidia-h100-sxm-80gb \
+      --gpu-count 8 --server-count 1 --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '"capex_one_time": null'; then
+    printf '断言失败：租赁口径不得产生一次性投入\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q '"annual_depreciation": null'; then
+    printf '断言失败：租赁口径不得计折旧\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q 'syn-gpu-purchase'; then
+    printf '断言失败：买断专属成本项必须被显式列出为已排除（排除不等于零成本）\n'; return 1
+  fi
+}
+
+step_tco_unknown() { # 缺价项：未知不等于零（断言）
+  local out
+  if ! out=$($CLI tco --plan-file "$P4_PLAN" --template syn-owned-incomplete \
+      --candidate demo-incomplete --hardware nvidia-h100-sxm-80gb \
+      --gpu-count 8 --server-count 1 --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '"incomplete": true'; then
+    printf '断言失败：缺价项必须让成本结论标为不完整\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q 'syn-infiniband-fabric'; then
+    printf '断言失败：缺价成本项必须被列出（不得按 0 通过）\n'; return 1
+  fi
+}
+
+step_quote_blocked() { # 合成成本 + 无确认 + 未审批 -> 必须阻断（断言）
+  local out
+  if ! out=$($CLI quote-eligibility --candidate demo-owned --plan-file "$P4_PLAN" \
+      --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
+      --gpu-count 8 --server-count 1 --sla-status observed_pass \
+      --match-level exact_match --approval-status missing --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '^正式报价不可发布'; then
+    printf '断言失败：合成成本不得发布正式报价\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q '"quote_publishable": false'; then
+    printf '断言失败：quote_publishable 必须为 false\n'; return 1
+  fi
+}
+
+step_quote_still_blocked() { # 商务已确认但 SLA 非实测 -> 仍必须阻断（断言）
+  local out
+  if ! out=$($CLI quote-eligibility --candidate demo-owned --plan-file "$P4_PLAN" \
+      --template syn-owned-3y --hardware nvidia-h100-sxm-80gb \
+      --gpu-count 8 --server-count 1 --sla-status estimated_only \
+      --confirmation syn-confirmation-demo --approval-status missing --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '^正式报价不可发布'; then
+    printf '断言失败：SLA 未实测支撑时不得发布报价\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q 'sla_estimated_only'; then
+    printf '断言失败：必须给出 sla_estimated_only 阻断原因\n'; return 1
+  fi
+}
+
 run_step 0 "环境" 1 '^(Python|deps ok)' step_env
 
 run_step 1 "清理旧产物（全新数据库）" 1 '' step_cleanup
@@ -425,13 +499,60 @@ run_step 31 "rank-deployments（M24：静态可行但无实测 -> requires_bench
 run_step 32 "performance-report（M25 第三阶段报告）" 1 '^报告已写入' \
   $CLI performance-report --out "$OUT_DIR/performance_report.md" --target-concurrency 8 --db "$DB"
 
-run_step 33 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+# ---------------------------------------------------------------------------
+# 第四阶段（M26-M33）：TCO、业务收益、报价门禁与部署决策
+# ---------------------------------------------------------------------------
+
+run_step 33 "import-cost-catalog（M27 成本目录 + 计费规则；合成示例）" 1 '^(已导入 [0-9]+ 个成本项|注意：)' \
+  $CLI import-cost-catalog --file "$P4_CATALOG" --db "$DB"
+
+run_step 34 "cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项）" 1 '^  "(item_count|billing_rule_count|items_missing_price|contains_synthetic)"' \
+  $CLI cost-catalog --db "$DB"
+
+run_step 35 "tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解）" 1 '^TCO：一次性|^  "(capex_one_time|annual_cash_opex|annual_depreciation|total_cash_over_horizon|incomplete)"' \
+  $CLI tco --plan-file "$P4_PLAN" --template syn-owned-3y \
+    --candidate demo-owned --hardware nvidia-h100-sxm-80gb \
+    --gpu-count 8 --server-count 1 --db "$DB"
+
+run_step 36 "tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除）" 1 '^TCO：一次性' \
+  step_tco_leased
+
+run_step 37 "tco（M28 断言：缺价项 -> incomplete，未知不等于零）" 1 '^成本不完整' \
+  step_tco_unknown
+
+run_step 38 "revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证）" 1 '^年度收入|^  "(annual_revenue|currency|capacity_check|scenario_only|period_revenue_total)"' \
+  $CLI revenue-scenario --demand-file "$P4_DEMAND" --scenario syn-demand-base --db "$DB"
+
+run_step 39 "quote-eligibility（M30 断言：合成成本 + 无确认 + 未审批 -> 必须阻断）" 1 '^正式报价不可发布' \
+  step_quote_blocked
+
+run_step 40 "import-commercial-confirmations（人工确认记录，示例占位）" 1 '^已导入 [0-9]+ 条商务确认记录' \
+  $CLI import-commercial-confirmations --file "$P4_CONFIRMATION" --db "$DB"
+
+run_step 41 "quote-eligibility（M30 断言：商务已确认但 SLA 非实测 -> 仍阻断）" 1 '^正式报价不可发布' \
+  step_quote_still_blocked
+
+run_step 42 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路）" 1 '^(候选分桶:|可发布正式报价的候选:)|^  "per_candidate"' \
+  $CLI phase4-decision --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+    --plan-file "$P4_PLAN" --template syn-owned-3y \
+    --demand-file "$P4_DEMAND" --scenario syn-demand-base \
+    --context-length 8192 --concurrency 32 --tp-sizes 2,4,8 --dp-sizes 1 \
+    --usable-fraction 0.9 --usable-source-kind synthetic_example \
+    --runtime-reserve-fraction 0.1 \
+    --requirement '{"requirement_id":"req-phase4","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
+    --out "$OUT_DIR/phase4_decision.json" --db "$DB"
+
+run_step 43 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明）" 1 '^报告已写入' \
+  $CLI phase4-report --out "$OUT_DIR/phase4_report.md" \
+    --decision-json "$OUT_DIR/phase4_decision.json" --db "$DB"
+
+run_step 44 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 34 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 45 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 35 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 46 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

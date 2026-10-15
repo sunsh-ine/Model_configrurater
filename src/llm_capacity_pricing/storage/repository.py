@@ -11,6 +11,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
+from llm_capacity_pricing.schemas.commercial import BillingRule, CommercialConfirmation
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.schemas.evidence import Evidence
 from llm_capacity_pricing.schemas.official import (
@@ -24,9 +25,13 @@ from llm_capacity_pricing.schemas.sizing import (
     ServerProfile,
 )
 from llm_capacity_pricing.schemas.pricing import PricingResult
+from llm_capacity_pricing.schemas.tco import CostCatalogItem
 from llm_capacity_pricing.storage.database import (
     BenchmarkRecordRow,
     BenchmarkRunRow,
+    BillingRuleRow,
+    CommercialConfirmationRow,
+    CostCatalogItemRow,
     Database,
     EvidenceRow,
     HardwarePriceRow,
@@ -87,7 +92,123 @@ class RepositoryCounts:
         }
 
 
-class Repository:
+
+class _Phase4Mixin:
+    """第四阶段仓储方法（成本目录 / 计费规则 / 商务确认）。
+
+    单独放一个 mixin 便于一眼看清"第四阶段新增了什么"，
+    但方法仍然挂在 ``Repository`` 上，调用方式与前三阶段一致。
+    """
+
+    def upsert_cost_catalog_items(
+        self, session: Session, items: Iterable[CostCatalogItem]
+    ) -> int:
+        """按 ``item_id`` 幂等写入成本目录项。"""
+        n = 0
+        for item in items:
+            session.merge(
+                CostCatalogItemRow(
+                    item_id=item.item_id,
+                    category=item.category,
+                    name=item.name,
+                    basis=item.basis,
+                    price_basis=item.price_basis,
+                    unit_price=_d(item.unit_price),
+                    unit=item.unit,
+                    currency=item.currency,
+                    currency_status=item.currency_status,
+                    status=item.status,
+                    origin=item.origin,
+                    applies_to_hardware_id=item.applies_to_hardware_id,
+                    region=item.region,
+                    default_quantity=_d(item.default_quantity),
+                    valid_from=item.valid_from,
+                    valid_to=item.valid_to,
+                    evidence_id=item.evidence_id,
+                    payload_json=_dump(item),
+                )
+            )
+            n += 1
+        return n
+
+    def list_cost_catalog_items(self, session: Session) -> list[CostCatalogItem]:
+        rows = session.scalars(
+            select(CostCatalogItemRow).order_by(CostCatalogItemRow.item_id)
+        ).all()
+        return [CostCatalogItem.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def upsert_billing_rules(self, session: Session, rules: Iterable[BillingRule]) -> int:
+        n = 0
+        for rule in rules:
+            session.merge(
+                BillingRuleRow(
+                    rule_id=rule.rule_id,
+                    model_name=rule.model_name,
+                    currency=rule.currency,
+                    currency_status=rule.currency_status,
+                    price_uncached_input_per_1m=_d(rule.price_uncached_input_per_1m),
+                    price_cached_input_per_1m=_d(rule.price_cached_input_per_1m),
+                    price_output_per_1m=_d(rule.price_output_per_1m),
+                    billable_cache_ratio=_d(rule.billable_cache_ratio),
+                    billable_cache_basis=rule.billable_cache_basis,
+                    status=rule.status,
+                    evidence_id=rule.evidence_id,
+                    payload_json=_dump(rule),
+                )
+            )
+            n += 1
+        return n
+
+    def list_billing_rules(self, session: Session) -> list[BillingRule]:
+        rows = session.scalars(select(BillingRuleRow).order_by(BillingRuleRow.rule_id)).all()
+        return [BillingRule.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def upsert_commercial_confirmations(
+        self, session: Session, items: Iterable[CommercialConfirmation]
+    ) -> int:
+        """写入人工商务确认记录（数据由人工提供，本方法只负责持久化）。"""
+        n = 0
+        for conf in items:
+            session.merge(
+                CommercialConfirmationRow(
+                    confirmation_id=conf.confirmation_id,
+                    scope=conf.scope,
+                    status=conf.status,
+                    currency_confirmed=conf.currency_confirmed,
+                    price_confirmed=conf.price_confirmed,
+                    terms_confirmed=conf.terms_confirmed,
+                    confirmed_by=conf.confirmed_by,
+                    confirmed_at=conf.confirmed_at,
+                    valid_until=conf.valid_until,
+                    payload_json=_dump(conf),
+                )
+            )
+            n += 1
+        return n
+
+    def list_commercial_confirmations(
+        self, session: Session
+    ) -> list[CommercialConfirmation]:
+        rows = session.scalars(
+            select(CommercialConfirmationRow).order_by(
+                CommercialConfirmationRow.confirmation_id
+            )
+        ).all()
+        return [
+            CommercialConfirmation.model_validate(json.loads(r.payload_json)) for r in rows
+        ]
+
+    def get_commercial_confirmation(
+        self, session: Session, confirmation_id: str
+    ) -> CommercialConfirmation | None:
+        row = session.get(CommercialConfirmationRow, confirmation_id)
+        return (
+            CommercialConfirmation.model_validate(json.loads(row.payload_json))
+            if row
+            else None
+        )
+
+class Repository(_Phase4Mixin):
     def __init__(self, db: Database):
         self.db = db
 
@@ -601,3 +722,8 @@ class Repository:
             delete(BenchmarkRunRow).where(BenchmarkRunRow.run_id.in_(list(run_ids)))
         )
         return int(result.rowcount or 0)
+
+
+# ---------------------------------------------------------------------------
+# 第四阶段（M27/M30）：成本目录、计费规则、商务确认
+# ---------------------------------------------------------------------------

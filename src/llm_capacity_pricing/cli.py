@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -47,6 +48,14 @@ from llm_capacity_pricing.services import (
     performance_inventory,
     rank_deployments_for,
     init_db,
+    import_cost_catalog,
+    cost_catalog_summary,
+    import_commercial_confirmations,
+    tco_for,
+    revenue_for,
+    quote_eligibility_for,
+    phase4_decision_for,
+    export_phase4_report,
     make_assumptions,
     official_coverage_summary,
     export_plan,
@@ -878,6 +887,331 @@ def performance_report_cmd(
     info = export_performance_report(db, out, profiles=profiles, inventory=inv)
     typer.secho(f"报告已写入 {info['report']}（{info['bytes']} 字节）", fg=typer.colors.GREEN)
     _echo_json({"inventory": inv, "group_count": profiles["group_count"]})
+
+
+# --------------------------------------------------------------------------
+# 第四阶段（M26–M33）：TCO、收益情景、报价门禁与部署决策
+# --------------------------------------------------------------------------
+
+
+@app.command("import-cost-catalog")
+def import_cost_catalog_cmd(
+    file: str = typer.Option(..., "--file", help="成本目录 YAML（成本项 + 计费规则）"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M27：导入成本目录与计费规则（幂等）。"""
+    info = import_cost_catalog(file, db)
+    typer.secho(
+        f"已导入 {info['cost_item_count']} 个成本项、{info['billing_rule_count']} 条计费规则",
+        fg=typer.colors.GREEN,
+    )
+    if info["synthetic_item_count"]:
+        typer.secho(
+            f"注意：其中 {info['synthetic_item_count']} 项为合成示例价格，不得用于正式报价",
+            fg=typer.colors.YELLOW,
+        )
+    _echo_json(
+        {
+            "cost_item_count": info["cost_item_count"],
+            "billing_rule_count": info["billing_rule_count"],
+            "synthetic_item_count": info["synthetic_item_count"],
+            "currency": info["currency"],
+            "currency_status": info["currency_status"],
+        }
+    )
+
+
+@app.command("cost-catalog")
+def cost_catalog_cmd(
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """查看成本目录库存（类别 / 口径 / 状态 / 缺价项）。"""
+    info = cost_catalog_summary(db)
+    typer.secho(
+        f"成本项 {info['item_count']} 项，计费规则 {info['billing_rule_count']} 条，"
+        f"人工确认 {info['confirmation_count']} 条",
+        fg=typer.colors.GREEN,
+    )
+    if info["items_missing_price"]:
+        typer.secho(
+            f"缺单价（不得按 0 处理）：{info['items_missing_price']}", fg=typer.colors.YELLOW
+        )
+    _echo_json(info)
+
+
+@app.command("import-commercial-confirmations")
+def import_commercial_confirmations_cmd(
+    file: str = typer.Option(..., "--file", help="人工商务确认 YAML"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M30：导入人工商务确认记录（本命令只做持久化，不生成确认）。"""
+    info = import_commercial_confirmations(file, db)
+    typer.secho(
+        f"已导入 {info['confirmation_count']} 条商务确认记录", fg=typer.colors.GREEN
+    )
+    _echo_json(info)
+
+
+@app.command("tco")
+def tco_cmd(
+    plan_file: str = typer.Option(..., "--plan-file", help="成本方案模板 YAML"),
+    template: str = typer.Option(..., "--template", help="模板 ID"),
+    candidate_id: str = typer.Option(..., "--candidate", help="候选 ID（标签，用于追溯）"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 ID"),
+    gpu_count: int = typer.Option(..., "--gpu-count", help="GPU 卡数"),
+    server_count: int = typer.Option(..., "--server-count", help="服务器台数"),
+    annual_revenue: Optional[str] = typer.Option(
+        None, "--annual-revenue", help="年收入（用于现金流；不给则只算成本侧）"
+    ),
+    revenue_basis: str = typer.Option(
+        "none", "--revenue-basis", help="收入口径：none / scenario_only / measured_capacity_verified"
+    ),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M28：计算完整 TCO 与现金流。"""
+    info = tco_for(
+        db,
+        plan_file=plan_file,
+        template_id=template,
+        candidate_id=candidate_id,
+        hardware_id=hardware,
+        gpu_count=gpu_count,
+        server_count=server_count,
+        annual_revenue=Decimal(annual_revenue) if annual_revenue else None,
+        revenue_basis=revenue_basis,
+    )
+    tco = info["tco"]
+    typer.secho(
+        f"TCO：一次性 {tco['capex_one_time']}，年现金 {tco['annual_cash_opex']}，"
+        f"全周期 {tco['total_cash_over_horizon']}（{tco['cost_basis']}）",
+        fg=typer.colors.GREEN,
+    )
+    if tco["incomplete"]:
+        typer.secho(
+            f"成本不完整（不得用于正式报价）：{tco['completeness_reasons']}",
+            fg=typer.colors.YELLOW,
+        )
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "plan_id": tco["plan_id"],
+            "cost_basis": tco["cost_basis"],
+            "capex_one_time": tco["capex_one_time"],
+            "annual_cash_opex": tco["annual_cash_opex"],
+            "annual_depreciation": tco["annual_depreciation"],
+            "annual_total_cost": tco["annual_total_cost"],
+            "total_cash_over_horizon": tco["total_cash_over_horizon"],
+            "incomplete": tco["incomplete"],
+            "unknown_items": tco["unknown_items"],
+            "excluded_items": tco["excluded_items"],
+        }
+    )
+
+
+@app.command("revenue-scenario")
+def revenue_scenario_cmd(
+    demand_file: str = typer.Option(..., "--demand-file", help="业务需求情景 YAML"),
+    scenario: str = typer.Option(..., "--scenario", help="情景 ID"),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M29：按业务请求量计算 Token 计费与收益情景。"""
+    info = revenue_for(db, demand_file=demand_file, scenario_id=scenario)
+    rev = info["revenue"]
+    typer.secho(
+        f"年度收入 {rev['annual_revenue']} {rev['currency'] or ''}"
+        f"（容量比对：{rev['capacity_check']}）",
+        fg=typer.colors.GREEN,
+    )
+    if rev["scenario_only"]:
+        typer.secho(
+            "容量未验证：该收入仅作情景分析，不得作为产能承诺", fg=typer.colors.YELLOW
+        )
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "scenario_id": rev["scenario_id"],
+            "annual_revenue": rev["annual_revenue"],
+            "currency": rev["currency"],
+            "capacity_check": rev["capacity_check"],
+            "scenario_only": rev["scenario_only"],
+            "period_revenue_total": rev["period_revenue_total"],
+        }
+    )
+
+
+@app.command("quote-eligibility")
+def quote_eligibility_cmd(
+    candidate_id: str = typer.Option(..., "--candidate", help="候选 ID"),
+    plan_file: Optional[str] = typer.Option(None, "--plan-file", help="成本方案模板 YAML"),
+    template: Optional[str] = typer.Option(None, "--template", help="模板 ID"),
+    hardware: Optional[str] = typer.Option(None, "--hardware", help="硬件 ID"),
+    gpu_count: Optional[int] = typer.Option(None, "--gpu-count", help="GPU 卡数"),
+    server_count: Optional[int] = typer.Option(None, "--server-count", help="服务器台数"),
+    sla_status: Optional[str] = typer.Option(None, "--sla-status", help="第三阶段 SLA 状态"),
+    match_level: Optional[str] = typer.Option(None, "--match-level", help="第三阶段匹配等级"),
+    confirmation_id: Optional[str] = typer.Option(
+        None, "--confirmation", help="人工商务确认记录 ID"
+    ),
+    approval_status: str = typer.Option(
+        "missing", "--approval-status", help="审批状态：approved / pending / missing（默认 missing）"
+    ),
+    approval_ref: Optional[str] = typer.Option(
+        None, "--approval-ref", help="人工审批凭据编号（声明 approved 时必填）"
+    ),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M30：四维报价门禁判定（fail-closed）。"""
+    info = quote_eligibility_for(
+        db,
+        candidate_id=candidate_id,
+        plan_file=plan_file,
+        template_id=template,
+        hardware_id=hardware,
+        gpu_count=gpu_count,
+        server_count=server_count,
+        sla_status=sla_status,
+        match_level=match_level,
+        confirmation_id=confirmation_id,
+        approval_status=approval_status,
+        approval_ref=approval_ref,
+    )
+    elig = info["eligibility"]
+    if elig["quote_publishable"]:
+        typer.secho("正式报价可发布", fg=typer.colors.GREEN)
+    else:
+        typer.secho("正式报价不可发布", fg=typer.colors.RED)
+        for blocker in elig["blockers"]:
+            typer.echo(f"  - {blocker}")
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(elig)
+
+
+@app.command("phase4-decision")
+def phase4_decision_cmd(
+    model: str = typer.Option(..., "--model", help="模型 ID"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 ID"),
+    server: Optional[str] = typer.Option(None, "--server", help="服务器形态 ID"),
+    plan_file: str = typer.Option(..., "--plan-file", help="成本方案模板 YAML"),
+    template: str = typer.Option(..., "--template", help="模板 ID"),
+    requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON"),
+    ctx: int = typer.Option(..., "--context-length", help="每请求上下文长度（token）"),
+    concurrency: int = typer.Option(..., "--concurrency", help="全局并发请求数"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="目标输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="目标输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="数据集名称"),
+    tp_sizes: str = typer.Option("1,2,4,8", "--tp-sizes", help="枚举的 TP 取值"),
+    dp_sizes: str = typer.Option("1,2,4,8", "--dp-sizes", help="枚举的 DP 取值"),
+    block_size: Optional[int] = typer.Option(None, "--block-size", help="Paged KV 块大小"),
+    usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="按标称容量的可用比例"),
+    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="可用显存来源描述"),
+    usable_source_kind: Optional[str] = typer.Option(None, "--usable-source-kind", help="可用显存来源性质"),
+    runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时合并预留比例"),
+    runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留来源"),
+    demand_file: Optional[str] = typer.Option(None, "--demand-file", help="业务需求情景 YAML"),
+    scenario: Optional[str] = typer.Option(None, "--scenario", help="需求情景 ID"),
+    confirmation: Optional[str] = typer.Option(None, "--confirmation", help="人工商务确认记录 ID"),
+    approval_status: str = typer.Option("missing", "--approval-status", help="审批状态（默认 missing）"),
+    approval_ref: Optional[str] = typer.Option(None, "--approval-ref", help="人工审批凭据编号"),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M31/M32：串起资源、性能、TCO、收益与报价门禁的完整决策链。"""
+    assumptions = make_assumptions(
+        usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
+        usable_memory_source=usable_source,
+        usable_memory_source_kind=usable_source_kind,
+        runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
+        runtime_reserve_source=runtime_source,
+        block_size_tokens=block_size,
+        global_concurrency=concurrency,
+        context_length_per_request=ctx,
+        tp_sizes=_parse_int_list(tp_sizes),
+        dp_sizes=_parse_int_list(dp_sizes),
+    )
+    info = phase4_decision_for(
+        db,
+        requirement=json.loads(requirement),
+        model_id=model,
+        hardware_id=hardware,
+        server_id=server,
+        plan_file=plan_file,
+        template_id=template,
+        assumptions=assumptions,
+        input_len_target=input_len,
+        output_len_target=output_len,
+        dataset_name=dataset,
+        demand_file=demand_file,
+        scenario_id=scenario,
+        confirmation_id=confirmation,
+        approval_status=approval_status,
+        approval_ref=approval_ref,
+    )
+    comparison = info["comparison"]
+    buckets: dict[str, int] = {}
+    for entry in comparison["entries"]:
+        key = entry["rank_bucket"]
+        buckets[key] = buckets.get(key, 0) + 1
+    typer.secho(f"候选分桶: {buckets}", fg=typer.colors.GREEN)
+    if comparison.get("lowest_cost_candidate_id"):
+        typer.echo(f"可比且成本完整者中的最低成本候选: {comparison['lowest_cost_candidate_id']}")
+    publishable = [e for e in comparison["entries"] if e["quote_publishable"]]
+    typer.secho(
+        f"可发布正式报价的候选: {[e['candidate_id'] for e in publishable] or '无'}",
+        fg=typer.colors.GREEN if publishable else typer.colors.YELLOW,
+    )
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "requirement_id": info["requirement_id"],
+            "buckets": buckets,
+            "per_candidate": info["per_candidate"],
+            "limitations": info["limitations"],
+        }
+    )
+
+
+@app.command("phase4-report")
+def phase4_report_cmd(
+    out: str = typer.Option("data/exports/phase4_report.md", "--out", help="Markdown 报告路径"),
+    decision_json: Optional[str] = typer.Option(
+        None,
+        "--decision-json",
+        help="phase4-decision 导出的 JSON；给出后报告才会包含第 2-6 节与四维门禁明细",
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M33：生成第四阶段报告（含报价草稿或阻断说明）。"""
+    decision = None
+    if decision_json:
+        decision = json.loads(Path(decision_json).read_text(encoding="utf-8"))
+    info = export_phase4_report(db, out, decision=decision)
+    typer.secho(f"报告已写入 {info['report']}（{info['bytes']} 字节）", fg=typer.colors.GREEN)
+    _echo_json(
+        {"report": info["report"], "quote_publishable": info["quote_publishable"]}
+    )
 
 
 if __name__ == "__main__":

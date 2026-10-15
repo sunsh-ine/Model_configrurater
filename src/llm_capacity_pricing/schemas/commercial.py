@@ -1,0 +1,336 @@
+"""第四阶段（M29/M30）：Token 计费、业务需求收益情景、商务确认与报价门禁。
+
+两条纪律：
+
+* **收入必须从业务需求出发**。第一阶段的理论满载 Token 收入继续保留，
+  但这里不能把它当真实营业收入；收入要按请求量、输入输出分布、计费规则与
+  使用时段算出来，再与可信容量对比。
+* **不得把 SGLang 的物理 Prefix Cache 命中率当作可计费缓存 Token 比例**。
+  可计费缓存比例是**合同/计费口径**，必须单独给出并声明依据。
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+#: 可计费缓存比例的来源依据。 ``physical_cache_hit_rate`` 被**显式禁止**：
+#: 物理命中率是引擎内部行为，不构成计费依据。
+BillableCacheBasis = Literal[
+    "contract_defined",
+    "vendor_published",
+    "assumed",
+    "unknown",
+]
+
+#: 收益情景与可信容量的比对结论
+CapacityCheck = Literal[
+    "within_capacity",          # 需求落在已验证可持续容量内
+    "exceeds_capacity",         # 超出已验证容量
+    "unknown_no_measurement",   # 没有可信实测，无法判定
+]
+
+#: 商务确认状态
+ConfirmationStatus = Literal["confirmed", "pending", "missing"]
+
+#: 报价发布门禁的四个独立维度
+CostEstimateStatus = Literal["complete", "incomplete", "unknown"]
+SlaVerificationStatus = Literal[
+    "verified_measured",   # 有匹配实测且指标完整
+    "estimated_only",      # 只有估算，不构成性能承诺
+    "not_evaluable",       # 匹配/指标不足，无法评估
+    "unverified",          # 未做评估
+]
+ApprovalStatus = Literal["approved", "pending", "missing"]
+
+
+class BillingRule(BaseModel):
+    """计费规则（M29）：客户合同/公开价目下的 Token 计费口径。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rule_id: str
+    model_name: str
+    currency: str | None = None
+    currency_status: Literal["confirmed", "unconfirmed", "assumed"] = "unconfirmed"
+
+    price_uncached_input_per_1m: Decimal | None = None
+    price_cached_input_per_1m: Decimal | None = None
+    price_output_per_1m: Decimal | None = None
+
+    #: 可计费缓存输入占比（0..1）。**不是**物理 prefix cache 命中率。
+    billable_cache_ratio: Decimal | None = None
+    billable_cache_basis: BillableCacheBasis = "unknown"
+
+    #: 批处理/离线折扣（0..1）
+    batch_discount_fraction: Decimal | None = None
+    #: 单请求最小计费输入 token（不足按此计）
+    min_billable_input_tokens_per_request: int | None = None
+    #: 计费周期说明（如"按自然月结算"）
+    settlement_note: str | None = None
+
+    status: Literal["confirmed", "pending_business_confirmation", "synthetic_example"] = (
+        "pending_business_confirmation"
+    )
+    valid_from: date | None = None
+    valid_to: date | None = None
+    evidence_id: str
+    notes: str | None = None
+
+    @field_validator(
+        "price_uncached_input_per_1m", "price_cached_input_per_1m", "price_output_per_1m"
+    )
+    @classmethod
+    def _non_negative(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and v < 0:
+            raise ValueError("Token 单价不允许为负值")
+        return v
+
+    @field_validator("billable_cache_ratio", "batch_discount_fraction")
+    @classmethod
+    def _fraction(cls, v: Decimal | None) -> Decimal | None:
+        if v is not None and not (Decimal("0") <= v <= Decimal("1")):
+            raise ValueError("比例字段必须落在 0..1")
+        return v
+
+    @model_validator(mode="after")
+    def _guard(self) -> "BillingRule":
+        if self.billable_cache_ratio is not None and self.billable_cache_basis == "unknown":
+            raise ValueError(
+                "给出 billable_cache_ratio 时必须声明 billable_cache_basis"
+                "（可计费缓存比例是计费口径，不能默认来自引擎物理命中率）"
+            )
+        if self.status == "confirmed" and self.currency_status != "confirmed":
+            raise ValueError("status=confirmed 的计费规则必须同时 currency_status=confirmed")
+        return self
+
+
+class DemandPeriod(BaseModel):
+    """一个业务时段的需求量（M29）。时段是收入计算的最小单位。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    duration_hours: Decimal
+    request_count: int
+    avg_input_tokens: Decimal
+    avg_output_tokens: Decimal
+    #: 业务侧估计的"可复用前缀"占比（用于选择缓存价），**不是**引擎命中率
+    cached_input_fraction: Decimal = Decimal("0")
+    #: 是否需要按峰值容量校验（峰值时段必须有可信容量证据）
+    is_peak: bool = False
+    #: 该时段是否走批处理折扣
+    batch: bool = False
+
+    @field_validator("duration_hours")
+    @classmethod
+    def _positive_hours(cls, v: Decimal) -> Decimal:
+        if v <= 0:
+            raise ValueError("duration_hours 必须为正")
+        return v
+
+    @field_validator("request_count")
+    @classmethod
+    def _non_negative_int(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("request_count 不允许为负")
+        return v
+
+    @field_validator("avg_input_tokens", "avg_output_tokens")
+    @classmethod
+    def _non_negative_dec(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("token 数不允许为负")
+        return v
+
+    @field_validator("cached_input_fraction")
+    @classmethod
+    def _fraction(cls, v: Decimal) -> Decimal:
+        if not (Decimal("0") <= v <= Decimal("1")):
+            raise ValueError("cached_input_fraction 必须落在 0..1")
+        return v
+
+
+class RevenueScenario(BaseModel):
+    """业务需求情景（M29 的输入）：按请求量而不是理论满载推算收入。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_id: str
+    model_name: str
+    billing_rule_id: str
+    #: 情景口径说明（客户类型、业务线、假设来源）
+    scope_notes: list[str] = Field(default_factory=list)
+    periods: list[DemandPeriod] = Field(default_factory=list)
+    #: 一年覆盖多少天（用于把"一天"的时段表外推到年度）
+    days_per_year: int = 365
+    #: 时段表覆盖的周期；``one_day`` 时年度收入 = 时段合计 × days_per_year
+    periods_cover: Literal["one_day", "one_year"] = "one_day"
+
+    @field_validator("days_per_year")
+    @classmethod
+    def _days(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("days_per_year 至少为 1")
+        return v
+
+    @model_validator(mode="after")
+    def _guard(self) -> "RevenueScenario":
+        if not self.periods:
+            raise ValueError("RevenueScenario 至少要有一个需求时段")
+        labels = [p.label for p in self.periods]
+        if len(labels) != len(set(labels)):
+            raise ValueError("时段 label 不得重复（用于可追溯的逐时段结果）")
+        return self
+
+
+class PeriodRevenue(BaseModel):
+    """单个时段的计费与收入结果。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    billable_input_tokens_uncached: Decimal
+    billable_input_tokens_cached: Decimal
+    billable_output_tokens: Decimal
+    input_revenue: Decimal
+    output_revenue: Decimal
+    gross_revenue: Decimal
+    batch_discount: Decimal = Decimal("0")
+    revenue: Decimal
+    #: 该时段的平均请求速率（req/s），峰值时段用于容量校验
+    request_rate_rps: Decimal
+    is_peak: bool = False
+
+
+class RevenueResult(BaseModel):
+    """收入情景结果（M29）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_id: str
+    model_name: str
+    billing_rule_id: str
+    currency: str | None
+    currency_status: Literal["confirmed", "unconfirmed", "assumed"] = "unconfirmed"
+    billing_rule_status: Literal["confirmed", "pending_business_confirmation", "synthetic_example"]
+
+    #: 时段合计覆盖的周期：一天（外推 × days_per_year）还是一年
+    periods_cover: Literal["one_day", "one_year"] = "one_day"
+
+    periods: list[PeriodRevenue] = Field(default_factory=list)
+    #: 表内时段合计（未外推）
+    period_revenue_total: Decimal
+    #: 外推到年度后的收入
+    annual_revenue: Decimal
+    #: 年度总 token（用于单位经济性）
+    annual_billable_input_tokens: Decimal
+    annual_billable_output_tokens: Decimal
+    annual_requests: int
+
+    #: 峰值时段请求速率（容量校验用）
+    peak_request_rate_rps: Decimal | None = None
+    #: 与第三阶段可信容量的比对结论
+    capacity_check: CapacityCheck = "unknown_no_measurement"
+    #: 比对依据说明（哪条实测、什么并发、什么产能）
+    capacity_basis: list[str] = Field(default_factory=list)
+
+    #: 该收入口径是否为"仅情景"（未与可信容量对齐时为 True）
+    scenario_only: bool = True
+    warnings: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self) -> "RevenueResult":
+        if self.capacity_check == "within_capacity" and not self.capacity_basis:
+            raise ValueError("判定 within_capacity 必须给出容量依据（哪条实测/什么产能）")
+        return self
+
+
+class CommercialConfirmation(BaseModel):
+    """商务确认记录（M30）。**人工**确认，Agent 不得自行生成确认。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation_id: str
+    scope: str
+    #: 币种是否已确认
+    currency_confirmed: bool = False
+    #: 合同/目录价格是否已确认
+    price_confirmed: bool = False
+    #: 条款（计费规则、有效期、SLA 承诺口径）是否已确认
+    terms_confirmed: bool = False
+    confirmed_by: str | None = None
+    confirmed_at: datetime | None = None
+    #: 价格有效期
+    valid_until: date | None = None
+    document_ref: str | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _guard(self) -> "CommercialConfirmation":
+        if self.currency_confirmed and not self.confirmed_by:
+            raise ValueError("币种已确认时必须记录确认人")
+        if self.status == "confirmed":
+            missing = [
+                name
+                for name in ("confirmed_by", "confirmed_at", "valid_until", "document_ref")
+                if getattr(self, name) is None
+            ]
+            if missing:
+                raise ValueError(
+                    f"status=confirmed 的商务确认必须齐备审计字段，缺少 {missing}"
+                    "（人工确认需要可追溯的确认人、时间、有效期与凭据）"
+                )
+        return self
+
+    @property
+    def status(self) -> ConfirmationStatus:
+        if self.currency_confirmed and self.price_confirmed and self.terms_confirmed:
+            return "confirmed"
+        if self.currency_confirmed or self.price_confirmed or self.terms_confirmed:
+            return "pending"
+        return "missing"
+
+
+class QuoteEligibility(BaseModel):
+    """正式报价资格（M30）。**四个维度相互独立**，任一不通过即不可发布。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_id: str
+    plan_id: str | None = None
+    scenario_id: str | None = None
+    billing_rule_id: str | None = None
+
+    cost_estimate_status: CostEstimateStatus
+    sla_verification_status: SlaVerificationStatus
+    commercial_confirmation_status: ConfirmationStatus
+    approval_status: ApprovalStatus
+    #: 人工审批凭据编号（如审批单号）；**没有凭据就不算审批通过**
+    approval_ref: str | None = None
+
+    #: 四个维度全部通过才可能为 True（且必须满足有效期等附加条件）
+    quote_publishable: bool = False
+    blockers: list[str] = Field(default_factory=list)
+    #: 通过但仍需注意的事项（如"仅算法验证数据支撑"）
+    cautions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self) -> "QuoteEligibility":
+        expected = (
+            self.cost_estimate_status == "complete"
+            and self.sla_verification_status == "verified_measured"
+            and self.commercial_confirmation_status == "confirmed"
+            and self.approval_status == "approved"
+        )
+        if self.quote_publishable and not expected:
+            raise ValueError("四维门禁未全通过时不得标记 quote_publishable")
+        if self.quote_publishable and self.blockers:
+            raise ValueError("quote_publishable=True 时不得存在 blockers")
+        if self.approval_status == "approved" and not self.approval_ref:
+            raise ValueError("approval_status=approved 必须给出人工审批凭据 approval_ref")
+        return self

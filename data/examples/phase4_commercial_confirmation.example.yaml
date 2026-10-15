@@ -1,0 +1,24 @@
+# 第四阶段（M30）商务确认记录 —— **示例，不是真实确认**
+#
+# ⚠️ 本文件用于验证门禁的"审计字段"要求（确认人 / 时间 / 有效期 / 凭据），
+#    其中的确认人与凭据编号都是**演示占位**，不代表任何真实审批或合同价。
+#    真实商务确认由业务方提供，不入版本库（放在被 git 忽略的目录）。
+#
+# 注意：即便本文件被导入，报价门禁**仍然不会通过** —— 因为成本数据是合成示例、
+# 且 SLA 没有 exact_match 实测支撑。这正是门禁四维独立的设计意图。
+
+schema_version: "1.0"
+
+confirmations:
+  - confirmation_id: syn-confirmation-demo
+    scope: "【示例】qwen3-32b @ H100 报价条款（演示用占位）"
+    currency_confirmed: true
+    price_confirmed: true
+    terms_confirmed: true
+    confirmed_by: "示例占位（非真实审批人）"
+    confirmed_at: "2026-10-15T20:00:00+08:00"
+    valid_until: "2026-12-31"
+    document_ref: "DOC-EXAMPLE-NOT-A-REAL-CONTRACT"
+    notes: >-
+      演示占位记录：仅用于验证"confirmed 状态必须具备确认人、时间、有效期与凭据"
+      这一审计要求。它不是真实确认，不得据此对外报价。

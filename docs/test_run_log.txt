@@ -11,7 +11,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 2. init-db ===
 已初始化数据库: data/local.db
-表: benchmark_record, benchmark_run, evidence, hardware_price, hardware_spec, import_run, model_spec, official_benchmark_candidate, pricing_result, server_profile, token_price
+表: benchmark_record, benchmark_run, billing_rule, commercial_confirmation, cost_catalog_item, evidence, hardware_price, hardware_spec, import_run, model_spec, official_benchmark_candidate, pricing_result, server_profile, token_price
 {
   "evidence": 0,
   "hardware_price": 0,
@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T19:23:54",
+  "generated_at": "2026-10-15T20:28:56",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T19:23:56",
+  "generated_at": "2026-10-15T20:28:58",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1998,35 +1998,283 @@ SLA 状态: observed_pass
   "group_count": 1
 }
 
-=== 33. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
+=== 33. import-cost-catalog（M27 成本目录 + 计费规则；合成示例） ===
+已导入 12 个成本项、1 条计费规则
+注意：其中 11 项为合成示例价格，不得用于正式报价
+{
+  "cost_item_count": 12,
+  "billing_rule_count": 1,
+  "synthetic_item_count": 11,
+  "currency": "CNY",
+  "currency_status": "assumed"
+}
+
+=== 34. cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项） ===
+成本项 12 项，计费规则 1 条，人工确认 0 条
+缺单价（不得按 0 处理）：['syn-infiniband-fabric']
+{
+  "item_count": 12,
+  "billing_rule_count": 1,
+  "confirmation_count": 0,
+  "by_category": {
+    "cooling": 1,
+    "gpu_hardware": 2,
+    "network": 2,
+    "maintenance": 1,
+    "operations": 1,
+    "power_energy": 1,
+    "facility_space": 1,
+    "server_chassis": 1,
+    "software_license": 1,
+    "storage": 1
+  },
+  "by_basis": {
+    "both": 9,
+    "leased": 1,
+    "owned": 2
+  },
+  "by_status": {
+    "synthetic_example": 11,
+    "pending_business_confirmation": 1
+  },
+  "items_missing_price": [
+    "syn-infiniband-fabric"
+  ],
+  "currencies": [
+    "CNY"
+  ],
+  "currency_confirmed_count": 0,
+  "contains_synthetic": true,
+  "synthetic_disclaimer": "本仓库中的第四阶段成本/计费数据为**合成示例**（synthetic_example 或 pending_business_confirmation），不是任何真实报价；真实商务数据不入版本库。"
+}
+
+=== 35. tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解） ===
+TCO：一次性 1680000，年现金 101747.0720，全周期 1985241.2160（owned）
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'currency_not_confirmed: 存在未确认币种的成本项']
+{
+  "plan_id": "syn-owned-3y::demo-owned",
+  "cost_basis": "owned",
+  "capex_one_time": "1680000",
+  "annual_cash_opex": "101747.0720",
+  "annual_depreciation": "504000.0",
+  "annual_total_cost": "605747.0720",
+  "total_cash_over_horizon": "1985241.2160",
+  "incomplete": true,
+  "unknown_items": [],
+  "excluded_items": []
+}
+
+=== 36. tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除） ===
+TCO：一次性 None，年现金 669747.0720，全周期 2009241.2160（leased）
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'currency_not_confirmed: 存在未确认币种的成本项']
+{
+  "plan_id": "syn-leased-3y::demo-leased",
+  "cost_basis": "leased",
+  "capex_one_time": null,
+  "annual_cash_opex": "669747.0720",
+  "annual_depreciation": null,
+  "annual_total_cost": null,
+  "total_cash_over_horizon": "2009241.2160",
+  "incomplete": true,
+  "unknown_items": [],
+  "excluded_items": [
+    "gpu_hardware/syn-gpu-purchase"
+  ]
+}
+
+=== 37. tco（M28 断言：缺价项 -> incomplete，未知不等于零） ===
+TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned）
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'currency_not_confirmed: 存在未确认币种的成本项', 'unknown_cost_items:network/syn-infiniband-fabric（缺价格或缺假设：未知不等于零，总额不完整）']
+{
+  "plan_id": "syn-owned-incomplete::demo-incomplete",
+  "cost_basis": "owned",
+  "capex_one_time": "1680000",
+  "annual_cash_opex": "51747.0720",
+  "annual_depreciation": "504000.0",
+  "annual_total_cost": "555747.0720",
+  "total_cash_over_horizon": "1835241.2160",
+  "incomplete": true,
+  "unknown_items": [
+    "network/syn-infiniband-fabric"
+  ],
+  "excluded_items": []
+}
+
+=== 38. revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证） ===
+年度收入 683980.80 CNY（容量比对：unknown_no_measurement）
+容量未验证：该收入仅作情景分析，不得作为产能承诺
+{
+  "scenario_id": "syn-demand-base",
+  "annual_revenue": "683980.80",
+  "currency": "CNY",
+  "capacity_check": "unknown_no_measurement",
+  "scenario_only": true,
+  "period_revenue_total": "1873.92"
+}
+
+=== 39. quote-eligibility（M30 断言：合成成本 + 无确认 + 未审批 -> 必须阻断） ===
+正式报价不可发布
+  - approval_missing:missing: 缺少人工审批记录
+  - commercial_confirmation_missing: 没有人工商务确认记录
+  - cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价
+  - cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）
+  - cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径
+  - cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项
+{
+  "candidate_id": "demo-owned",
+  "plan_id": "syn-owned-3y::demo-owned",
+  "scenario_id": null,
+  "billing_rule_id": null,
+  "cost_estimate_status": "incomplete",
+  "sla_verification_status": "verified_measured",
+  "commercial_confirmation_status": "missing",
+  "approval_status": "missing",
+  "approval_ref": null,
+  "quote_publishable": false,
+  "blockers": [
+    "approval_missing:missing: 缺少人工审批记录",
+    "commercial_confirmation_missing: 没有人工商务确认记录",
+    "cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价",
+    "cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）",
+    "cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径",
+    "cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项"
+  ],
+  "cautions": []
+}
+
+=== 40. import-commercial-confirmations（人工确认记录，示例占位） ===
+已导入 1 条商务确认记录
+{
+  "file": "data/examples/phase4_commercial_confirmation.example.yaml",
+  "confirmation_count": 1,
+  "statuses": {
+    "syn-confirmation-demo": "confirmed"
+  }
+}
+
+=== 41. quote-eligibility（M30 断言：商务已确认但 SLA 非实测 -> 仍阻断） ===
+正式报价不可发布
+  - approval_missing:missing: 缺少人工审批记录
+  - cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价
+  - cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）
+  - cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径
+  - cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项
+  - sla_estimated_only: 只有估算值，估算不等于实测，不构成性能承诺
+{
+  "candidate_id": "demo-owned",
+  "plan_id": "syn-owned-3y::demo-owned",
+  "scenario_id": null,
+  "billing_rule_id": null,
+  "cost_estimate_status": "incomplete",
+  "sla_verification_status": "estimated_only",
+  "commercial_confirmation_status": "confirmed",
+  "approval_status": "missing",
+  "approval_ref": null,
+  "quote_publishable": false,
+  "blockers": [
+    "approval_missing:missing: 缺少人工审批记录",
+    "cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价",
+    "cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）",
+    "cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径",
+    "cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项",
+    "sla_estimated_only: 只有估算值，估算不等于实测，不构成性能承诺"
+  ],
+  "cautions": []
+}
+
+=== 42. phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路） ===
+候选分桶: {'requires_benchmark': 2, 'excluded': 1}
+可发布正式报价的候选: 无
+已写入 data/exports/phase4_decision.json
+{
+  "requirement_id": "req-phase4",
+  "buckets": {
+    "requires_benchmark": 2,
+    "excluded": 1
+  },
+  "per_candidate": {
+    "qwen3-32b__nvidia-h100-sxm-80gb__tp4_dp1_bf16": {
+      "plan_id": "syn-owned-3y::qwen3-32b__nvidia-h100-sxm-80gb__tp4_dp1_bf16",
+      "tco_incomplete": true,
+      "total_cash_over_horizon": "1064019.3280",
+      "annual_total_cost": "325339.7760",
+      "annual_revenue": "683980.80",
+      "capacity_check": "unknown_no_measurement",
+      "quote_publishable": false,
+      "cash_flow_npv": "724606.3070873342478280749886",
+      "cash_flow_payback_year": 2
+    },
+    "qwen3-32b__nvidia-h100-sxm-80gb__tp8_dp1_bf16": {
+      "plan_id": "syn-owned-3y::qwen3-32b__nvidia-h100-sxm-80gb__tp8_dp1_bf16",
+      "tco_incomplete": true,
+      "total_cash_over_horizon": "1985241.2160",
+      "annual_total_cost": "605747.0720",
+      "annual_revenue": "683980.80",
+      "capacity_check": "unknown_no_measurement",
+      "quote_publishable": false,
+      "cash_flow_npv": "-179527.2136970990194584158915",
+      "cash_flow_payback_year": 3
+    },
+    "qwen3-32b__nvidia-h100-sxm-80gb__tp2_dp1_bf16": {
+      "plan_id": "syn-owned-3y::qwen3-32b__nvidia-h100-sxm-80gb__tp2_dp1_bf16",
+      "tco_incomplete": true,
+      "total_cash_over_horizon": "603408.3840",
+      "annual_total_cost": "185136.1280",
+      "annual_revenue": "683980.80",
+      "capacity_check": "unknown_no_measurement",
+      "quote_publishable": false,
+      "cash_flow_npv": "1176673.067479550881471320429",
+      "cash_flow_payback_year": 1
+    }
+  },
+  "limitations": [
+    "成本数据为合成示例或待确认状态时，TCO 结论只用于验证计算链路，不得对外报价",
+    "性能与 SLA 结论原样取自第三阶段，本阶段不做重新判定",
+    "报价资格四维独立，任一未过即不可发布；本阶段不提供任何绕过参数",
+    "没有可信实测容量时，收入情景只作情景分析，不构成产能承诺",
+    "不产出跨维度的综合评分或加权排名"
+  ]
+}
+
+=== 43. phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明） ===
+报告已写入 data/exports/phase4_report.md（26443 字节）
+{
+  "report": "data/exports/phase4_report.md",
+  "quote_publishable": false
+}
+
+=== 44. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
 已跟踪文件中未发现内部定价数值（按本地特征表扫描 9 个特征串）
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
-=== 34. pytest（全量，离线） ===
-........................................................................ [ 14%]
-........................................................................ [ 28%]
-........................................................................ [ 43%]
-........................................................................ [ 57%]
-........................................................................ [ 72%]
-........................................................................ [ 86%]
-...................................................................      [100%]
-499 passed in 89.16s (0:01:29)
+=== 45. pytest（全量，离线） ===
+........................................................................ [ 13%]
+........................................................................ [ 26%]
+........................................................................ [ 39%]
+........................................................................ [ 52%]
+........................................................................ [ 65%]
+........................................................................ [ 78%]
+........................................................................ [ 91%]
+.............................................                            [100%]
+549 passed in 103.21s (0:01:43)
 
-=== 35. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1176
-drwxrwxr-x  2 ssa ssa   4096 10月 15 19:24 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 19:24 ..
--rw-rw-r--  1 ssa ssa  21022 10月 15 19:24 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 19:23 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 19:23 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 19:24 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 15 19:24 performance_report.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 19:23 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 19:24 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 15 19:24 sizing_report.md
+=== 46. 产物清单（内部目录不入库，仅本地查看） ===
+总计 1300
+drwxrwxr-x  2 ssa ssa   4096 10月 15 20:30 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 20:30 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 15 20:29 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 20:28 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 20:28 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 20:29 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 15 20:29 performance_report.md
+-rw-rw-r--  1 ssa ssa  95730 10月 15 20:30 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  26443 10月 15 20:30 phase4_report.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 20:29 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 20:29 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 15 20:29 sizing_report.md
 
 ==== 汇总 ====
-步骤 36 项：通过 36，失败 0
-完成时间: 2026-10-15T19:26:13+08:00
+步骤 47 项：通过 47，失败 0
+完成时间: 2026-10-15T20:32:03+08:00
 环境: Python 3.12.3
 全部步骤通过。

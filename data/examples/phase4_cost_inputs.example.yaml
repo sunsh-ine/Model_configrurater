@@ -1,0 +1,168 @@
+# 第四阶段（M27）成本目录与计费规则 —— **合成示例**
+#
+# ⚠️ 本文件中的全部数值都是**人工构造的合成示例**，用于验证计算链路与门禁行为。
+#    它们**不是**任何厂商报价、合同价或内部成本，不得用于对外报价或商业决策。
+#    真实商务数据留在本地被 git 忽略的目录（data/private/），不入版本库。
+#
+# 结构说明：
+#   source      —— 所有条目的默认证据来源；条目可用 origin 覆盖（映射见
+#                  src/llm_capacity_pricing/importers/cost_catalog.py 顶部的表）
+#   cost_items  —— GPU / 服务器 / 网络 / 存储 / 电力 / 空间 / 制冷 / 软件 / 运维 / 维保
+#   billing_rules —— Token 计费口径（可计费缓存比例必须声明依据）
+
+schema_version: "1.0"
+collected_at: "2026-10-15T20:00:00+08:00"
+
+notice: >-
+  合成示例数据（status: synthetic_example）。用途：验证 TCO 计算、成本分解、
+  买断/租赁互斥、未知项处理与报价门禁。**任何数值都不是真实报价。**
+
+source:
+  source_type: assumption
+  measurement_origin: derived_or_assumption
+  publisher: "本仓库合成示例（无真实来源）"
+  source_file: data/examples/phase4_cost_inputs.example.yaml
+  currency: CNY
+  currency_status: assumed
+  quality_flags: ["synthetic_example", "not_a_real_quote"]
+
+cost_items:
+  # ---- 买断口径（一次性采购）------------------------------------------
+  - item_id: syn-gpu-purchase
+    category: gpu_hardware
+    name: "【合成示例】GPU 单卡采购价"
+    basis: owned
+    price_basis: one_time_per_gpu
+    unit_price: "200000"
+    unit: "currency_per_gpu"
+    applies_to_hardware_id: nvidia-h100-sxm-80gb
+    status: synthetic_example
+    origin: assumed
+    notes: "合成示例：仅用于验证一次性采购口径与折旧计算"
+
+  - item_id: syn-server-chassis
+    category: server_chassis
+    name: "【合成示例】8 卡服务器整机价"
+    basis: owned
+    price_basis: one_time_per_server
+    unit_price: "80000"
+    unit: "currency_per_server"
+    status: synthetic_example
+    origin: assumed
+
+  # ---- 租赁口径（与买断互斥）------------------------------------------
+  - item_id: syn-gpu-lease
+    category: gpu_hardware
+    name: "【合成示例】GPU 单卡年租金"
+    basis: leased
+    price_basis: per_gpu_year
+    unit_price: "75000"
+    unit: "currency_per_gpu_year"
+    applies_to_hardware_id: nvidia-h100-sxm-80gb
+    status: synthetic_example
+    origin: assumed
+    notes: "合成示例：租赁口径下不产生 capex，也不计折旧"
+
+  # ---- 两口径都适用 ----------------------------------------------------
+  - item_id: syn-network-port
+    category: network
+    name: "【合成示例】服务器网络端口年费"
+    price_basis: per_server_year
+    unit_price: "5000"
+    unit: "currency_per_server_year"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-storage
+    category: storage
+    name: "【合成示例】服务器存储年费"
+    price_basis: per_server_year
+    unit_price: "1200"
+    unit: "currency_per_server_year"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-power-energy
+    category: power_energy
+    name: "【合成示例】综合电价"
+    price_basis: per_kwh
+    unit_price: "0.8"
+    unit: "currency_per_kwh"
+    status: synthetic_example
+    origin: assumed
+    notes: "合成示例：数量由 GPU 功率 × 服务器附加功耗 × PUE × 负载率 × 小时推导"
+
+  - item_id: syn-rack-space
+    category: facility_space
+    name: "【合成示例】机柜空间年费"
+    price_basis: per_rack_year
+    unit_price: "600"
+    unit: "currency_per_rack_year"
+    default_quantity: "1"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-cooling
+    category: cooling
+    name: "【合成示例】制冷分摊年费"
+    price_basis: per_rack_year
+    unit_price: "200"
+    unit: "currency_per_rack_year"
+    default_quantity: "1"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-software-license
+    category: software_license
+    name: "【合成示例】推理平台许可年费"
+    price_basis: per_gpu_year
+    unit_price: "1000"
+    unit: "currency_per_gpu_year"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-operations
+    category: operations
+    name: "【合成示例】运维人力分摊年费"
+    price_basis: per_server_year
+    unit_price: "3000"
+    unit: "currency_per_server_year"
+    status: synthetic_example
+    origin: assumed
+
+  - item_id: syn-maintenance
+    category: maintenance
+    name: "【合成示例】GPU 维保年费"
+    price_basis: per_gpu_year
+    unit_price: "4000"
+    unit: "currency_per_gpu_year"
+    status: synthetic_example
+    origin: assumed
+
+  # ---- 缺数据示例：验证"未知不等于零"----------------------------------
+  - item_id: syn-infiniband-fabric
+    category: network
+    name: "【合成示例】IB 组网（价格待确认）"
+    price_basis: per_server_year
+    unit_price: null
+    unit: "currency_per_server_year"
+    status: pending_business_confirmation
+    origin: unknown
+    notes: "故意不给单价：用于验证缺失项被标为 unknown_missing_price 而不是 0"
+
+billing_rules:
+  - rule_id: syn-billing-qwen3-32b
+    model_name: qwen3-32b
+    price_uncached_input_per_1m: "4"
+    price_cached_input_per_1m: "1"
+    price_output_per_1m: "12"
+    billable_cache_ratio: "0.3"
+    billable_cache_basis: assumed
+    batch_discount_fraction: "0.5"
+    min_billable_input_tokens_per_request: 128
+    settlement_note: "合成示例：按自然月结算"
+    status: synthetic_example
+    origin: assumed
+    notes: >-
+      合成示例计费口径。billable_cache_ratio 是**计费口径**，必须声明依据；
+      引擎的物理 prefix cache 命中率不得直接当作可计费缓存比例。
