@@ -273,6 +273,7 @@ def import_sglang_candidates(
     db_path: str | Path,
     *,
     root: str | Path | None = None,
+    on_verification_failure: str = "fail",
 ) -> dict[str, Any]:
     """M7：导入 SGLang Cookbook 官方**数值型**候选，并逐字段核对原文。
 
@@ -280,7 +281,11 @@ def import_sglang_candidates(
     ``benchmark_record``，也不参与任何经济性计算。
     """
     base = Path(root) if root is not None else Path(incoming_path).resolve().parent.parent
-    candidates, evidences, summary = build_numeric_candidates(incoming_path, root=base)
+    # Fail-Closed：候选与证据在**打开数据库之前**全部构建完成；
+    # 任一来源校验失败都会在这里抛错，因此不会留下"部分已提交"的可信记录。
+    candidates, evidences, summary = build_numeric_candidates(
+        incoming_path, root=base, on_verification_failure=on_verification_failure
+    )
     db, repo = open_db(db_path)
     try:
         with db.session() as session:

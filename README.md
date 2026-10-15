@@ -154,8 +154,9 @@ llm-capacity-pricing/
 │   │   └── markdown.py                    # 7 节报告
 │   ├── services.py                        # 服务层（CLI 与测试共用）
 │   └── cli.py                             # Typer CLI
-├── tests/                                 # 260 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（21 步）
+├── tests/                                 # 325 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（22 步，含敏感数据扫描）
+├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
     ├── data_dictionary.md                 # 字段字典
     ├── formulas.md                        # 计算公式
@@ -167,11 +168,31 @@ llm-capacity-pricing/
 
 ---
 
+## 3.5 公开仓库的数据边界（V1.2 F1）
+
+| 类别 | 路径 | 是否入库 | 说明 |
+|---|---|---|---|
+| 代码 / 测试 / 口径文档 | `src/` `tests/` `docs/` | ✅ | 公开 |
+| 官方来源存档证据 | `data/raw/official/`（12 HTML + 2 MDX，含 sha256） | ✅ | 公开文档的存档，版权见 `NOTICE.md` |
+| 合成 fixture | `data/fixtures/` | ✅ | 明确标注 `synthetic`，不参与默认业务计算 |
+| **脱敏示例样本** | `data/examples/`（含合成工作簿与手算期望值） | ✅ | 由 `scripts/make_public_sample.py` 生成，可公开 |
+| **内部业务产物** | `data/exports/`、`data/private/` | ❌ | 真实金额与派生结果，不入版本库 |
+| 原始价格工作簿 | `data/raw/*.xlsx` | ❌ | 含未脱敏价格，不入版本库 |
+
+- 克隆仓库后：把原始工作簿放进 `data/raw/`，把内部 oracle 放进 `data/private/`（可选），
+  即可跑全量测试；没有它们也能跑通核心计算——用 `data/examples/` 的脱敏样本
+  （实测公开克隆 `155 passed, 106 skipped, 0 failed`）。
+- 提交前自检：`bash scripts/verify_all.sh` 的第 19 步会扫描已跟踪文件中是否出现内部定价数值，
+  并核对忽略规则；同一规则也有测试版本 `tests/test_v12_hardening.py`。
+- 详见 `docs/security_remediation_report.md`（含历史暴露影响评估）与 `docs/risk_register.md`。
+
+---
+
 ## 4. 关键设计决策
 
 **金额精度。** 计算全程 `Decimal`；SQLite 中金额列用 `TEXT` 存十进制字面量
 （SQLite 的 `NUMERIC` 实为 float，会破坏精度）。JSON 导出把金额/比率字段写成
-**可精确恢复的十进制字符串**（定点字面量，如 `"149.54340799296"`）：JSON number
+**可精确恢复的十进制字符串**（定点字面量，如 `"17.3448"`）：JSON number
 会被多数读取器落成 IEEE-754 double，28 位有效数字不保真。文件头写
 `decimals_encoding` 声明编码方式，兼容读取用
 `llm_capacity_pricing.reporting.json_export.loads_tolerant`。公式层入口有
@@ -279,3 +300,6 @@ synthetic fixture 以 `assumption` 级证据入库，报告与校验按来源分
 | [`docs/evidence_policy.md`](docs/evidence_policy.md) | 证据等级、溯源要求、指标口径隔离、联网策略 |
 | [`docs/official_coverage_gaps.md`](docs/official_coverage_gaps.md) | 官方样本缺口与逐来源核查记录 |
 | [`docs/validation_report.md`](docs/validation_report.md) | 复算最大误差、已完成/未完成能力、下一步建议 |
+| [`docs/v12_hardening_report.md`](docs/v12_hardening_report.md) | V1.2 加固（F1–F8）四分类结论与修复前后差异 |
+| [`docs/security_remediation_report.md`](docs/security_remediation_report.md) | 内部定价数据暴露清单、凭证扫描、历史影响评估 |
+| [`docs/risk_register.md`](docs/risk_register.md) | 风险清单（数据安全 / 证据 / 口径 / 商业 / 工程） |

@@ -2,9 +2,9 @@
 
 ## 编码口径（任务 2）
 
-**金额与比率字段以十进制字符串导出**，例如 ``"149.54340799296"``：
+**金额与比率字段以十进制字符串导出**，例如 ``"123.45678901234567"``：
 
-* 可**精确恢复**：``Decimal("149.54340799296")`` 与原值逐位相同，不经过二进制浮点；
+* 可**精确恢复**：``Decimal("123.45678901234567")`` 与原值逐位相同，不经过二进制浮点；
 * 不使用 JSON number，因为多数 JSON 读取器会把 number 解析成 IEEE-754 double，
   28 位有效数字的 Decimal 结果会在读取端被静默截断；
 * 不使用科学计数法（``1E-13`` 这类字面量会被部分实现误读），统一写成定点形式。
@@ -93,7 +93,7 @@ DECIMAL_FIELD_NAMES: frozenset[str] = frozenset(
 DECIMALS_ENCODING = {
     "money_and_ratio_fields": "decimal_string",
     "format": "fixed-point decimal literal, no scientific notation",
-    "example": "149.54340799296",
+    "example": "123.45678901234567",
     "rationale": (
         "JSON number 会被多数读取器解析为 IEEE-754 double，28 位有效数字不保真；"
         "字符串可精确恢复为 Decimal"

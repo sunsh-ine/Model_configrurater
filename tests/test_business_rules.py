@@ -30,6 +30,7 @@ from llm_capacity_pricing.reporting.json_export import dumps_exact, loads_tolera
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.services import (
+    calculate_all,
     build_sensitivity,
     export_legacy_results,
     export_report,
@@ -289,25 +290,25 @@ def test_export_has_boundary_notices(full_db, tmp_path):
 def test_json_export_uses_exactly_recoverable_decimal_strings():
     """任务 2：金额以十进制字符串导出，可逐位精确恢复。"""
     payload = {
-        "input_revenue_10k_per_gpu_year": Decimal("149.54340799296"),
+        "input_revenue_10k_per_gpu_year": Decimal("123.45678901234567"),
         "total_revenue_10k_per_gpu_year": [Decimal("0.30"), Decimal("0")],
     }
     text = dumps_exact(payload)
-    assert '"149.54340799296"' in text
+    assert '"123.45678901234567"' in text
     assert '"0.30"' in text
     assert json.loads(text) == {
-        "input_revenue_10k_per_gpu_year": "149.54340799296",
+        "input_revenue_10k_per_gpu_year": "123.45678901234567",
         "total_revenue_10k_per_gpu_year": ["0.30", "0"],
     }
     # 读回（宽容读取）后与原 Decimal 逐位一致
     back = loads_tolerant(text)
-    assert back["input_revenue_10k_per_gpu_year"] == Decimal("149.54340799296")
-    assert str(back["input_revenue_10k_per_gpu_year"]) == "149.54340799296"
+    assert back["input_revenue_10k_per_gpu_year"] == Decimal("123.45678901234567")
+    assert str(back["input_revenue_10k_per_gpu_year"]) == "123.45678901234567"
     assert back["total_revenue_10k_per_gpu_year"][0] == Decimal("0.30")
 
 
 def test_json_export_survives_roundtrip_exactly():
-    val = Decimal("177.16011391296")
+    val = Decimal("234.56789012345678")
     text = dumps_exact({"v": val})
     assert Decimal(loads_tolerant(text)["v"]) == val
     assert str(loads_tolerant(text)["v"]) == str(val)
@@ -409,9 +410,15 @@ def test_cli_scenario_output_content(excel_db, tmp_path):
     assert r.exit_code == 0
     payload = json.loads(out.read_text(encoding="utf-8"))
     res = payload["results"][0]
-    # 金额为十进制字符串；按 Decimal 精确比较（不受 float 影响）
+    # 金额为十进制字符串；按 Decimal 精确比较（不受 float 影响）。
+    # 期望值**从数据库里的满载结果推导**（该记录 Excel 第 2 行的真实金额属内部信息，
+    # 不写成仓库内的字面量，见 V1.2 F1）。
+    legacy_results, _meta = calculate_all(excel_db, mode="legacy_full_load", persist=True)
+    legacy = next(
+        r for r in legacy_results if r.benchmark_record_id == res["benchmark_record_id"]
+    )
     assert Decimal(res["scenario_revenue_10k_per_gpu_year"]) == (
-        Decimal("0.30") * Decimal("177.16011391296")
+        Decimal("0.30") * legacy.total_revenue_10k_per_gpu_year
     )
     assert res["cost_scope"] == "gpu_cost_only"
     assert res["mode"] == "scenario"

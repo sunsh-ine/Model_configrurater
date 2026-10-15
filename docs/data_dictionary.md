@@ -58,7 +58,9 @@
 | `valid_from` / `valid_to` | date | 是 | 未提供 |
 | `evidence_id` | str | 否 | 关联证据 |
 
-当前 2 条：B300（8 卡/服务器，52.5）、H200（8 卡/服务器，15）。
+真实工作簿当前 2 条（**具体型号与单价属内部业务信息，按 V1.2 F1 不写入公开仓库**）。
+公开仓库提供同结构的脱敏样本：`data/examples/Token产能计算器-SAMPLE.xlsx`
+（`EXAMPLE-GPU-A` / `EXAMPLE-GPU-B`）。
 
 ## 3. `TokenPrice`
 
@@ -74,7 +76,8 @@
 | `effective_date` | date | 是 | 未提供 |
 | `evidence_id` | str | 否 | 关联证据 |
 
-当前 3 条：`KIMI-K3`(2/20/100)、`GLM-5.2/5.3`(2/8/28)、`DeepSeek-V4-Pro（峰值）`(0.3/9/27)。
+真实工作簿当前 3 条（**具体型号与单价属内部业务信息，不写入公开仓库**）。
+脱敏样本中为 `EXAMPLE-MODEL-A`(1/10/50) 与 `EXAMPLE-MODEL-B`(2/8/28)。
 模型名不与任何"别名/后代模型"做等价推断。
 
 ## 4. `BenchmarkRecord`
@@ -278,7 +281,7 @@ Excel 记录中全部为 `None` → 任何 SLA 结论均为 `not_evaluable`。
 | `pricing_result` | `scenario_id` | 计算结果（含 `scope` / `result_type` / 三个输入 ID / `sla_status`） |
 | `import_run` | `import_run_id` | 导入批次（文件、sha256、时间、条数） |
 
-**精度决策**：所有金额/比率列用 `TEXT` 存放十进制字面量（如 `"149.54340799296"`），
+**精度决策**：所有金额/比率列用 `TEXT` 存放十进制字面量（如 `"123.45678901234567"`），
 不用 `NUMERIC`——SQLite 的 NUMERIC 实际以 REAL(float) 存储，会破坏 Decimal 精度。
 每行同时保存 `payload_json`（`model_dump(mode="json")`）作为权威记录，读取时由
 Pydantic 把字符串还原为 `Decimal`，保证"落库—读回—复算"完全一致。

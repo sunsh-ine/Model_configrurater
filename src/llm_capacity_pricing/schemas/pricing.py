@@ -137,6 +137,14 @@ class PricingResult(BaseModel):
     sla_status: SlaStatus = "not_evaluable"
     sla_not_evaluable_reasons: list[str] = Field(default_factory=list)
 
+    # ---- F4 经济性门禁 ---------------------------------------------------
+    #: 计算前商业条件检查的阻断项（逐条列出；不阻断理论计算，但阻断"正式"结论）
+    pricing_gate_blockers: list[str] = Field(default_factory=list)
+    #: 第一阶段恒为 False：不产出正式报价
+    commercial_quote_allowed: bool = False
+    #: 旧表复算的显式假设（仅 legacy_full_load 模式非空）
+    legacy_assumptions: list[str] = Field(default_factory=list)
+
     warnings: list[str] = Field(default_factory=list)
     input_snapshot_hash: str | None = None
     pricing_engine_version: str = PRICING_ENGINE_VERSION

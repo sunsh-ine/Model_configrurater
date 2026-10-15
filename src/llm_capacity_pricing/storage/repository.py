@@ -35,6 +35,25 @@ def _d(value: Decimal | None) -> str | None:
     return None if value is None else str(value)
 
 
+#: 已知的 Benchmark 工具名（按权威命令里的模块名匹配）
+_BENCHMARK_TOOL_MARKERS: tuple[tuple[str, str], ...] = (
+    ("sglang.bench_serving", "sglang.bench_serving"),
+    ("sglang.bench_one_batch", "sglang.bench_one_batch"),
+    ("vllm bench serve", "vllm.bench_serve"),
+    ("vllm.benchmarks", "vllm.bench_serve"),
+)
+
+
+def _benchmark_tool_of(command: str | None) -> str | None:
+    """从测试命令推导工具名；无法识别时返回 None（不猜）。"""
+    if not command:
+        return None
+    for marker, tool in _BENCHMARK_TOOL_MARKERS:
+        if marker in command:
+            return tool
+    return None
+
+
 def _dump(model) -> str:
     """Pydantic model -> JSON（Decimal 以字符串保留精度）。"""
     return json.dumps(model.model_dump(mode="json"), ensure_ascii=False)
@@ -257,13 +276,15 @@ class Repository:
                     source_path=c.source_path,
                     source_git_blob_sha=c.source_git_blob_sha,
                     framework=c.framework,
-                    benchmark_tool="sglang.bench_serving",
+                    # 工具名从**权威命令**推导，而不是写死常量（F6）
+                    benchmark_tool=_benchmark_tool_of(c.benchmark_command),
                     verification_status=c.quality_status,
                     quality_status=c.quality_status,
-                    hardware_binding="bound" if c.hardware_model else "unbound",
+                    hardware_binding=c.hardware_binding,
                     hardware_model=c.hardware_model,
                     deployment_gpu_count=c.deployment_gpu_count,
-                    is_throughput_benchmark=True,
+                    # 必须来自 Schema 原始值，不得硬编码（F6）
+                    is_throughput_benchmark=c.is_throughput_benchmark,
                     evidence_file=c.evidence_file,
                     evidence_sha256=c.evidence_sha256,
                     can_reference_performance=c.can_reference_performance,

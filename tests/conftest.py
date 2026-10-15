@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -76,12 +77,36 @@ def full_db(excel_db: str) -> str:
     return excel_db
 
 
+#: 真实业务数据的期望值放在**不入库**的 data/private/ 下（V1.2 F1）：
+#: 公开仓库只保留脱敏样本（data/examples/），内部 oracle 留在本地。
+PRIVATE_ORACLE = ROOT / "data" / "private" / "row2_oracle.json"
+#: 脱敏公开样本（可入库）：与真实工作簿同结构，数值为人工构造
+SAMPLE_EXCEL = ROOT / "data" / "examples" / "Token产能计算器-SAMPLE.xlsx"
+SAMPLE_EXPECTED = ROOT / "data" / "examples" / "public_sample_expected.json"
+
+
 @pytest.fixture
 def row2_oracle() -> dict[str, Decimal]:
-    """任务书 §4.1 的精确复算样例。"""
-    return {
-        "input_revenue_10k_per_gpu_year": Decimal("149.54340799296"),
-        "output_revenue_10k_per_gpu_year": Decimal("27.61670592"),
-        "total_revenue_10k_per_gpu_year": Decimal("177.16011391296"),
-        "revenue_cost_ratio": Decimal("3.37447836024686"),
-    }
+    """真实工作簿第 2 行的复算期望值（内部数据，缺失则跳过）。"""
+    if not PRIVATE_ORACLE.exists():
+        pytest.skip(
+            "缺少内部 oracle：data/private/row2_oracle.json（按 V1.2 F1 不入库）。"
+            "公开克隆可用 data/examples/ 的脱敏样本验证公式。"
+        )
+    data = json.loads(PRIVATE_ORACLE.read_text(encoding="utf-8"))
+    return {k: Decimal(str(v)) for k, v in data.items() if not k.startswith("_")}
+
+
+@pytest.fixture(scope="session")
+def sample_excel_path() -> Path:
+    """脱敏样本工作簿（公开）。"""
+    if not SAMPLE_EXCEL.exists():
+        pytest.skip("缺少脱敏样本，请先运行 scripts/make_public_sample.py")
+    return SAMPLE_EXCEL
+
+
+@pytest.fixture(scope="session")
+def sample_expected() -> dict:
+    if not SAMPLE_EXPECTED.exists():
+        pytest.skip("缺少脱敏样本期望值，请先运行 scripts/make_public_sample.py")
+    return json.loads(SAMPLE_EXPECTED.read_text(encoding="utf-8"))

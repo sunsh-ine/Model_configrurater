@@ -56,9 +56,9 @@ SAMPLE_MONEY_FIELDS = (
 
 
 def test_money_is_encoded_as_string_not_number():
-    text = dumps_exact({"v": Decimal("149.54340799296")})
-    assert text == '{\n  "v": "149.54340799296"\n}'
-    assert '"149.54340799296"' in text
+    text = dumps_exact({"v": Decimal("123.45678901234567")})
+    assert text == '{\n  "v": "123.45678901234567"\n}'
+    assert '"123.45678901234567"' in text
 
 
 def test_no_scientific_notation_for_small_and_large_values():
@@ -70,7 +70,7 @@ def test_no_scientific_notation_for_small_and_large_values():
 
 def test_decimal_to_str_roundtrips_exactly_including_trailing_zeros():
     for raw in (
-        "149.54340799296",
+        "123.45678901234567",
         "3.374478360246857142857142857",
         "0.00000000000044",
         "0",
@@ -104,13 +104,13 @@ def test_float_would_lose_precision_but_string_does_not():
 
 
 def test_tolerant_reader_accepts_decimal_strings():
-    payload = loads_tolerant('{"total_revenue_10k_per_gpu_year": "177.16011391296"}')
-    assert payload["total_revenue_10k_per_gpu_year"] == Decimal("177.16011391296")
+    payload = loads_tolerant('{"total_revenue_10k_per_gpu_year": "234.56789012345678"}')
+    assert payload["total_revenue_10k_per_gpu_year"] == Decimal("234.56789012345678")
 
 
 def test_tolerant_reader_accepts_legacy_json_number_without_float_loss():
     """早期产物把金额写成 JSON number；读取时用 parse_float=Decimal，不经 float。"""
-    literal = "177.16011391296000000000000000001"
+    literal = "234.56789012345678000000000000001"
     payload = loads_tolerant('{"total_revenue_10k_per_gpu_year": %s}' % literal)
     got = payload["total_revenue_10k_per_gpu_year"]
     assert isinstance(got, Decimal)
@@ -187,8 +187,8 @@ def test_pricing_result_high_precision_roundtrip_through_json(tmp_path):
         deployment_gpu_count=8,
         evidence_id="e",
         performance_source_kind="internal_excel",
-        input_tps_per_gpu=Decimal("12478.922"),
-        output_tps_per_gpu=Decimal("87.572"),
+        input_tps_per_gpu=Decimal("1234.5678"),
+        output_tps_per_gpu=Decimal("87.6543"),
         cache_hit_rate_raw=Decimal("0.9"),
     )
     tp = TokenPrice(
@@ -267,8 +267,8 @@ def test_legacy_number_format_files_are_still_readable(tmp_path):
             "results": [
                 {
                     "benchmark_record_id": "excel_部署效能_2",
-                    "input_revenue_10k_per_gpu_year": 149.54340799296,
-                    "total_revenue_10k_per_gpu_year": 177.16011391296,
+                    "input_revenue_10k_per_gpu_year": 123.45678901234567,
+                    "total_revenue_10k_per_gpu_year": 234.56789012345678,
                     "currency": "UNCONFIRMED",
                 }
             ],
@@ -277,8 +277,8 @@ def test_legacy_number_format_files_are_still_readable(tmp_path):
     payload = loads_tolerant(legacy_text)
     row = payload["results"][0]
     assert isinstance(row["input_revenue_10k_per_gpu_year"], Decimal)
-    assert row["input_revenue_10k_per_gpu_year"] == Decimal("149.54340799296")
-    assert row["total_revenue_10k_per_gpu_year"] == Decimal("177.16011391296")
+    assert row["input_revenue_10k_per_gpu_year"] == Decimal("123.45678901234567")
+    assert row["total_revenue_10k_per_gpu_year"] == Decimal("234.56789012345678")
     assert row["currency"] == "UNCONFIRMED"
 
 

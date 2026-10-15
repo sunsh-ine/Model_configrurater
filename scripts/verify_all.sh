@@ -38,10 +38,24 @@ if [ -e "$LOG" ] && [ /dev/stdout -ef "$LOG" ]; then
 fi
 mkdir -p "$(dirname "$LOG")"
 : > "$LOG"
+{
+  printf '本日志由 %s 生成；其中金额/比率类字段值已替换为 <redacted:internal>（V1.2 F1）。\n' \
+    "scripts/verify_all.sh"
+  printf '被脱敏的只有"值"，键名、条数、误差量级、门禁结论均保留，可用于复核。\n'
+  printf '完整内部金额可在本地 data/exports/ 查看（该目录不入版本库）。\n\n'
+} >>"$LOG"
 
 STEPS_TOTAL=0
 STEPS_FAILED=0
 FAILED_LIST=""
+
+redact_internal_values() { # <文件>  把内部金额/比率值替换为 <redacted>
+  # 日志要保留可复核性，但**不能**把内部定价与派生金额写进公开仓库（V1.2 F1）。
+  # 只屏蔽"值"，保留键名与结构，这样结论（条数/误差/门禁）仍然可读。
+  local f="$1"
+  sed -i -E 's/("((input|output|total|scenario|legacy)[a-z0-9_]*revenue[a-z0-9_]*|legacy_cost[a-z0-9_]*|gpu_annual_cost[a-z0-9_]*|total_cluster_(cost|revenue)[a-z0-9_]*|revenue_cost_ratio|legacy_revenue_cost_ratio|breakeven_monetization_ratio|scenario_surplus[a-z0-9_]*|cache_hit_rate_used|annual_gpu_cost_10k)"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<redacted:internal>"/g' "$f"
+  sed -i -E 's/("((input|output|total|scenario|legacy)[a-z0-9_]*revenue[a-z0-9_]*|legacy_cost[a-z0-9_]*|gpu_annual_cost[a-z0-9_]*|revenue_cost_ratio|breakeven_monetization_ratio|annual_gpu_cost_10k)"[[:space:]]*:[[:space:]]*)-?[0-9]+(\.[0-9]+)?/\1"<redacted:internal>"/g' "$f"
+}
 
 print_key_lines() { # <输出文件> <关键行正则>
   local file="$1" re="$2"
@@ -75,6 +89,7 @@ run_step() { # <编号> <名称> <失败即中止 0|1> <关键行正则> <命令
     "$@"
   } >"$tmp" 2>&1
   st=$?
+  redact_internal_values "$tmp"
   cat "$tmp" >>"$LOG"
 
   STEPS_TOTAL=$((STEPS_TOTAL + 1))
@@ -150,6 +165,56 @@ with db.session() as s:
     print("入库计数:", repo.counts(s).as_dict())
 db.dispose()
 PY
+}
+
+step_sensitive_scan() { # F1/F8：内部定价数据不得进入已跟踪文件
+  # 特征串从**不入库**的本地文件读取：把真实数值写进脚本或测试，等于重新公开它们。
+  local pattern_file="data/private/sensitive_patterns.txt"
+  local patterns=()
+  if [ -f "$pattern_file" ]; then
+    while IFS= read -r line; do
+      case "$line" in ''|'#'*) continue ;; esac
+      patterns+=("$line")
+    done <"$pattern_file"
+  fi
+
+  if [ "${#patterns[@]}" -gt 0 ]; then
+    local offenders=""
+    while IFS= read -r f; do
+      [ -f "$f" ] || continue
+      for pat in "${patterns[@]}"; do
+        if grep -qF -- "$pat" "$f" 2>/dev/null; then
+          offenders="${offenders}${f} (匹配内部特征)\n"
+        fi
+      done
+    done < <(git ls-files 2>/dev/null || find . -path ./.venv -prune -o -type f -print)
+    if [ -n "$offenders" ]; then
+      printf '发现内部定价数据出现在已跟踪文件中（V1.2 F1）:\n'
+      printf '%b' "$offenders"
+      return 1
+    fi
+    printf '已跟踪文件中未发现内部定价数值（按本地特征表扫描 %s 个特征串）\n' "${#patterns[@]}"
+  else
+    printf '未找到本地特征表 %s（公开克隆的正常状态）——跳过数值扫描，仅校验忽略规则\n' "$pattern_file"
+  fi
+
+  # 内部产物必须被忽略；脱敏样本必须可提交
+  local must_ignore=(data/exports/legacy_results.json data/private/row2_oracle.json)
+  local must_track=(data/examples/public_sample_expected.json)
+  local f
+  for f in "${must_ignore[@]}"; do
+    if ! git check-ignore -q "$f" 2>/dev/null; then
+      printf '应被 .gitignore 排除却未被排除: %s\n' "$f"
+      return 1
+    fi
+  done
+  for f in "${must_track[@]}"; do
+    if git check-ignore -q "$f" 2>/dev/null; then
+      printf '应可公开提交却被忽略: %s\n' "$f"
+      return 1
+    fi
+  done
+  printf '忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交\n'
 }
 
 step_scope_recheck() {
@@ -245,10 +310,13 @@ run_step 17 "回到业务口径并复核库内计数（清理测试态结果行�
 run_step 18 "report（默认业务口径，含未确认项与官方候选概览）" 1 '^(报告已写入)|"(bytes|records|scenario_results|legacy_results)"' \
   $CLI report --db "$DB" --out "$OUT_DIR/overview.md"
 
-run_step 19 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 19 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+  step_sensitive_scan
+
+run_step 20 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 20 "产物清单" 1 '\.(json|md)$' \
+run_step 21 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

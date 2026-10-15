@@ -22,7 +22,12 @@ from typing import Any
 
 import yaml
 
-from llm_capacity_pricing.engines.applicability import PriceContext, assess_applicability
+from llm_capacity_pricing.engines.applicability import (
+    DeploymentConfig,
+    PriceContext,
+    WorkloadProfile,
+    assess_applicability,
+)
 from llm_capacity_pricing.importers.console_summary import (
     extract_summary_blocks,
     html_to_text,
@@ -176,6 +181,16 @@ def build_candidate(
         workload_defined=bool(entry.get("dataset_name") or entry.get("input_length")),
         metrics=metrics,
         sla_requirement=None,
+        record_deployment=DeploymentConfig(
+            gpu_count=entry.get("deployment_gpu_count"),
+            mode=entry.get("deployment_mode"),
+        ),
+        record_workload=WorkloadProfile(
+            input_len=entry.get("input_length"),
+            output_len=entry.get("output_length"),
+            max_concurrency=entry.get("configured_concurrency"),
+            dataset_name=entry.get("dataset_name"),
+        ),
         price=PriceContext(currency="UNCONFIRMED", currency_confirmed=False),
         measurement_origin_is_official=True,
     )

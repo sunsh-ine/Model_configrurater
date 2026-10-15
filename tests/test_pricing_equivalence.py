@@ -47,20 +47,43 @@ def _load(db_path: str, record_id: str):
 # --------------------------------------------------------------------------
 
 
-def test_row2_oracle_via_pure_functions():
-    """直接用纯函数复现任务书 §4.1 的四个期望值。"""
-    p_hit, p_miss, p_out = Decimal("2"), Decimal("20"), Decimal("100")
-    h = Decimal("0.9")
-    inp = legacy_input_annual_revenue_10k_per_gpu(Decimal("12478.922"), h, p_hit, p_miss)
-    out = legacy_output_annual_revenue_10k_per_gpu(Decimal("87.572"), p_out)
-    total = total_annual_revenue_10k_per_gpu(inp, out)
-    ratio = revenue_cost_ratio(total, Decimal("52.5"))
+def test_sample_oracle_via_pure_functions():
+    """用**脱敏公开样本**（非真实业务数据）验证四个公式的精确取值。
 
-    assert inp == Decimal("149.54340799296")
-    assert out == Decimal("27.61670592")
-    assert total == Decimal("177.16011391296")
-    # Excel 存储的是 14 位有效数字，精确值更长，故用容差比较
-    assert abs(ratio - Decimal("3.37447836024686")) < TOLERANCE_RATIO
+    数值来自 data/examples/public_sample_expected.json，期望值由
+    scripts/make_public_sample.py 独立手算，不由引擎生成。
+    """
+    p_hit, p_miss, p_out = Decimal("1"), Decimal("10"), Decimal("50")
+    h = Decimal("0.5")
+    cost = Decimal("10.0")
+    inp = legacy_input_annual_revenue_10k_per_gpu(Decimal("1000"), h, p_hit, p_miss)
+    out = legacy_output_annual_revenue_10k_per_gpu(Decimal("40"), p_out)
+    total = total_annual_revenue_10k_per_gpu(inp, out)
+    ratio = revenue_cost_ratio(total, cost)
+
+    assert inp == Decimal("17.3448")
+    assert out == Decimal("6.3072")
+    assert total == Decimal("23.6520")
+    assert ratio == Decimal("2.3652")
+
+
+def test_real_excel_row2_oracle_via_pure_functions(row2_oracle):
+    """真实工作簿第 2 行：用**内部 oracle**（不入库）复现四个期望值。"""
+    p_hit = row2_oracle["price_cached_input_per_1m"]
+    p_miss = row2_oracle["price_uncached_input_per_1m"]
+    p_out = row2_oracle["price_output_per_1m"]
+    h = row2_oracle["cache_hit_rate_raw"]
+    inp = legacy_input_annual_revenue_10k_per_gpu(
+        row2_oracle["input_tps_per_gpu"], h, p_hit, p_miss
+    )
+    out = legacy_output_annual_revenue_10k_per_gpu(row2_oracle["output_tps_per_gpu"], p_out)
+    total = total_annual_revenue_10k_per_gpu(inp, out)
+    ratio = revenue_cost_ratio(total, row2_oracle["annual_gpu_cost_10k"])
+
+    assert inp == row2_oracle["input_revenue_10k_per_gpu_year"]
+    assert out == row2_oracle["output_revenue_10k_per_gpu_year"]
+    assert total == row2_oracle["total_revenue_10k_per_gpu_year"]
+    assert abs(ratio - row2_oracle["revenue_cost_ratio"]) < TOLERANCE_RATIO
 
 
 def test_row2_oracle_via_engine(excel_db, row2_oracle):
@@ -72,8 +95,14 @@ def test_row2_oracle_via_engine(excel_db, row2_oracle):
     assert res.output_revenue_10k_per_gpu_year == row2_oracle["output_revenue_10k_per_gpu_year"]
     assert res.total_revenue_10k_per_gpu_year == row2_oracle["total_revenue_10k_per_gpu_year"]
     assert abs(res.revenue_cost_ratio - row2_oracle["revenue_cost_ratio"]) < TOLERANCE_RATIO
-    # 盈亏平衡比例 = 52.5 / 177.16011391296
-    assert abs(res.breakeven_monetization_ratio - Decimal("52.5") / Decimal("177.16011391296")) < Decimal("1e-20")
+    # 盈亏平衡比例 = 年成本 / 满载收入（两者都来自内部 oracle，不入库）
+    assert (
+        abs(
+            res.breakeven_monetization_ratio
+            - row2_oracle["annual_gpu_cost_10k"] / row2_oracle["total_revenue_10k_per_gpu_year"]
+        )
+        < Decimal("1e-20")
+    )
 
 
 def test_row2_snapshot_hash_is_stable(excel_db):

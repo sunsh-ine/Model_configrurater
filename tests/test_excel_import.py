@@ -106,7 +106,7 @@ def test_evidence_carries_raw_sha256(excel_db, excel_path):
         db.dispose()
 
 
-def test_original_cell_values_preserved(excel_db):
+def test_original_cell_values_preserved(excel_db, row2_oracle):
     """I/J/K/L/M/N/O 原始值必须逐字保留，不被复算结果覆盖。"""
     db, repo = open_db(excel_db)
     try:
@@ -118,10 +118,16 @@ def test_original_cell_values_preserved(excel_db):
     assert rec.deployment_strategy_raw == "TP8DCP8EP1 w/ DP Attn w/ Dspark"
     cols = rec.raw_metrics["columns"]
     assert cols["O_data_source"] == "InferenceX"
-    assert Decimal(str(cols["I_legacy_input_revenue_10k"])) == Decimal("149.54340799296")
-    assert Decimal(str(cols["M_legacy_revenue_cost_ratio"])) == Decimal("3.37447836024686")
+    # 期望值来自内部 oracle（data/private/，不入库）；公开克隆会跳过该用例
+    assert Decimal(str(cols["I_legacy_input_revenue_10k"])) == row2_oracle[
+        "input_revenue_10k_per_gpu_year"
+    ]
+    assert Decimal(str(cols["M_legacy_revenue_cost_ratio"])) == row2_oracle["revenue_cost_ratio"]
     # legacy_* 字段与原始值一致
-    assert rec.legacy_total_revenue_10k_per_gpu_year == Decimal("177.16011391296")
+    assert (
+        rec.legacy_total_revenue_10k_per_gpu_year
+        == row2_oracle["total_revenue_10k_per_gpu_year"]
+    )
 
 
 # --------------------------------------------------------------------------
@@ -188,7 +194,7 @@ def test_single_user_p90_not_converted_to_tpot(excel_db):
     assert rec.tpot_mean_ms is None
 
 
-def test_cache_hit_rate_kept_raw_and_semantics_unknown(excel_db):
+def test_cache_hit_rate_kept_raw_and_semantics_unknown(excel_db, row2_oracle):
     """H 列只作旧表定价代理假设，且必须显式标记。"""
     db, repo = open_db(excel_db)
     try:
@@ -196,7 +202,7 @@ def test_cache_hit_rate_kept_raw_and_semantics_unknown(excel_db):
             rec = repo.get_benchmark(session, "excel_部署效能_2")
     finally:
         db.dispose()
-    assert rec.cache_hit_rate_raw == Decimal("0.9")
+    assert rec.cache_hit_rate_raw == row2_oracle["cache_hit_rate_raw"]
     assert rec.cache_metric_semantics == "unknown"
     assert rec.legacy_proxy_for_billable_hit_rate is True
     assert rec.billable_cached_input_ratio is None
@@ -309,10 +315,10 @@ def test_unmatched_model_is_recorded_not_guessed(tmp_path):
     ws = wb.active
     ws.title = "GPU价格"
     ws.append(["GPU型号", "卡数", "摊销或租金价格/卡/年"])
-    ws.append(["B300", 8, 52.5])
+    ws.append(["EXAMPLE-GPU-A", 8, 10.0])
     ws2 = wb.create_sheet("模型价格")
     ws2.append(["模型", "输入缓存命中/百万Token", "输入缓存未命中/百万Token", "输出/百万Token"])
-    ws2.append(["OTHER-MODEL", 2, 20, 100])
+    ws2.append(["OTHER-MODEL", 1, 10, 50])
     ws3 = wb.create_sheet("部署效能")
     ws3.append(["GPU型号", "模型", "部署卡数", "并发数", "单用户输出Token/s（P90）",
                 "单位卡输入吞吐Token/s/卡", "单位卡输出吞吐Token/s/卡", "总缓存命中率",

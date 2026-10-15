@@ -243,7 +243,10 @@ class SglangNumericCandidate(BaseModel):
 
     # ---- 原始性 ----------------------------------------------------------
     launch_command: str | None = None
+    #: **权威**测试命令：来自已逐字节校验的官方原文
     benchmark_command: str | None = None
+    #: 候选 JSON 自带的命令，单独保留用于差异检查（F5 第 4 条）
+    benchmark_command_from_candidate_file: str | None = None
     verification: CandidateVerification
 
     # ---- M9 门禁（派生，不接受人工填写）----------------------------------
@@ -257,6 +260,11 @@ class SglangNumericCandidate(BaseModel):
     present_fields: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
     quality_flags: list[str] = Field(default_factory=list)
+
+    @property
+    def hardware_binding(self) -> str:
+        """硬件绑定状态，由 ``hardware_model`` 派生（F6：不在别处硬编码）。"""
+        return "bound" if self.hardware_model else "unbound"
 
     @model_validator(mode="after")
     def _guard(self) -> "SglangNumericCandidate":

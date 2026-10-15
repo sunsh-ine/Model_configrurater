@@ -278,10 +278,85 @@ def label_provenance_issues(
     return issues
 
 
-def cross_backend_comparable(backend_version_a: str | None, backend_version_b: str | None) -> bool:
-    """不同框架/版本若口径未核实一致，不允许合并统计或直接排序性能优劣。"""
-    return bool(backend_version_a) and backend_version_a == backend_version_b
+@dataclass(frozen=True)
+class BackendProfile:
+    """参与跨框架比较的一侧（F7）。缺项一律视为"口径未核实"。"""
 
+    framework: str | None = None
+    backend_version: str | None = None
+    #: 该侧涉及的指标口径 ID 集合（见 FIELD_DEFINITIONS）
+    metric_definition_ids: tuple[str, ...] = ()
+    #: 统计与计时口径（例如 P99 算法、TTFT 定义版本）
+    statistics_method: str | None = None
+    #: 负载生成方式：unbounded / request_rate / max_concurrency
+    arrival_mode: str | None = None
+    max_concurrency: int | None = None
+    input_len: int | None = None
+    output_len: int | None = None
+    dataset_name: str | None = None
+
+
+@dataclass(frozen=True)
+class Comparability:
+    comparable: bool
+    reasons: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def assess_comparability(a: BackendProfile, b: BackendProfile) -> Comparability:
+    """判断两侧结果能否直接比较（合并统计 / 排序性能优劣）。
+
+    **版本字符串相同不是充分条件**（F7 第 3 条）：框架名、指标口径 ID、统计方法、
+    请求长度分布、并发与负载生成方式都要对得上；任一缺失或不等即"不可直接比较"，
+    并给出具体原因。
+    """
+    reasons: list[str] = []
+    notes: list[str] = []
+
+    if not a.framework or not b.framework:
+        reasons.append("framework_absent")
+    elif a.framework.lower() != b.framework.lower():
+        reasons.append(f"framework_differs:{a.framework}!={b.framework}")
+
+    if not a.metric_definition_ids or not b.metric_definition_ids:
+        reasons.append("metric_definitions_absent")
+    elif set(a.metric_definition_ids) != set(b.metric_definition_ids):
+        only_a = sorted(set(a.metric_definition_ids) - set(b.metric_definition_ids))
+        only_b = sorted(set(b.metric_definition_ids) - set(a.metric_definition_ids))
+        reasons.append(f"metric_definitions_differ:only_a={only_a},only_b={only_b}")
+
+    for name, va, vb in (
+        ("statistics_method", a.statistics_method, b.statistics_method),
+        ("arrival_mode", a.arrival_mode, b.arrival_mode),
+        ("max_concurrency", a.max_concurrency, b.max_concurrency),
+        ("input_len", a.input_len, b.input_len),
+        ("output_len", a.output_len, b.output_len),
+        ("dataset_name", a.dataset_name, b.dataset_name),
+    ):
+        if va is None or vb is None:
+            reasons.append(f"{name}_absent")
+        elif va != vb:
+            reasons.append(f"{name}_differs:{va}!={vb}")
+
+    if a.backend_version and a.backend_version == b.backend_version:
+        # 刻意记录：版本相同只说明"这一项不冲突"，不足以判定可比
+        notes.append("backend_version_equal_but_not_sufficient")
+    elif a.backend_version != b.backend_version:
+        notes.append(f"backend_version_differs:{a.backend_version}!={b.backend_version}")
+
+    return Comparability(comparable=not reasons, reasons=reasons, notes=notes)
+
+
+def cross_backend_comparable(
+    a: BackendProfile | None = None, b: BackendProfile | None = None
+) -> bool:
+    """便捷包装：两侧 Profile 都给全且**各项口径一致**时为 True。
+
+    保留函数名以兼容既有调用点，但签名已结构化：单独比较版本字符串不再被接受（F7）。
+    """
+    if a is None or b is None:
+        return False
+    return assess_comparability(a, b).comparable
 
 def definition_id_for(field_name: str) -> str | None:
     d = FIELD_DEFINITIONS.get(field_name)

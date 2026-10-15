@@ -13,6 +13,11 @@ import json
 from decimal import Decimal
 
 from llm_capacity_pricing.engines import pricing as P
+from llm_capacity_pricing.engines.applicability import (
+    LEGACY_ASSUMPTIONS,
+    PriceContext,
+    assess_pricing_readiness,
+)
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.schemas.pricing import (
@@ -135,6 +140,34 @@ def calculate(
             f"hardware_price_not_linked: 无匹配 {record.hardware_model!r} 的硬件价格行，成本侧留空"
         )
 
+    # F4：经济性门禁。吞吐单位在本系统内固定为"每卡 tok/s"（Excel F/G 列表头语境），
+    # 且必须两个方向都存在；成本/单价的绑定与匹配情况来自价格行是否命中。
+    readiness = assess_pricing_readiness(
+        metrics={
+            "input_tps_per_gpu": record.input_tps_per_gpu,
+            "output_tps_per_gpu": record.output_tps_per_gpu,
+        },
+        throughput_unit="tok/s/gpu" if record.input_tps_per_gpu is not None else None,
+        token_unit_prices_present=bool(
+            token_price
+            and token_price.price_cached_input_per_1m is not None
+            and token_price.price_output_per_1m is not None
+        ),
+        cost_present=bool(hardware_price and hardware_price.per_gpu_annual_cost_10k is not None),
+        hardware_price_bound=hardware_price is not None,
+        hardware_model_matches=bool(
+            hardware_price and hardware_price.gpu_model == record.hardware_model
+        ),
+        # 成本行的卡数是"每服务器卡数"，与部署卡数含义不同（任务书 §2），
+        # 因此这里只核对部署卡数本身存在，不拿两者做等同判断
+        gpu_count_matches=record.deployment_gpu_count is not None,
+        token_price_bound=token_price is not None,
+        token_price_model_matches=bool(
+            token_price and token_price.model_name == record.model_name
+        ),
+        price=PriceContext(currency=CURRENCY_UNCONFIRMED, currency_confirmed=False),
+    )
+
     result = PricingResult(
         scenario_id=scenario.scenario_id,
         benchmark_record_id=record.record_id,
@@ -157,6 +190,11 @@ def calculate(
         cache_hit_rate_is_legacy_proxy=record.legacy_proxy_for_billable_hit_rate,
         sla_status=sla_status,
         sla_not_evaluable_reasons=sla_reasons,
+        pricing_gate_blockers=readiness.blockers,
+        commercial_quote_allowed=readiness.can_issue_formal_quote,
+        legacy_assumptions=(
+            list(LEGACY_ASSUMPTIONS) if scenario.mode == "legacy_full_load" else []
+        ),
         input_snapshot_hash=input_snapshot_hash(
             record=record, token_price=token_price, hardware_price=hardware_price, scenario=scenario
         ),

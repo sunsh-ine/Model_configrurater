@@ -18,13 +18,38 @@ from typer.testing import CliRunner
 from llm_capacity_pricing.cli import app
 from llm_capacity_pricing.engines.applicability import (
     CURRENCY_UNCONFIRMED,
+    DeploymentConfig,
     PriceContext,
     SlaRequirement,
+    WorkloadProfile,
     assess_applicability,
 )
+
+
+def _deployment_of(c) -> DeploymentConfig:
+    """从候选记录取出结构化部署配置（用于门禁对比）。"""
+    return DeploymentConfig(
+        tp_size=c.tp_size,
+        dp_size=c.dp_size,
+        ep_size=c.ep_size,
+        gpu_count=c.deployment_gpu_count,
+        mode=c.pd_mode or "colocated",
+    )
+
+
+def _workload_of(c) -> WorkloadProfile:
+    return WorkloadProfile(
+        input_len=c.input_len_target,
+        output_len=c.output_len_target,
+        arrival_mode="unbounded" if c.traffic_request_rate_raw == "inf" else "request_rate",
+        max_concurrency=c.configured_max_concurrency,
+        dataset_name=c.dataset_name,
+        statistics_method=f"bench_serving-{c.framework_version}",
+    )
 from llm_capacity_pricing.engines.metric_semantics import (
     FIELD_DEFINITIONS,
     THROUGHPUT_TOLERANCE,
+    BackendProfile,
     cross_backend_comparable,
     render_dictionary_markdown,
     label_provenance_issues,
@@ -32,6 +57,7 @@ from llm_capacity_pricing.engines.metric_semantics import (
 )
 from llm_capacity_pricing.importers.sglang_cookbook import (
     METRIC_MAP,
+    SourceVerificationError,
     SOURCE_SPECS,
     SglangCookbookError,
     build_numeric_candidates,
@@ -214,35 +240,26 @@ def test_unknown_source_id_rejected(tmp_path: Path, root: Path):
 # --------------------------------------------------------------------------
 
 
-def test_missing_snapshot_means_not_verified(tmp_path: Path, root: Path):
-    """快照缺失时：不报错、但候选不得声称已核对，并写明原因。"""
+def test_missing_snapshot_blocks_import(tmp_path: Path, root: Path):
+    """F2 Fail-Closed：快照缺失时**阻断**导入，不产生任何候选/证据。"""
     work = tmp_path / "proj"
     (work / "data" / "incoming").mkdir(parents=True)
     shutil.copy(root / INCOMING, work / "data" / "incoming" / Path(INCOMING).name)
     (work / "data" / "raw" / "official").mkdir(parents=True)
-    candidates, evidences, summary = build_numeric_candidates(
-        work / "data" / "incoming" / Path(INCOMING).name, root=work
-    )
-    assert candidates == []
-    assert evidences == []
-    for info in summary["sources"].values():
-        assert info["snapshot_present"] is False
-        assert info["sha256_matches_spec"] is False
-        assert "未复核原文" in info["reason"]
+    with pytest.raises(SourceVerificationError, match="本地快照缺失"):
+        build_numeric_candidates(work / "data" / "incoming" / Path(INCOMING).name, root=work)
 
 
-def test_tampered_snapshot_is_detected(tmp_path: Path, root: Path):
+def test_tampered_snapshot_blocks_import(tmp_path: Path, root: Path):
+    """F2 Fail-Closed：原文被篡改时阻断导入，且原因同时点出两个哈希。"""
     work = tmp_path / "proj"
     shutil.copytree(root / "data", work / "data")
     target = work / "data" / "raw" / "official" / "sglang_cookbook_qwen3_2026-10-15.mdx"
     target.write_text(target.read_text(encoding="utf-8") + "\n<!-- tampered -->\n", encoding="utf-8")
-    _, _, summary = build_numeric_candidates(
-        work / "data" / "incoming" / Path(INCOMING).name, root=work
-    )
-    info = summary["sources"][QWEN3]
-    assert info["sha256_matches_spec"] is False
-    assert info["git_blob_sha_matches_declared"] is False
-    assert "不一致" in info["reason"]
+    with pytest.raises(SourceVerificationError) as exc:
+        build_numeric_candidates(work / "data" / "incoming" / Path(INCOMING).name, root=work)
+    message = str(exc.value)
+    assert "SHA256 不符" in message and "Git Blob SHA 不符" in message
 
 
 def test_git_blob_sha_differs_from_file_sha256(root: Path):
@@ -405,10 +422,25 @@ def test_label_provenance_allows_equal_tpot_and_itl_values():
     ) == []
 
 
-def test_cross_backend_comparability_requires_same_version():
-    assert cross_backend_comparable("0.5.6", "0.5.6")
-    assert not cross_backend_comparable("0.5.6", "0.5.7")
+def test_cross_backend_comparability_needs_full_profile():
+    """F7：版本字符串相同**不足以**判定可比，必须给出完整口径。"""
     assert not cross_backend_comparable(None, None)
+    # 只给版本（旧用法）不再被接受
+    assert not cross_backend_comparable()
+    profile = BackendProfile(
+        framework="sglang",
+        backend_version="0.5.6",
+        metric_definition_ids=("m.throughput.cluster.output",),
+        statistics_method="bench-0.5.6",
+        arrival_mode="unbounded",
+        max_concurrency=1,
+        input_len=1000,
+        output_len=1000,
+        dataset_name="random",
+    )
+    assert cross_backend_comparable(profile, profile)
+    other = BackendProfile(**{**profile.__dict__, "framework": "vllm"})
+    assert not cross_backend_comparable(profile, other)
 
 
 def test_metric_dictionary_doc_matches_code(root: Path):
@@ -553,9 +585,11 @@ def test_sla_blocked_even_with_matching_target_missing_revision(built):
             hardware_model=c.hardware_model,
             deployment_gpu_count=c.deployment_gpu_count,
             framework_version=c.framework_version,
-            parallel_config="TP8",
-            workload_profile="random-1000-1000",
+            deployment=_deployment_of(c),
+            workload=_workload_of(c),
         ),
+        record_deployment=_deployment_of(c),
+        record_workload=_workload_of(c),
         price=PriceContext(currency=CURRENCY_UNCONFIRMED, currency_confirmed=False),
     )
     assert app.can_evaluate_sla is False
@@ -581,10 +615,28 @@ def test_sla_evaluable_when_everything_matches_shows_rule_is_not_hardcoded():
             hardware_model="NVIDIA B200",
             deployment_gpu_count=8,
             framework_version="0.5.6",
-            parallel_config="TP8",
-            workload_profile="random-1000-1000",
+            deployment=DeploymentConfig(tp_size=8, dp_size=1, ep_size=1, gpu_count=8, mode="colocated"),
+            workload=WorkloadProfile(
+                input_len=1000,
+                output_len=1000,
+                arrival_mode="unbounded",
+                max_concurrency=64,
+                dataset_name="random",
+                statistics_method="bench_serving-0.5.6",
+            ),
         ),
-        price=PriceContext(currency="CNY", currency_confirmed=True, hardware_cost_bound=True),
+        record_deployment=DeploymentConfig(
+            tp_size=8, dp_size=1, ep_size=1, gpu_count=8, mode="colocated"
+        ),
+        record_workload=WorkloadProfile(
+            input_len=1000,
+            output_len=1000,
+            arrival_mode="unbounded",
+            max_concurrency=64,
+            dataset_name="random",
+            statistics_method="bench_serving-0.5.6",
+        ),
+        price=PriceContext(currency="CNY", currency_confirmed=True, cost_scope_confirmed=True, billing_rules_declared=True, price_valid_period_declared=True),
     )
     assert app.can_evaluate_sla is True
 
@@ -620,7 +672,7 @@ def test_synthetic_fixture_never_passes_any_gate():
         workload_defined=True,
         metrics={"ttft_p99_ms": Decimal("1"), "tpot_p99_ms": Decimal("1")},
         sla_requirement=None,
-        price=PriceContext(currency="CNY", currency_confirmed=True, hardware_cost_bound=True),
+        price=PriceContext(currency="CNY", currency_confirmed=True, cost_scope_confirmed=True, billing_rules_declared=True, price_valid_period_declared=True),
         measurement_origin_is_official=False,
     )
     assert not app.can_reference_performance
@@ -644,8 +696,9 @@ def test_price_context_blockers_enumerated():
     ctx = PriceContext(currency=CURRENCY_UNCONFIRMED, currency_confirmed=False)
     blockers = ctx.blockers()
     assert "currency_not_confirmed" in blockers
-    assert "hardware_cost_bound" in blockers or "hardware_cost_not_bound" in blockers
+    assert "cost_scope_unconfirmed" in blockers
     assert "billing_rules_not_declared" in blockers
+    assert "price_valid_period_not_declared" in blockers
 
 
 def test_schema_rejects_commercial_quote_flag(built):
@@ -715,3 +768,116 @@ def test_cli_missing_file_fails_cleanly(empty_db):
     )
     assert r.exit_code != 0
     assert "候选文件不存在" in r.output
+
+
+# --------------------------------------------------------------------------
+# F2：Fail-Closed 来源校验
+# --------------------------------------------------------------------------
+
+
+def test_wrong_declared_sha256_blocks_import(tmp_path: Path, root: Path, monkeypatch):
+    """声明的 SHA256 与实际不符 -> 阻断（即使原文内容本身没被动过）。"""
+    work = tmp_path / "proj"
+    shutil.copytree(root / "data", work / "data")
+    import llm_capacity_pricing.importers.sglang_cookbook as mod
+
+    patched = {
+        k: dict(v) for k, v in mod.SOURCE_SPECS.items()
+    }
+    patched[QWEN3]["evidence_sha256"] = "0" * 64
+    monkeypatch.setattr(mod, "SOURCE_SPECS", patched)
+    with pytest.raises(SourceVerificationError, match="SHA256 不符"):
+        build_numeric_candidates(
+            work / "data" / "incoming" / Path(INCOMING).name, root=work
+        )
+
+
+def test_wrong_declared_blob_sha_blocks_import(tmp_path: Path, root: Path):
+    """候选文件声明的 Git Blob SHA 与实际不符 -> 阻断。"""
+    payload = json.loads((root / INCOMING).read_text(encoding="utf-8"))
+    payload["sources"][QWEN3]["source_git_blob_sha"] = "0" * 40
+    work = tmp_path / "proj"
+    shutil.copytree(root / "data", work / "data")
+    bad = work / "data" / "incoming" / Path(INCOMING).name
+    bad.chmod(0o644)
+    bad.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(SourceVerificationError, match="Git Blob SHA 不符"):
+        build_numeric_candidates(bad, root=work)
+
+
+def test_skip_policy_imports_only_verified_source(tmp_path: Path, root: Path):
+    """显式 skip 策略：只导入合格来源，不合格来源绝不带"已核对"标记。"""
+    work = tmp_path / "proj"
+    shutil.copytree(root / "data", work / "data")
+    tampered = work / "data" / "raw" / "official" / "sglang_cookbook_qwen3_2026-10-15.mdx"
+    tampered.write_text(tampered.read_text(encoding="utf-8") + "\n<!-- tampered -->\n", encoding="utf-8")
+
+    candidates, _evidences, summary = build_numeric_candidates(
+        work / "data" / "incoming" / Path(INCOMING).name,
+        root=work,
+        on_verification_failure="skip",
+    )
+    assert summary["by_source"] == {QWEN3: 0, CODER: 3}
+    assert len(candidates) == 3
+    assert all(c.source_id == CODER for c in candidates)
+    assert summary["verification_failures"], "必须记录被跳过的原因"
+    assert any("SHA256 不符" in f for f in summary["verification_failures"])
+    # 被跳过的来源不得出现任何"已核对"痕迹
+    assert all(
+        "values_machine_verified_against_archived_source" not in c.quality_flags
+        for c in candidates
+        if c.source_id == QWEN3
+    )
+
+
+def test_failed_import_writes_nothing(tmp_path: Path, root: Path):
+    """校验失败时服务层不得留下任何部分记录（原子性）。"""
+    work = tmp_path / "proj"
+    shutil.copytree(root / "data", work / "data")
+    tampered = work / "data" / "raw" / "official" / "sglang_cookbook_qwen3_coder_2026-10-15.mdx"
+    tampered.write_text(tampered.read_text(encoding="utf-8") + "\n<!-- tampered -->\n", encoding="utf-8")
+    db = str(tmp_path / "cand.db")
+    from llm_capacity_pricing.services import init_db
+
+    init_db(db)
+    with pytest.raises(SourceVerificationError):
+        import_sglang_candidates(work / "data" / "incoming" / Path(INCOMING).name, db, root=work)
+    handle, repo = open_db(db)
+    try:
+        with handle.session() as session:
+            assert repo.list_numeric_candidates(session) == []
+            assert repo.counts(session).evidence == 0
+    finally:
+        handle.dispose()
+
+
+def test_evidence_schema_forbids_verification_claim_without_hash():
+    """F2：声称"来源已校验"却没有哈希凭据 -> Schema 直接拒绝。"""
+    from pydantic import ValidationError
+
+    from llm_capacity_pricing.schemas.evidence import Evidence
+
+    with pytest.raises(ValidationError, match="raw_sha256"):
+        Evidence(
+            evidence_id="ev_x",
+            source_type="official_benchmark",
+            measurement_origin="official_benchmark",
+            quality_flags=["source_snapshot_archived"],
+        )
+    ok = Evidence(
+        evidence_id="ev_y",
+        source_type="official_benchmark",
+        measurement_origin="official_benchmark",
+        raw_sha256="a" * 64,
+        quality_flags=["source_snapshot_archived", "git_blob_sha_verified"],
+    )
+    assert ok.raw_sha256
+
+
+def test_all_imported_candidates_carry_hash_backed_verification(built):
+    """正常路径下：每条候选的"已核对"标记都建立在记录在案的哈希之上。"""
+    candidates, evidences, _ = built
+    assert all(c.evidence_sha256 and len(c.evidence_sha256) == 64 for c in candidates)
+    assert all(c.source_git_blob_sha and len(c.source_git_blob_sha) == 40 for c in candidates)
+    assert all("values_machine_verified_against_archived_source" in c.quality_flags for c in candidates)
+    assert all(e.raw_sha256 for e in evidences)

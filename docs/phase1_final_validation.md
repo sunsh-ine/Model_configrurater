@@ -30,7 +30,7 @@
 | 11 | 全量测试 | `260 passed`（基线 200 + 本轮新增 60；**无跳过、无失败**） |
 | 12 | 离线可复现 | 从空库跑完 21 步不联网；官方来源抓取只发生在采集阶段（见 §六） |
 | 13 | 校验门禁 | `validate-import` 20/20；`validate-results` 9/9 |
-| 14 | 金额精度不回退 | 导出仍为十进制字符串（`"scenario_revenue_10k_per_gpu_year": "53.1480341738880"`），roundtrip 精确 |
+| 14 | 金额精度不回退 | 导出仍为十进制字符串（金额字段形如 `"scenario_revenue_10k_per_gpu_year": "<decimal string>"`；具体数值属内部业务信息，见 §一.3 与 `docs/security_remediation_report.md`），roundtrip 精确 |
 
 ### 1.2 已修复（本轮定位并修掉的问题）
 
@@ -203,7 +203,7 @@ bash scripts/verify_all.sh          # 退出码 0；21 步全绿；完整输出�
 | 10 | `official-coverage` | `candidate_count 18`、`numeric_candidates 12`、`verified_count 0`、`numeric_verified_against_source 12`、`can_evaluate_sla 0`、`can_calculate_pricing 0` |
 | 11 | `validate-import` | `校验项: 20，通过 20，失败 0` |
 | 12–13 | `calculate-all`（默认 / 含测试） | 32 / 36 |
-| 14 | `scenario --record excel_部署效能_2 --utilization 0.30` | `"scenario_revenue_10k_per_gpu_year": "53.1480341738880"` |
+| 14 | `scenario --record excel_部署效能_2 --utilization 0.30` | 金额字段为十进制字符串（`"scenario_revenue_10k_per_gpu_year": "<decimal string>"`）；日志中的金额按 V1.2 F1 已脱敏 |
 | 15 | `validate-results` | `校验项: 9，通过 9，失败 0` |
 | 16 | 复算摘要 + 敏感性 | 0 不匹配；160 / 180 |
 | 17 | 口径复核 | `最终 pricing_result 总数: 192`、`残留的 synthetic_fixture 结果行: 0` |

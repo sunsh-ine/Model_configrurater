@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -73,6 +73,23 @@ class Evidence(BaseModel):
     measurement_origin: MeasurementOrigin = "historical_external_third_party"
     #: 是否为自有实测。只有 ``measurement_origin == "internal_measurement"`` 才能为 True。
     is_internal_measurement: bool = False
+
+    #: 这些标记意味着"来源快照已被校验"，必须以 raw_sha256 为凭据
+    VERIFICATION_CLAIM_FLAGS: ClassVar[tuple[str, ...]] = (
+        "source_snapshot_archived",
+        "git_blob_sha_verified",
+        "source_snapshot_sha256_verified",
+    )
+
+    @model_validator(mode="after")
+    def _check_verification_claim_has_hash(self) -> "Evidence":
+        claimed = [f for f in self.quality_flags if f in self.VERIFICATION_CLAIM_FLAGS]
+        if claimed and not self.raw_sha256:
+            raise ValueError(
+                f"质量标记 {claimed} 声称来源已校验，但没有记录 raw_sha256 —— "
+                "不得在缺少哈希凭据时宣称已核实来源"
+            )
+        return self
 
     @model_validator(mode="after")
     def _check_origin_consistency(self) -> "Evidence":

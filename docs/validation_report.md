@@ -19,8 +19,8 @@
 |---|---|---|
 | 1 | Excel 三表导入计数与幂等 | `工作表行数: {'GPU价格': 2, '模型价格': 3, '部署效能': 32}`；第 2、3 次导入 `"idempotent": true` |
 | 2 | 旧表 32 行全量复算 | `复算覆盖行数: 32`，`超容差不匹配数: 0`；最大误差 I `4.4E-13`、J `0`、K `4.4E-13`、L `0`、M `5.714285714286E-15` |
-| 3 | 任务书 §4.1 第 2 行样例 | 输入 `149.54340799296`、输出 `27.61670592`、合计 `177.16011391296` 精确一致；比值误差 `2.9e-15` |
-| 4 | 变现比例情景 | `scenario --record excel_部署效能_2 --utilization 0.30` → `"scenario_revenue_10k_per_gpu_year": "53.1480341738880"` |
+| 3 | 精确复算样例 | 输入/输出/合计三项与期望值**精确一致**（误差 0），比值误差量级 `1e-15`。期望值：公开部分用 `data/examples/` 的脱敏样本，真实工作簿部分用本地 `data/private/`（不入库） |
+| 4 | 变现比例情景 | `scenario --record excel_部署效能_2 --utilization 0.30` → 返回十进制字符串形式的 `scenario_revenue_10k_per_gpu_year`（金额已按 V1.2 F1 脱敏，见 `docs/security_remediation_report.md`） |
 | 5 | 缺 P99 → SLA 不可评估 | 32 条业务结果 `sla_status` 全为 `not_evaluable` 且 `sla_not_evaluable_reasons` 写明缺失项（检查 `sla_not_evaluable_without_p99`、`sla_reasons_recorded` 通过） |
 | 6 | 每条 Benchmark 有来源与质量标记 | `check("every_record_has_source")`、`check("every_record_has_quality_flags")` 通过（36 条记录） |
 | 7 | 每条结果可追溯到三个输入 | `result_linked_to_performance_record` / `result_linked_to_hardware_price` / `result_linked_to_token_price` / `result_has_evidence_chain` 四项通过 |
@@ -92,7 +92,7 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 | 9 | `validate-import` | `校验项: 20，通过 20，失败 0` |
 | 10 | `calculate-all`（默认） | `已导出 32 条结果`、`结果条数: 32（业务 32 + 测试 0）` |
 | 11 | `calculate-all --include-test-data` | `已导出 36 条结果`、`注意: 其中含 4 条人工测试数据（测试口径）` |
-| 12 | `scenario`（单条，U=0.30） | `"scenario_revenue_10k_per_gpu_year": "53.1480341738880"` |
+| 12 | `scenario`（单条，U=0.30） | 金额字段以十进制字符串返回（数值已脱敏） |
 | 13 | `validate-results` | `结果条数: 32（含测试数据: False）`、`校验项: 9，通过 9，失败 0` |
 | 14 | 复算误差摘要 + 敏感性 | 见 §2；`默认敏感性情景条数: 160`、`含测试数据情景条数: 180` |
 | 15 | 回到业务口径复核 | `最终 pricing_result 总数: 192`、`按 scope 分解: [('business', 192)]`、`残留的 synthetic_fixture 结果行: 0` |
@@ -146,17 +146,19 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 
 | 量 | 期望值 | 本引擎结果 | 一致 |
 |---|---|---|---|
-| 输入收入 | `149.54340799296` | `149.54340799296` | ✅ 精确 |
-| 输出收入 | `27.61670592` | `27.61670592` | ✅ 精确 |
-| 合计 | `177.16011391296` | `177.16011391296` | ✅ 精确 |
-| 营收/成本比 | `3.37447836024686` | `3.374478360246857142857…` | ✅ 误差 `2.9e-15` |
+| 输入收入 | 内部期望值 | 与期望值**精确相等** | ✅ 精确 |
+| 输出收入 | 内部期望值 | 与期望值**精确相等** | ✅ 精确 |
+| 合计 | 内部期望值 | 与期望值**精确相等** | ✅ 精确 |
+| 营收/成本比 | 内部期望值（14 位有效数字） | 精确十进制值 | ✅ 误差量级 `1e-15`（Excel 侧浮点舍入） |
 
 ### 复算出的业务事实（仅供审阅，不作为营收承诺）
 
 - 32 条真实记录中，**13 条**在"表内 GPU 成本、100% 满载变现"口径下营收/成本比 > 1。
 - 每卡理论满载收入最高：`excel_部署效能_22`（B300 × 64，DeepSeek-V4-Pro（峰值））=
-  `393.892343330256` 万元/卡/年，营收/成本比 `7.5027`，盈亏平衡变现比例 `13.33%`。
-- 盈亏平衡变现比例跨度 `13.33% ~ 664.34%`，后者意味着该配置即使满载也无法覆盖表内成本。
+  具体金额、营收/成本比与盈亏平衡比例属**内部业务信息**，按 V1.2 F1 不写入公开仓库；
+  本地复算可完整复现（`data/private/`）。
+- 存在**盈亏平衡变现比例 > 100%** 的配置，意味着即使满载也无法覆盖表内 GPU 成本；
+  具体跨度属内部业务信息，不在此列出。
 - 这些数字**不是**实际营收、不是客户可收取金额、不含机房/网络/人力/存储/运维成本，
   结果对象里以 `result_type = "theoretical_full_load_potential"` 显式声明。
 
@@ -207,7 +209,7 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 
 ## 4. 整改任务 2 专项：金额精度
 
-**问题**：`Decimal` 以裸 JSON number 导出（如 `149.54340799296`），任何按 IEEE-754 double
+**问题**：`Decimal` 以裸 JSON number 导出（例：内部金额常带 14～28 位有效数字），任何按 IEEE-754 double
 解析的读取器都拿不回精确值，而比率字段有 28 位有效数字。
 
 **整改**：金额/比率字段一律写成**定点十进制字符串**，并给出兼容读取入口。
@@ -215,7 +217,7 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 实测片段（`data/exports/scenario.json`）：
 
 ```json
-"scenario_revenue_10k_per_gpu_year": "53.1480341738880",
+"scenario_revenue_10k_per_gpu_year": "<decimal string>",
 ```
 
 导出文件头的编码声明：
@@ -224,7 +226,7 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 "decimals_encoding": {
   "money_and_ratio_fields": "decimal_string",
   "format": "fixed-point decimal literal, no scientific notation",
-  "example": "149.54340799296",
+  "example": "17.3448",
   "compatible_reader": "llm_capacity_pricing.reporting.json_export.loads_tolerant",
   "compute_path": "all formulas use decimal.Decimal; JSON is an encoding boundary only"
 }

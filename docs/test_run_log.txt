@@ -1,3 +1,7 @@
+本日志由 scripts/verify_all.sh 生成；其中金额/比率类字段值已替换为 <redacted:internal>（V1.2 F1）。
+被脱敏的只有"值"，键名、条数、误差量级、门禁结论均保留，可用于复核。
+完整内部金额可在本地 data/exports/ 查看（该目录不入版本库）。
+
 
 === 0. 环境 ===
 Python 3.12.3
@@ -878,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T14:49:09",
+  "generated_at": "2026-10-15T16:05:14",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -906,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T14:49:10",
+  "generated_at": "2026-10-15T16:05:15",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -939,7 +943,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
   "sla_status": "not_evaluable",
   "token_price_id": "excel_模型价格_2",
   "hardware_price_id": "excel_GPU价格_2",
-  "scenario_revenue_10k_per_gpu_year": "53.1480341738880"
+  "scenario_revenue_10k_per_gpu_year": "<redacted:internal>"
 }
 情景结果已写入 data/exports/scenario.json
 
@@ -994,25 +998,30 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 }
 报告已写入 data/exports/overview.md
 
-=== 19. pytest（全量，离线） ===
-........................................................................ [ 27%]
-........................................................................ [ 55%]
-........................................................................ [ 83%]
-............................................                             [100%]
-260 passed in 24.02s
+=== 19. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
+已跟踪文件中未发现内部定价数值（按本地特征表扫描 9 个特征串）
+忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
-=== 20. 产物清单 ===
-总计 1036
-drwxrwxr-x 2 ssa ssa   4096 10月 15 14:49 .
-drwxrwxr-x 7 ssa ssa   4096 10月 15 14:49 ..
--rw-rw-r-- 1 ssa ssa 131219 10月 15 14:49 legacy_results.json
--rw-rw-r-- 1 ssa ssa 143169 10月 15 14:49 legacy_results_with_tests.json
--rw-rw-r-- 1 ssa ssa  68122 10月 15 14:49 overview.md
--rw-rw-r-- 1 ssa ssa   6883 10月 15 14:49 scenario.json
--rw-rw-r-- 1 ssa ssa 696266 10月 15 14:49 scenarios_sensitivity.json
+=== 20. pytest（全量，离线） ===
+........................................................................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................................................................ [ 88%]
+.....................................                                    [100%]
+325 passed in 50.42s
+
+=== 21. 产物清单（内部目录不入库，仅本地查看） ===
+总计 1128
+drwxrwxr-x 2 ssa ssa   4096 10月 15 16:05 .
+drwxrwxr-x 9 ssa ssa   4096 10月 15 16:05 ..
+-rw-rw-r-- 1 ssa ssa 153526 10月 15 16:05 legacy_results.json
+-rw-rw-r-- 1 ssa ssa 168877 10月 15 16:05 legacy_results_with_tests.json
+-rw-rw-r-- 1 ssa ssa  68122 10月 15 16:05 overview.md
+-rw-rw-r-- 1 ssa ssa   7149 10月 15 16:05 scenario.json
+-rw-rw-r-- 1 ssa ssa 738349 10月 15 16:05 scenarios_sensitivity.json
 
 ==== 汇总 ====
-步骤 21 项：通过 21，失败 0
-完成时间: 2026-10-15T14:49:40+08:00
+步骤 22 项：通过 22，失败 0
+完成时间: 2026-10-15T16:06:20+08:00
 环境: Python 3.12.3
 全部步骤通过。

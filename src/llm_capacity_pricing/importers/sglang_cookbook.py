@@ -22,13 +22,16 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from llm_capacity_pricing.engines.applicability import (
+    DeploymentConfig,
     PriceContext,
+    WorkloadProfile,
     assess_applicability,
 )
 from llm_capacity_pricing.engines.metric_semantics import (
@@ -100,14 +103,93 @@ METRIC_MAP: dict[str, str] = {
     "achieved_concurrency": "observed_concurrency",
 }
 
-#: 候选 JSON 工作负载字段 -> 测试命令参数
+#: 参数类型。不同种类必须用不同方式比较（F5）：
+#: 数值按 Decimal、字符串/枚举按规范化文本、符号按字面量、布尔按是否出现。
+ParamKind = str  # "int" | "decimal" | "string" | "enum" | "bool" | "symbol"
+
+
+@dataclass(frozen=True)
+class ParamSpec:
+    """一个 Benchmark 命令行参数的比较规则。"""
+
+    field: str
+    flag: str
+    kind: ParamKind
+    aliases: tuple[str, ...] = ()
+
+
+#: 逐参数比较规则。``field`` 对应候选记录字段名；``flag`` 是原文命令里的参数名。
+PARAM_SPECS: tuple[ParamSpec, ...] = (
+    ParamSpec("model_id", "--model", "string"),
+    ParamSpec("dataset_name", "--dataset-name", "enum"),
+    ParamSpec("input_len_target", "--random-input-len", "int", ("--input-len",)),
+    ParamSpec("output_len_target", "--random-output-len", "int", ("--output-len",)),
+    ParamSpec("configured_max_concurrency", "--max-concurrency", "int"),
+    ParamSpec("num_prompts", "--num-prompts", "int"),
+    ParamSpec("traffic_request_rate", "--request-rate", "symbol"),
+    ParamSpec("backend", "--backend", "enum"),
+)
+
+#: 兼容旧名（原先只处理这五个，且字符串参数被静默跳过）
 WORKLOAD_ARG_MAP: dict[str, str] = {
-    "dataset_name": "--dataset-name",
-    "input_len_target": "--random-input-len",
-    "output_len_target": "--random-output-len",
-    "configured_max_concurrency": "--max-concurrency",
-    "num_prompts": "--num-prompts",
+    s.field: s.flag for s in PARAM_SPECS if s.field != "backend"
 }
+
+
+def _normalize(value: Any, kind: ParamKind) -> Any:
+    """按参数类型规范化，用于比较。无法规范化时返回 None（视为"不可比"）。"""
+    if value is None:
+        return None
+    if kind in ("int", "decimal"):
+        dec = _dec(value)
+        return dec
+    text = str(value).strip()
+    if kind in ("string", "enum"):
+        return text.lower()
+    if kind == "symbol":
+        return text.lower()
+    if kind == "bool":
+        return text.lower() in ("1", "true", "yes", "on")
+    return text
+
+
+def compare_param(
+    spec: ParamSpec,
+    record_value: Any,
+    args: Mapping[str, str],
+    *,
+    secondary_args: Mapping[str, str] | None = None,
+) -> tuple[bool, bool, str | None]:
+    """比较单个参数。
+
+    返回 ``(是否参与比较, 是否一致, 不一致说明)``。
+
+    ``args`` 是**权威**参数集（来自官方原文的命令行）；``secondary_args`` 是候选 JSON
+    自带的命令参数，给出时会额外做一次"候选文件 vs 原文"一致性检查（F5 第 4 条）。
+    """
+    flags = (spec.flag,) + spec.aliases
+    raw = next((args[f] for f in flags if f in args), None)
+    want = _normalize(record_value, spec.kind)
+    if want is None:
+        return (False, False, None)
+    if raw is None:
+        return (False, False, f"原文命令未提供 {spec.flag}")
+    got = _normalize(raw, spec.kind)
+    if got is None:
+        return (False, False, f"{spec.flag} 的取值 {raw!r} 无法按 {spec.kind} 规范化")
+    if got != want:
+        return (True, False, f"{spec.field}: candidate={record_value!r} command={spec.flag} {raw!r}")
+    if secondary_args is not None:
+        araw = next((secondary_args[f] for f in flags if f in secondary_args), None)
+        if araw is not None:
+            agot = _normalize(araw, spec.kind)
+            if agot != want:
+                return (
+                    True,
+                    False,
+                    f"{spec.field}: 候选文件命令={araw!r} 与原文命令={raw!r} 不一致",
+                )
+    return (True, True, None)
 
 #: 每个候选记录在 ``metrics`` 中要求的字段（缺任一则登记缺口）
 REQUIRED_METRICS = tuple(METRIC_MAP.values())
@@ -156,6 +238,22 @@ def iter_fences(text: str) -> list[dict[str, Any]]:
 
 class SglangCookbookError(RuntimeError):
     """候选文件或来源证据不满足导入前提。"""
+
+
+class SourceVerificationError(SglangCookbookError):
+    """来源快照未通过校验（缺失 / SHA256 不符 / Git Blob SHA 不符）。
+
+    Fail-Closed：默认**阻断**整个导入，而不是"记一笔异常然后继续解析原文"。
+    校验失败时不得生成任何候选、不得写库、更不得给出"已与原文核对"的标记。
+    """
+
+
+#: 快照校验策略
+#:  ``fail``  —— 默认。任一来源校验失败即抛 :class:`SourceVerificationError`，
+#:               导入整体不产生任何记录（原子的：候选全部在写库前构建完成）。
+#:  ``skip``  —— 显式选择"跳过不合格来源"，其余合格来源正常导入；
+#:               跳过项在 summary 中记为 ``verification_failed``，绝不打核对通过标记。
+VERIFY_POLICIES = ("fail", "skip")
 
 
 def sha256_file(path: str | Path) -> str:
@@ -396,28 +494,35 @@ def verify_record(
 
     # ---- 负载 / 模型逐项比对（以**命令**为准，不以正文叙述为准）----------
     workload = record.get("workload", {})
-    for json_key, flag in WORKLOAD_ARG_MAP.items():
-        want = _dec(workload.get(json_key))
-        if want is None:
+    candidate_command = parse_cli_args(record.get("benchmark_command") or "")
+    record_view: dict[str, Any] = {
+        "model_id": record.get("model_id"),
+        "backend": record.get("framework"),
+        "traffic_request_rate": workload.get("traffic_request_rate"),
+        **{s.field: workload.get(s.field) for s in PARAM_SPECS},
+    }
+    # 候选记录里 ISL/OSL 的字段名与命令参数名不同，做一次别名映射
+    record_view["input_len_target"] = workload.get("random_input_len_target")
+    record_view["output_len_target"] = workload.get("random_output_len_target")
+    record_view["configured_max_concurrency"] = workload.get("configured_max_concurrency")
+    record_view["num_prompts"] = workload.get("num_prompts")
+    record_view["dataset_name"] = workload.get("dataset_name")
+
+    for spec in PARAM_SPECS:
+        involved, ok, why = compare_param(
+            spec, record_view.get(spec.field), args, secondary_args=candidate_command
+        )
+        label = f"param:{spec.field}"
+        if not involved and why:
+            notes.append(why)
             continue
-        got_raw = args.get(flag)
-        got = _dec(got_raw)
-        if got is None:
-            notes.append(f"原文命令未提供 {flag}")
+        if not involved:
             continue
-        compared.append(f"workload:{json_key}")
-        if got == want:
-            matched.append(f"workload:{json_key}")
+        compared.append(label)
+        if ok:
+            matched.append(label)
         else:
-            mismatches.append(f"workload:{json_key}: candidate={want} command={flag} {got}")
-    if record.get("model_id") and args.get("--model"):
-        compared.append("model:model_id")
-        if args["--model"] == record["model_id"]:
-            matched.append("model:model_id")
-        else:
-            mismatches.append(
-                f"model:model_id: candidate={record['model_id']} command={args['--model']}"
-            )
+            mismatches.append(f"{label}: {why}")
     # 命令里的 --max-concurrency 与输出块的 Max request concurrency 应当一致
     if block and args.get("--max-concurrency") and "configured_max_concurrency" in block["metrics"]:
         a = _dec(args["--max-concurrency"])
@@ -467,6 +572,7 @@ def build_numeric_candidates(
     incoming_path: str | Path,
     *,
     root: str | Path,
+    on_verification_failure: str = "fail",
 ) -> tuple[list[SglangNumericCandidate], list[Evidence], dict[str, Any]]:
     """完整流程：读候选文件 → 校验来源快照 → 逐条核对原文 → 产出候选与证据。
 
@@ -474,11 +580,16 @@ def build_numeric_candidates(
     并把差异写进 ``verification.mismatches``。候选文件里的原始数值另存于
     ``metrics_from_candidate_file``，便于逐项对照。
     """
+    if on_verification_failure not in VERIFY_POLICIES:
+        raise SglangCookbookError(
+            f"on_verification_failure 只能是 {VERIFY_POLICIES}，收到 {on_verification_failure!r}"
+        )
     base = Path(root)
     payload = load_incoming(incoming_path)
     candidates: list[SglangNumericCandidate] = []
     evidences: list[Evidence] = []
     per_source: dict[str, Any] = {}
+    failures: list[str] = []
 
     for source_id, spec in SOURCE_SPECS.items():
         declared = payload["sources"].get(source_id)
@@ -501,10 +612,12 @@ def build_numeric_candidates(
                     "snapshot_git_blob_sha": None,
                     "sha256_matches_spec": False,
                     "git_blob_sha_matches_declared": False,
+                    "verification_failed": True,
                     "reason": "本地快照缺失，未复核原文",
                 }
             )
             per_source[source_id] = info
+            failures.append(f"{source_id}: 本地快照缺失（{spec['evidence_file']}）")
             continue
         actual_sha = sha256_file(snapshot)
         actual_blob = git_blob_sha1(snapshot)
@@ -517,7 +630,21 @@ def build_numeric_candidates(
             }
         )
         if not (info["sha256_matches_spec"] and info["git_blob_sha_matches_declared"]):
-            info["reason"] = "快照哈希与声明不一致，候选标记为未重新获取原文"
+            info["verification_failed"] = True
+            detail = []
+            if not info["sha256_matches_spec"]:
+                detail.append(
+                    f"SHA256 不符（期望 {spec['evidence_sha256']}，实际 {actual_sha}）"
+                )
+            if not info["git_blob_sha_matches_declared"]:
+                detail.append(
+                    f"Git Blob SHA 不符（候选文件声明 {declared.get('source_git_blob_sha')}，"
+                    f"实际 {actual_blob}）"
+                )
+            info["reason"] = "快照校验失败：" + "；".join(detail)
+            per_source[source_id] = info
+            failures.append(f"{source_id}: {info['reason']}")
+            continue
         per_source[source_id] = info
 
         evidence_id = f"ev_official_{source_id}"
@@ -596,6 +723,10 @@ def build_numeric_candidates(
                 file_metrics=file_metrics,
                 raw_labels=raw_labels,
                 launch_command=(sec.get("launch_command") if isinstance(sec, dict) else None),
+                # F5：**权威命令**取自已核验的官方原文；候选文件自带的命令单独保留用于差异检查
+                source_command=(
+                    sec.get("benchmark_command") if isinstance(sec, dict) else None
+                ),
             )
             candidates.append(candidate)
             info["records"].append(
@@ -609,7 +740,16 @@ def build_numeric_candidates(
                 }
             )
 
+    if failures and on_verification_failure == "fail":
+        raise SourceVerificationError(
+            "来源快照校验失败，按 Fail-Closed 原则阻断导入（未写入任何记录）：\n  - "
+            + "\n  - ".join(failures)
+            + "\n如需仅跳过不合格来源，请显式传 on_verification_failure='skip'。"
+        )
+
     summary = {
+        "verification_failures": failures,
+        "on_verification_failure": on_verification_failure,
         "incoming_file": str(incoming_path),
         "incoming_sha256": sha256_file(incoming_path),
         "record_count": len(payload["records"]),
@@ -650,6 +790,7 @@ def _record_to_candidate(
     file_metrics: dict[str, Decimal],
     raw_labels: dict[str, str],
     launch_command: str | None,
+    source_command: str | None = None,
 ) -> SglangNumericCandidate:
     deployment = record.get("deployment", {})
     workload = record.get("workload", {})
@@ -688,6 +829,22 @@ def _record_to_candidate(
     else:
         flags.append("values_not_fully_verified_against_source")
 
+    record_deployment = DeploymentConfig(
+        tp_size=deployment.get("tp_size"),
+        dp_size=deployment.get("dp_size"),
+        ep_size=deployment.get("ep_size"),
+        gpu_count=source.get("deployment_gpu_count"),
+        mode=deployment.get("pd_mode") or "colocated",
+    )
+    rate = workload.get("traffic_request_rate")
+    record_workload = WorkloadProfile(
+        input_len=workload.get("random_input_len_target"),
+        output_len=workload.get("random_output_len_target"),
+        arrival_mode="unbounded" if str(rate).lower() == "inf" else "request_rate",
+        max_concurrency=workload.get("configured_max_concurrency"),
+        dataset_name=workload.get("dataset_name"),
+        statistics_method=f"bench_serving-{record.get('framework_version')}",
+    )
     app = assess_applicability(
         source_locatable=bool(spec.get("source_url")),
         model_name=record.get("model_id"),
@@ -698,7 +855,9 @@ def _record_to_candidate(
         framework_version=record.get("framework_version"),
         workload_defined=bool(workload),
         metrics=metrics,
-        sla_requirement=None,
+        sla_requirement=None,  # 没有具体客户需求 -> SLA 恒不可评估
+        record_deployment=record_deployment,
+        record_workload=record_workload,
         price=PriceContext(currency="UNCONFIRMED", currency_confirmed=False),
         measurement_origin_is_official=True,
     )
@@ -748,7 +907,11 @@ def _record_to_candidate(
         semantic_warnings=label_provenance_issues(metrics, raw_labels),
         is_throughput_benchmark=is_throughput,
         launch_command=launch_command,
-        benchmark_command=record.get("benchmark_command"),
+        # 权威命令来自官方原文；候选文件命令另存，便于逐条差异检查
+        benchmark_command=source_command or record.get("benchmark_command"),
+        benchmark_command_from_candidate_file=record.get("benchmark_command")
+        if source_command
+        else None,
         verification=verification,
         can_reference_performance=app.can_reference_performance,
         can_evaluate_sla=app.can_evaluate_sla,

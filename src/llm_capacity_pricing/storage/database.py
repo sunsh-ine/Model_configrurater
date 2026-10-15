@@ -1,7 +1,7 @@
 """SQLite 持久化（SQLAlchemy 2.x）。
 
 **精度决策**：SQLite 的 NUMERIC 实际以 REAL(float) 存储，会破坏 Decimal 精度。
-因此所有金额/比率列一律用 ``Text`` 存放十进制字面量（如 ``"149.54340799296"``），
+因此所有金额/比率列一律用 ``Text`` 存放十进制字面量（如 ``"123.45678901234567"``），
 并在每行额外保存完整 ``payload_json``（``model_dump(mode="json")``）作为权威记录。
 读取时由 Pydantic 把字符串还原为 Decimal，保证复算与落库一致。
 """

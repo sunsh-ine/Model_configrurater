@@ -16,5 +16,19 @@ data/local.db-journal
 data/raw/*.xlsx
 data/raw/*.xls
 
-# 说明：data/exports/ 下的 JSON / Markdown 是交付产物（计算结果与报告），
-# 因此**不**忽略；data/raw/official/ 是官方页面存档证据（含 sha256 记录），必须保留。
+# ---------------------------------------------------------------------------
+# 公开仓库 / 内部产物的边界（V1.2 F1）
+#
+# 可公开：代码、测试、口径文档、官方来源存档证据、脱敏示例数据（data/examples/）、
+#         合成 fixture（data/fixtures/，明确标注 synthetic）。
+# 内部：  真实成本、报价、以及**由它们派生的任何结果**（含金额、比率、盈亏平衡点）。
+#         这些一律不入版本库；需要交付时单独走内部渠道。
+# ---------------------------------------------------------------------------
+
+# 内部业务产物：真实定价输入与派生结果（含 data/exports/ 下的 JSON/Markdown 报告）
+data/exports/
+data/private/
+
+# 交付产物如需公开，必须先生成脱敏版本到 data/examples/（见 docs/security_remediation_report.md）。
+# 注意：data/raw/official/（官方公开文档的存档证据，含 sha256）与 data/examples/（脱敏示例）
+# 都**不**忽略；被忽略的只有 data/exports/（内部派生结果）与 data/private/（真实 oracle）。
