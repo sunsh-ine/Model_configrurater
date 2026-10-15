@@ -24,6 +24,8 @@ CLI="$PY -m llm_capacity_pricing.cli"
 EXCEL="data/raw/Token产能计算器-0910.xlsx"
 MANIFEST="data/sources/official_manifest.yaml"
 INCOMING="data/incoming/sglang_official_benchmark_candidates_20261015.json"
+MODEL_MANIFEST="data/models/model_manifest.yaml"
+HW_CATALOG="data/hardware/hardware_catalog.yaml"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -310,13 +312,44 @@ run_step 17 "回到业务口径并复核库内计数（清理测试态结果行�
 run_step 18 "report（默认业务口径，含未确认项与官方候选概览）" 1 '^(报告已写入)|"(bytes|records|scenario_results|legacy_results)"' \
   $CLI report --db "$DB" --out "$OUT_DIR/overview.md"
 
-run_step 19 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+# ---------------------------------------------------------------------------
+# 第二阶段（M12-M18）：模型 / 硬件 / 资源规划
+# ---------------------------------------------------------------------------
+
+run_step 19 "import-models（M13 模型结构与权重元数据）" 1 '^(已导入 [0-9]+ 个模型结构|解析成功:)' \
+  $CLI import-models --manifest "$MODEL_MANIFEST" --db "$DB" --root "$ROOT"
+
+run_step 20 "import-hardware（M14 GPU SKU 与服务器形态）" 1 '^(已导入 [0-9]+ 个 GPU SKU|本轮支持:)' \
+  $CLI import-hardware --catalog "$HW_CATALOG" --db "$DB"
+
+run_step 21 "sizing-inventory（模型结构 + 硬件规格库存）" 1 '^  "(model_count|hardware_count|server_count)"' \
+  $CLI sizing-inventory --db "$DB"
+
+run_step 22 "plan-deployment（M17 TP/DP 候选 + M18 JSON/Markdown 报告）" 1 '^(规划结果已写入|报告已写入|状态分布:)' \
+  $CLI plan-deployment \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --context-length 8192 --concurrency 32 --block-size 16 \
+  --usable-memory-bytes $((76 * 1024 * 1024 * 1024)) \
+  --usable-source "示例假设：H100 SXM 标称 80GB 的实测可用口径（需现场复核）" \
+  --runtime-reserve-fraction 0.1 --runtime-source "示例假设：框架运行时合并预留" \
+  --tp-sizes 1,2,4,8 --dp-sizes 1,2 \
+  --out "$OUT_DIR/deployment_plan.json" --report "$OUT_DIR/sizing_report.md" --db "$DB"
+
+run_step 23 "estimate-memory（M15+M16 单配置显存构成）" 1 '^  "(per_gpu_usable_bytes|total_required_bytes|headroom_bytes|runtime_known_bytes)"' \
+  $CLI estimate-memory \
+  --model qwen3-8b --hardware nvidia-h200-sxm-141gb --tp 2 --dp 1 \
+  --context-length 16384 --concurrency 16 --block-size 16 \
+  --usable-memory-bytes $((132 * 1024 * 1024 * 1024)) \
+  --usable-source "示例假设（需现场复核）" \
+  --runtime-reserve-fraction 0.1 --runtime-source "示例假设" --db "$DB"
+
+run_step 24 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 20 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 25 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 21 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 26 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

@@ -179,3 +179,77 @@ scenario_cluster_revenue_10k_year = scenario_revenue_10k_per_gpu_year * deployme
 `test_tolerant_reader_accepts_legacy_json_number_without_float_loss`、
 `test_formulas_stay_on_decimal_path` 等。
 
+
+---
+
+# 第二阶段公式（M15/M16/M17）
+
+> 与第一阶段的分工：这里只算**显存与静态资源**，不含任何 Token 定价公式。
+> 公式版本：`weights-1.0` / `kv-1.0` / `memory-1.0`。
+
+## 8. 权重显存（M15）
+
+逐组件累加（Dense decoder + GQA；组件名与真实权重张量命名一一对应）：
+
+```text
+embedding  = vocab × hidden
+lm_head    = 0 if tie_word_embeddings else vocab × hidden       # 共享权重只算一次
+每层 attention = hidden × (heads×head_dim)      # q_proj
+               + 2 × hidden × (kv_heads×head_dim)  # k_proj, v_proj
+               + (heads×head_dim) × hidden      # o_proj
+               + (2 × head_dim if 存在 q_norm/k_norm)   # Qwen3 特有
+每层 norm  = 2 × hidden                          # input/post_attention layernorm
+final_norm = hidden
+每层 ffn   = (2 × hidden × ffn if gated else hidden × ffn) + ffn × hidden   # gate/up + down
+总字节数   = 参数量 × bytes_per_element(precision)
+```
+
+**TP 分布**（`DEFAULT_TP_POLICY`）：注意力投影与 FFN 三矩阵 `sharded`；
+各 norm `replicated`；`embedding`/`lm_head` 标 `unknown`（是否 vocab 并行取决于框架），
+因此给出**下界（等分）与上界（复制）**两个每卡值。
+
+**一致性检查**：总字节数与权重索引 `metadata.total_size` 比较，差异必须解释。
+实测：Qwen3-8B / Qwen3-32B 均为**差 0 字节**。
+
+**精度纪律**：没有张量级元数据时 `per_rank_precision = upper_bound_estimate`，
+不得声称精确每卡显存。
+
+## 9. KV Cache（M16）
+
+```text
+每 token 每层 KV 字节 = 2（K 与 V） × kv_heads_per_rank × head_dim × bytes_per_element(kv_precision)
+每副本 KV 字节      = (并发/副本 × 上下文长度) × 层数 × 上值      # 未分页（连续）布局
+Paged KV：
+    每请求块数 = ceil(上下文长度 / block_size_tokens)
+    总块数     = 每请求块数 × 并发/副本
+    物理字节   = 总块数 × block_size_tokens × 层数 × 上值
+    对齐放大   = 物理字节 − 未对齐字节
+```
+
+* MHA / GQA / MQA 共用同一公式，差异只在 `kv_heads`。
+* `sliding_window` 或未支持结构 **不套用** 本公式，直接 `readable=False`。
+* `kv_heads % tp != 0` 或 `kv_heads < tp` 时，KV 头在 Rank 间的分布取决于框架实现
+  → `kv_head_distribution=unknown` 并说明可能的复制。
+* **DP 分摊并发**（`每副本并发 = ceil(全局并发 / dp)`），**不**切分单条请求的权重。
+
+独立算例（Qwen3-32B / TP8 / BF16 / 8 并发 / 40960 ctx）：
+`327,680 × 64 × 512 = 10,737,418,240 B`（10 GiB），与手算一致。
+
+## 10. 显存合成与可行性（M17）
+
+```text
+单卡需求 = 每卡权重 + 每卡 KV + 已知运行时项
+预算     = 实测可用显存（优先）或调用方给出的带来源假设
+余量     = 预算 − 单卡需求
+```
+
+判定（顺序即优先级）：
+
+| 顺序 | 条件 | 状态 |
+|---|---|---|
+| 1 | 模型结构未核实 | `unsupported` |
+| 2 | 硬件不支持 / 注意力头不能被 TP 整除 / 运行时允许用量超出预算 | `infeasible` |
+| 3 | 可用显存未知且无假设；或存在未知运行时项且无预留假设 | `insufficient_information` |
+| 4 | 其余（有假设且放得下） | `conditional_feasible`（必须列假设） |
+
+不变的边界：静态可行**不代表**能启动，**不代表**满足 SLA；不产出报价。

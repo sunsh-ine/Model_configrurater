@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import json
+
+import yaml
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -29,6 +31,14 @@ from llm_capacity_pricing.importers.excel_importer import (
 )
 from llm_capacity_pricing.importers.sglang_adapter import parse_sglang_bench_serving_jsonl_full
 from llm_capacity_pricing.importers.sglang_cookbook import build_numeric_candidates
+from llm_capacity_pricing.reporting.sizing_report import build_sizing_report
+from llm_capacity_pricing.schemas.sizing import DeploymentCandidate, ModelSpec, Precision
+from llm_capacity_pricing.sizing.hardware import load_hardware as _load_hardware_catalog
+from llm_capacity_pricing.sizing.model_spec import load_model_specs
+from llm_capacity_pricing.sizing.planner import (
+    PlanningAssumptions,
+    plan_deployment as _plan_deployment,
+)
 from llm_capacity_pricing.importers.vllm_adapter import parse_vllm_bench_serve_json_full
 from llm_capacity_pricing.reporting.json_export import (
     build_legacy_export,
@@ -1056,3 +1066,452 @@ def _import_runs(session) -> list[dict[str, Any]]:
         }
         for r in rows
     ]
+
+
+# --------------------------------------------------------------------------
+# 第二阶段（M12-M18）：模型 / 硬件 / 资源规划
+# --------------------------------------------------------------------------
+
+#: 默认清单路径
+DEFAULT_MODEL_MANIFEST = "data/models/model_manifest.yaml"
+DEFAULT_HARDWARE_CATALOG = "data/hardware/hardware_catalog.yaml"
+
+
+def import_models(
+    manifest_path: str | Path = DEFAULT_MODEL_MANIFEST,
+    db_path: str | Path = "data/local.db",
+    *,
+    root: str | Path | None = None,
+    deployment_precision: Precision = "bf16",
+) -> dict[str, Any]:
+    """导入模型结构（M13）。归档文件哈希不符时按 Fail-Closed 拒绝。"""
+    base = Path(root) if root is not None else Path(manifest_path).resolve().parent.parent
+    specs, evidences, summary = load_model_specs(
+        manifest_path, root=base, deployment_precision=deployment_precision
+    )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_evidence(session, evidences)
+            repo.upsert_model_specs(
+                session,
+                specs,
+                evidence_ids={s.model_id: f"ev_model_{s.model_id}" for s in specs},
+            )
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        **summary,
+        "models": [
+            {
+                "model_id": s.model_id,
+                "status": s.status,
+                "attention_kind": s.attention_kind,
+                "revision": s.revision,
+                "weight_total_bytes": s.weight_metadata.total_weight_bytes,
+                "missing_fields": s.missing_fields,
+            }
+            for s in specs
+        ],
+        "evidences": [e.evidence_id for e in evidences],
+    }
+
+
+def import_hardware(
+    catalog_path: str | Path = DEFAULT_HARDWARE_CATALOG,
+    db_path: str | Path = "data/local.db",
+) -> dict[str, Any]:
+    """导入 GPU 规格与服务器形态（M14）。"""
+    specs, servers, summary = _load_hardware_catalog(catalog_path)
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_hardware(session, specs, servers)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        **summary,
+        "hardware": [
+            {
+                "hardware_id": h.hardware_id,
+                "product_name": h.product_name,
+                "sku": h.sku,
+                "declared": h.hbm_capacity_declared,
+                "total_memory_bytes": h.total_memory_bytes,
+                "usable_memory_bytes": h.usable_memory_bytes,
+                "supported_in_phase2": h.supported_in_phase2,
+                "verification_status": h.verification_status,
+            }
+            for h in specs
+        ],
+    }
+
+
+def sizing_inventory(db_path: str | Path = "data/local.db") -> dict[str, Any]:
+    """第二阶段库存摘要：模型结构 + GPU 规格 + 服务器形态。"""
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            models = repo.list_model_specs(session)
+            hardware = repo.list_hardware(session)
+            servers = repo.list_servers(session)
+    finally:
+        db.dispose()
+    return {
+        "model_count": len(models),
+        "hardware_count": len(hardware),
+        "server_count": len(servers),
+        "models": [
+            {
+                "model_id": m.model_id,
+                "status": m.status,
+                "attention_kind": m.attention_kind,
+                "layers": m.num_hidden_layers,
+                "hidden_size": m.hidden_size,
+                "kv_heads": m.num_key_value_heads,
+                "head_dim": m.head_dim,
+                "revision": m.revision,
+                "weight_total_bytes": m.weight_metadata.total_weight_bytes,
+                "missing_fields": m.missing_fields,
+            }
+            for m in models
+        ],
+        "hardware": [
+            {
+                "hardware_id": h.hardware_id,
+                "product_name": h.product_name,
+                "sku": h.sku,
+                "total_memory_bytes": h.total_memory_bytes,
+                "usable_memory_bytes": h.usable_memory_bytes,
+                "usable_memory_status": h.usable_memory_status,
+                "supported_in_phase2": h.supported_in_phase2,
+                "verification_status": h.verification_status,
+                "fields_pending_verification": h.fields_pending_verification,
+            }
+            for h in hardware
+        ],
+        "servers": [
+            {
+                "server_id": s.server_id,
+                "profile_name": s.profile_name,
+                "gpu_hardware_id": s.gpu_hardware_id,
+                "gpus_per_node": s.gpus_per_node,
+                "verification_status": s.verification_status,
+            }
+            for s in servers
+        ],
+    }
+
+
+def _load_for_planning(db_path: str | Path, model_id: str, hardware_id: str, server_id: str | None):
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            model = repo.get_model_spec(session, model_id)
+            hardware = repo.get_hardware(session, hardware_id)
+            server = repo.get_server(session, server_id) if server_id else None
+            servers = repo.list_servers(session)
+    finally:
+        db.dispose()
+    if model is None:
+        raise ServiceError(f"模型不存在: {model_id}（先运行 import-models）")
+    if hardware is None:
+        raise ServiceError(f"硬件不存在: {hardware_id}（先运行 import-hardware）")
+    if server is None and servers:
+        server = next((s for s in servers if s.gpu_hardware_id == hardware_id), None)
+    return model, hardware, server, servers
+
+
+def make_assumptions(
+    *,
+    per_gpu_usable_bytes: int | None = None,
+    usable_fraction_of_nominal: Decimal | None = None,
+    usable_memory_source: str | None = None,
+    runtime_reserve_fraction: Decimal | None = None,
+    runtime_reserve_source: str | None = None,
+    runtime_items: dict[str, dict[str, Any]] | None = None,
+    block_size_tokens: int | None = None,
+    global_concurrency: int | None = None,
+    context_length_per_request: int | None = None,
+    tp_sizes: Sequence[int] = (1, 2, 4, 8),
+    dp_sizes: Sequence[int] = (1, 2, 4, 8),
+) -> PlanningAssumptions:
+    """把 CLI/调用方输入收敛成 :class:`PlanningAssumptions`（所有假设显式化）。"""
+    return PlanningAssumptions(
+        per_gpu_usable_bytes=per_gpu_usable_bytes,
+        usable_fraction_of_nominal=usable_fraction_of_nominal,
+        usable_memory_source=usable_memory_source,
+        runtime_items=runtime_items or {},
+        runtime_reserve_fraction=runtime_reserve_fraction,
+        runtime_reserve_source=runtime_reserve_source,
+        block_size_tokens=block_size_tokens,
+        global_concurrency=global_concurrency,
+        context_length_per_request=context_length_per_request,
+        tp_sizes=tuple(tp_sizes),
+        dp_sizes=tuple(dp_sizes),
+    )
+
+
+def plan_deployment_for(
+    db_path: str | Path,
+    *,
+    model_id: str,
+    hardware_id: str,
+    server_id: str | None = None,
+    assumptions: PlanningAssumptions,
+    weight_precision: Precision | None = None,
+    kv_precision: str = "bf16",
+) -> dict[str, Any]:
+    """生成 TP/DP 候选与静态可行性（M17）。"""
+    model, hardware, server, servers = _load_for_planning(db_path, model_id, hardware_id, server_id)
+    candidates = _plan_deployment(
+        model,
+        hardware,
+        assumptions=assumptions,
+        server=server,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+    )
+    return {
+        "request": {
+            "description": (
+                f"{model_id} @ {hardware.product_name}, "
+                f"{weight_precision or model.deployment_precision} weights / {kv_precision} kv, "
+                f"ctx={assumptions.context_length_per_request}, concurrency={assumptions.global_concurrency}"
+            ),
+            "model_id": model_id,
+            "hardware_id": hardware_id,
+            "server_id": server.server_id if server else None,
+            "weight_precision": weight_precision or model.deployment_precision,
+            "kv_precision": kv_precision,
+            "context_length_per_request": assumptions.context_length_per_request,
+            "global_concurrency": assumptions.global_concurrency,
+            "block_size_tokens": assumptions.block_size_tokens,
+            "per_gpu_usable_bytes": (
+                hardware.usable_memory_bytes
+                if hardware.usable_memory_bytes is not None
+                else assumptions.per_gpu_usable_bytes
+            ),
+            "usable_memory_source": (
+                "hardware.usable_memory_bytes（实测）"
+                if hardware.usable_memory_bytes is not None
+                else (assumptions.usable_memory_source or "未提供")
+            ),
+            "runtime_reserve_description": (
+                f"合并预留 可用显存 × {assumptions.runtime_reserve_fraction}"
+                if assumptions.runtime_reserve_fraction is not None
+                else (f"{len(assumptions.runtime_items)} 项显式预留" if assumptions.runtime_items else None)
+            ),
+            "runtime_reserve_source": assumptions.runtime_reserve_source,
+        },
+        "model": model,
+        "hardware": hardware,
+        "servers": servers,
+        "candidates": candidates,
+        "status_counts": _status_counts(candidates),
+    }
+
+
+def _status_counts(candidates: Sequence[DeploymentCandidate]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for c in candidates:
+        out[c.feasibility.status] = out.get(c.feasibility.status, 0) + 1
+    return out
+
+
+def export_plan(
+    db_path: str | Path,
+    out_path: str | Path,
+    *,
+    model_id: str,
+    hardware_id: str,
+    server_id: str | None = None,
+    assumptions: PlanningAssumptions,
+    weight_precision: Precision | None = None,
+    kv_precision: str = "bf16",
+    report_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """导出规划结果：JSON（结构化）+ 可选 Markdown 报告。"""
+    plan = plan_deployment_for(
+        db_path,
+        model_id=model_id,
+        hardware_id=hardware_id,
+        server_id=server_id,
+        assumptions=assumptions,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+    )
+    payload = {
+        "export_kind": "deployment_plan",
+        "formula_versions": {"weights": "weights-1.0", "kv": "kv-1.0", "memory": "memory-1.0"},
+        "boundary_notices": [
+            "静态资源规划结果：不代表可成功启动，不代表满足 SLA",
+            "可用显存若为假设值，结论仅为『条件可行』，落地前必须实测复核",
+            "未知运行时开销未被当作 0，会显式列出",
+        ],
+        "request": plan["request"],
+        "status_counts": plan["status_counts"],
+        "candidates": [
+            {
+                "candidate_id": c.candidate_id,
+                "summary": c.summary,
+                "gpu_count": c.gpu_count,
+                "tp_size": c.tp_size,
+                "dp_size": c.dp_size,
+                "nodes_required": c.nodes_required,
+                "feasibility": {
+                    "status": c.feasibility.status,
+                    "reasons": c.feasibility.reasons,
+                    "assumptions": c.feasibility.assumptions,
+                    "unverified_conditions": c.feasibility.unverified_conditions,
+                    "risk_flags": c.feasibility.risk_flags,
+                },
+                "memory": None
+                if c.memory is None
+                else {
+                    "weight_per_rank_bytes": c.memory.weight.per_rank_bytes,
+                    "weight_lower_bound_bytes": c.memory.weight.per_rank_bytes_lower_bound,
+                    "weight_upper_bound_bytes": c.memory.weight.per_rank_bytes_upper_bound,
+                    "weight_total_bytes": c.memory.weight.total_weight_bytes,
+                    "weight_consistency_note": c.memory.weight.consistency_note,
+                    "weight_basis": c.memory.weight.basis,
+                    "kv_per_rank_bytes": c.memory.kv.physical_bytes,
+                    "kv_logical_tokens": c.memory.kv.logical_token_capacity,
+                    "kv_blocks": c.memory.kv.allocated_blocks,
+                    "kv_head_distribution": c.memory.kv.kv_head_distribution,
+                    "kv_basis": c.memory.kv.basis,
+                    "runtime_known_bytes": c.memory.runtime_total_bytes,
+                    "runtime_unknown_items": [
+                        r.item for r in c.memory.runtime_items if r.bytes_estimate is None
+                    ],
+                    "per_gpu_usable_bytes": c.memory.per_gpu_usable_bytes,
+                    "total_required_bytes": c.memory.total_required_bytes,
+                    "headroom_bytes": c.memory.headroom_bytes,
+                    "assumptions": c.memory.assumptions,
+                },
+            }
+            for c in plan["candidates"]
+        ],
+    }
+    p = Path(out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
+
+    result: dict[str, Any] = {"plan_json": str(p), "status_counts": plan["status_counts"]}
+    if report_path is not None:
+        md = build_sizing_report(
+            models=[plan["model"]],
+            hardware=[plan["hardware"]],
+            servers=plan["servers"],
+            candidates=plan["candidates"],
+            request=plan["request"],
+            sources=_catalog_sources(),
+        )
+        rp = Path(report_path)
+        rp.parent.mkdir(parents=True, exist_ok=True)
+        rp.write_text(md, encoding="utf-8")
+        result["report_markdown"] = str(rp)
+        result["report_bytes"] = len(md.encode("utf-8"))
+    return result
+
+
+
+def estimate_memory_for(
+    db_path: str | Path,
+    *,
+    model_id: str,
+    hardware_id: str,
+    server_id: str | None = None,
+    tp_size: int = 1,
+    dp_size: int = 1,
+    assumptions: PlanningAssumptions,
+    weight_precision: Precision | None = None,
+    kv_precision: str = "bf16",
+) -> dict[str, Any]:
+    """单个 TP/DP 配置的显存估算（M15 权重 + M16 KV/运行时）。"""
+    from llm_capacity_pricing.sizing.planner import estimate_memory as _estimate_memory
+
+    model, hardware, server, _servers = _load_for_planning(db_path, model_id, hardware_id, server_id)
+    mem = _estimate_memory(
+        model,
+        hardware,
+        tp_size=tp_size,
+        dp_size=dp_size,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+        assumptions=assumptions,
+    )
+    return {
+        "model_id": model_id,
+        "hardware_id": hardware_id,
+        "tp_size": tp_size,
+        "dp_size": dp_size,
+        "gpu_count": tp_size * dp_size,
+        "weight": {
+            "total_bytes": mem.weight.total_weight_bytes,
+            "per_rank_bytes": mem.weight.per_rank_bytes,
+            "per_rank_lower_bound": mem.weight.per_rank_bytes_lower_bound,
+            "per_rank_upper_bound": mem.weight.per_rank_bytes_upper_bound,
+            "precision_label": mem.weight.per_rank_precision,
+            "consistency_note": mem.weight.consistency_note,
+            "consistency_delta_bytes": mem.weight.consistency_delta_bytes,
+            "basis": mem.weight.basis,
+            "sharded_components": mem.weight.sharded_components,
+            "replicated_components": mem.weight.replicated_components,
+            "uncertain_components": mem.weight.uncertain_components,
+        },
+        "kv": {
+            "attention_kind": mem.kv.attention_kind,
+            "readable": mem.kv.readable,
+            "kv_heads_per_rank": mem.kv.num_kv_heads_per_rank,
+            "kv_head_distribution": mem.kv.kv_head_distribution,
+            "logical_tokens": mem.kv.logical_token_capacity,
+            "allocated_blocks": mem.kv.allocated_blocks,
+            "physical_bytes": mem.kv.physical_bytes,
+            "unaligned_bytes": mem.kv.unaligned_bytes,
+            "alignment_overhead_bytes": mem.kv.alignment_overhead_bytes,
+            "concurrency_per_replica": mem.kv.concurrency_per_replica,
+            "degradation_notes": mem.kv.degradation_notes,
+            "basis": mem.kv.basis,
+            "missing_fields": mem.kv.missing_fields,
+        },
+        "runtime_items": [
+            {
+                "item": r.item,
+                "bytes": r.bytes_estimate,
+                "origin": r.origin,
+                "source": r.source,
+                "assumption": r.assumption,
+            }
+            for r in mem.runtime_items
+        ],
+        "runtime_known_bytes": mem.runtime_total_bytes,
+        "known_unknowns": mem.known_unknowns,
+        "per_gpu_usable_bytes": mem.per_gpu_usable_bytes,
+        "total_required_bytes": mem.total_required_bytes,
+        "headroom_bytes": mem.headroom_bytes,
+        "assumptions": mem.assumptions,
+        "quality_flags": mem.quality_flags,
+    }
+
+
+def _catalog_sources() -> list[dict[str, Any]]:
+    """硬件目录里的来源索引（供报告引用）。"""
+    try:
+        doc = yaml.safe_load(Path(DEFAULT_HARDWARE_CATALOG).read_text(encoding="utf-8"))
+    except Exception:  # pragma: no cover - 目录缺失时报告不附来源表
+        return []
+    out = []
+    for sid, s in (doc.get("sources") or {}).items():
+        out.append(
+            {
+                "source_id": sid,
+                "publisher": s.get("vendor"),
+                "url": s.get("url"),
+                "file": s.get("file"),
+                "sha256": s.get("sha256"),
+            }
+        )
+    return out

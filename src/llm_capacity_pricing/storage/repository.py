@@ -17,15 +17,23 @@ from llm_capacity_pricing.schemas.official import (
     OfficialBenchmarkCandidate,
     SglangNumericCandidate,
 )
+from llm_capacity_pricing.schemas.sizing import (
+    HardwareSpec,
+    ModelSpec,
+    ServerProfile,
+)
 from llm_capacity_pricing.schemas.pricing import PricingResult
 from llm_capacity_pricing.storage.database import (
     BenchmarkRecordRow,
     Database,
     EvidenceRow,
     HardwarePriceRow,
+    HardwareSpecRow,
     ImportRunRow,
+    ModelSpecRow,
     OfficialCandidateRow,
     PricingResultRow,
+    ServerProfileRow,
     TokenPriceRow,
 )
 
@@ -434,3 +442,107 @@ class Repository:
     def get_benchmark(self, session: Session, record_id: str) -> BenchmarkRecord | None:
         row = session.get(BenchmarkRecordRow, record_id)
         return BenchmarkRecord.model_validate(json.loads(row.payload_json)) if row else None
+
+    # ------------------------------------------------------------------
+    # 第二阶段（M13/M14）：模型与硬件规格
+    # ------------------------------------------------------------------
+
+    def upsert_model_specs(
+        self, session: Session, models: Iterable[ModelSpec], *, evidence_ids: dict[str, str] | None = None
+    ) -> int:
+        """模型结构入库，按 ``model_id`` 幂等。"""
+        evidence_ids = evidence_ids or {}
+        n = 0
+        for m in models:
+            session.merge(
+                ModelSpecRow(
+                    model_id=m.model_id,
+                    repo_id=m.repo_id,
+                    revision=m.revision,
+                    status=m.status,
+                    attention_kind=m.attention_kind,
+                    num_hidden_layers=m.num_hidden_layers,
+                    hidden_size=m.hidden_size,
+                    num_attention_heads=m.num_attention_heads,
+                    num_key_value_heads=m.num_key_value_heads,
+                    head_dim=m.head_dim,
+                    vocab_size=m.vocab_size,
+                    deployment_precision=m.deployment_precision,
+                    weight_dtype_declared=m.weight_dtype_declared,
+                    weight_total_bytes=m.weight_metadata.total_weight_bytes,
+                    config_sha256=m.config_sha256,
+                    evidence_id=evidence_ids.get(m.model_id),
+                    missing_fields_json=json.dumps(m.missing_fields, ensure_ascii=False),
+                    payload_json=_dump(m),
+                )
+            )
+            n += 1
+        return n
+
+    def list_model_specs(self, session: Session) -> list[ModelSpec]:
+        rows = session.scalars(select(ModelSpecRow).order_by(ModelSpecRow.model_id)).all()
+        return [ModelSpec.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def get_model_spec(self, session: Session, model_id: str) -> ModelSpec | None:
+        row = session.get(ModelSpecRow, model_id)
+        return ModelSpec.model_validate(json.loads(row.payload_json)) if row else None
+
+    def upsert_hardware(
+        self, session: Session, specs: Iterable[HardwareSpec], servers: Iterable[ServerProfile]
+    ) -> int:
+        n = 0
+        for h in specs:
+            session.merge(
+                HardwareSpecRow(
+                    hardware_id=h.hardware_id,
+                    vendor=h.vendor,
+                    product_name=h.product_name,
+                    sku=h.sku,
+                    form_factor=h.form_factor,
+                    hbm_type=h.hbm_type,
+                    hbm_capacity_declared=h.hbm_capacity_declared,
+                    total_memory_bytes=h.total_memory_bytes,
+                    usable_memory_bytes=h.usable_memory_bytes,
+                    usable_memory_status=h.usable_memory_status,
+                    memory_bandwidth_bytes_per_s=h.memory_bandwidth_bytes_per_s,
+                    verification_status=h.verification_status,
+                    supported_in_phase2=h.supported_in_phase2,
+                    source_id=h.source_id,
+                    payload_json=_dump(h),
+                )
+            )
+            n += 1
+        for s in servers:
+            session.merge(
+                ServerProfileRow(
+                    server_id=s.server_id,
+                    profile_name=s.profile_name,
+                    gpu_hardware_id=s.gpu_hardware_id,
+                    gpus_per_node=s.gpus_per_node,
+                    interconnect_declared=s.interconnect_declared,
+                    verification_status=s.verification_status,
+                    payload_json=_dump(s),
+                )
+            )
+            n += 1
+        return n
+
+    def list_hardware(self, session: Session) -> list[HardwareSpec]:
+        rows = session.scalars(
+            select(HardwareSpecRow).order_by(HardwareSpecRow.hardware_id)
+        ).all()
+        return [HardwareSpec.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def get_hardware(self, session: Session, hardware_id: str) -> HardwareSpec | None:
+        row = session.get(HardwareSpecRow, hardware_id)
+        return HardwareSpec.model_validate(json.loads(row.payload_json)) if row else None
+
+    def list_servers(self, session: Session) -> list[ServerProfile]:
+        rows = session.scalars(
+            select(ServerProfileRow).order_by(ServerProfileRow.server_id)
+        ).all()
+        return [ServerProfile.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def get_server(self, session: Session, server_id: str) -> ServerProfile | None:
+        row = session.get(ServerProfileRow, server_id)
+        return ServerProfile.model_validate(json.loads(row.payload_json)) if row else None

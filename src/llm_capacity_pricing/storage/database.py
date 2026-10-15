@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
@@ -257,3 +258,68 @@ class Database:
 
     def dispose(self) -> None:
         self.engine.dispose()
+
+# ---------------------------------------------------------------------------
+# 第二阶段（M13/M14）：模型与硬件规格库
+# ---------------------------------------------------------------------------
+
+
+class ModelSpecRow(Base):
+    """模型结构事实（来自官方 config.json 与权重索引）。"""
+
+    __tablename__ = "model_spec"
+
+    model_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    repo_id: Mapped[str | None] = mapped_column(String(255))
+    revision: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    attention_kind: Mapped[str | None] = mapped_column(String(32))
+    num_hidden_layers: Mapped[int | None] = mapped_column(Integer)
+    hidden_size: Mapped[int | None] = mapped_column(Integer)
+    num_attention_heads: Mapped[int | None] = mapped_column(Integer)
+    num_key_value_heads: Mapped[int | None] = mapped_column(Integer)
+    head_dim: Mapped[int | None] = mapped_column(Integer)
+    vocab_size: Mapped[int | None] = mapped_column(Integer)
+    deployment_precision: Mapped[str | None] = mapped_column(String(16))
+    weight_dtype_declared: Mapped[str | None] = mapped_column(String(32))
+    weight_total_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    config_sha256: Mapped[str | None] = mapped_column(String(64))
+    evidence_id: Mapped[str | None] = mapped_column(String(128))
+    missing_fields_json: Mapped[str | None] = mapped_column(Text)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class HardwareSpecRow(Base):
+    """GPU SKU 规格（容量/带宽/形态，带来源与待核实字段）。"""
+
+    __tablename__ = "hardware_spec"
+
+    hardware_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    vendor: Mapped[str] = mapped_column(String(64), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    sku: Mapped[str | None] = mapped_column(String(128), index=True)
+    form_factor: Mapped[str | None] = mapped_column(String(32))
+    hbm_type: Mapped[str | None] = mapped_column(String(32))
+    hbm_capacity_declared: Mapped[str | None] = mapped_column(String(32))
+    total_memory_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    usable_memory_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    usable_memory_status: Mapped[str | None] = mapped_column(String(32))
+    memory_bandwidth_bytes_per_s: Mapped[int | None] = mapped_column(BigInteger)
+    verification_status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    supported_in_phase2: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    source_id: Mapped[str | None] = mapped_column(String(128))
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class ServerProfileRow(Base):
+    __tablename__ = "server_profile"
+
+    server_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    profile_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    gpu_hardware_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("hardware_spec.hardware_id"), nullable=False, index=True
+    )
+    gpus_per_node: Mapped[int | None] = mapped_column(Integer)
+    interconnect_declared: Mapped[str | None] = mapped_column(String(255))
+    verification_status: Mapped[str | None] = mapped_column(String(32))
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)

@@ -1,0 +1,65 @@
+# 第二阶段模型清单（M13）
+#
+# 与第一阶段的官方来源 manifest 同一思路：**先归档、再解析、可校验**。
+# 每个模型的 config.json 与 model.safetensors.index.json 都保存在本仓库内，
+# 解析器只读本地文件，因此离线可复现；sha256 用于校验归档未被改动。
+#
+# 采集日期：2026-10-15
+
+schema_version: "1.0"
+collected_at: "2026-10-15T16:18:00+08:00"
+
+models:
+  - model_id: qwen3-8b
+    repo_id: Qwen/Qwen3-8B
+    #: 采集时的仓库 revision（commit），用于固定版本
+    revision: b968826d9c46dd6066d109eabc6255188de91218
+    repo_last_modified: "2025-07-26T03:49:13.000Z"
+    config:
+      url: https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json
+      file: data/models/qwen3-8b/config.json
+      sha256: f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30
+      http_status: 200
+    weight_index:
+      url: https://huggingface.co/Qwen/Qwen3-8B/resolve/main/model.safetensors.index.json
+      file: data/models/qwen3-8b/model.safetensors.index.json
+      sha256: f9fdbcb91c23971c13ec5d5f2573d2349e8f61f2f049371ec699281748fdb1bc
+      http_status: 200
+    #: 权重文件本身未下载（体积大）；总量由索引 metadata 给出
+    weights_downloaded: false
+    notes: >-
+      Qwen3 系列为 dense decoder-only + GQA 结构；8B 为 36 层、32 个注意力头、
+      8 个 KV 头、head_dim 128、vocab 151936、max_position_embeddings 40960、
+      tie_word_embeddings=false、权重 dtype=bfloat16。
+
+  - model_id: qwen3-32b
+    repo_id: Qwen/Qwen3-32B
+    revision: 9216db5781bf21249d130ec9da846c4624c16137
+    repo_last_modified: "2025-07-26T03:45:22.000Z"
+    config:
+      url: https://huggingface.co/Qwen/Qwen3-32B/resolve/main/config.json
+      file: data/models/qwen3-32b/config.json
+      sha256: 97e295b63283935788fac5e4f8860862a56d4089538cafc93f0431f2ebe483bb
+      http_status: 200
+    weight_index:
+      url: https://huggingface.co/Qwen/Qwen3-32B/resolve/main/model.safetensors.index.json
+      file: data/models/qwen3-32b/model.safetensors.index.json
+      sha256: bed42c6c55274bc08a1f616bceb3bcb84b3f02cb6584c573bd18c6519291ecd0
+      http_status: 200
+    weights_downloaded: false
+    notes: >-
+      与任务书给出的官方参数一致：64 层、8 个 KV Heads、Head Dimension 128。
+      hidden_size 5120、64 个注意力头、FFN 25600、vocab 151936、
+      max_position_embeddings 40960、tie_word_embeddings=false、dtype=bfloat16。
+
+# 本轮**不支持**的模型：数据结构就绪，但解析器会返回 unsupported_architecture，
+# 不会按标准 Dense Transformer 硬算（例如 MoE 的 expert 权重不在本轮公式内）。
+unsupported_examples:
+  - model_id: qwen3-30b-a3b
+    repo_id: Qwen/Qwen3-30B-A3B
+    reason: >-
+      MoE 结构（专家数与专家路由影响权重显存），本轮公式只覆盖 Dense；
+      如需支持需先明确 expert 权重布局与激活专家的显存口径。
+  - model_id: deepseek-v3
+    repo_id: deepseek-ai/DeepSeek-V3
+    reason: MoE + MLA（Multi-head Latent Attention），KV 结构与 Dense GQA 不同，本轮不覆盖。

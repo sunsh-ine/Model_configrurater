@@ -11,7 +11,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 2. init-db ===
 已初始化数据库: data/local.db
-表: benchmark_record, evidence, hardware_price, import_run, official_benchmark_candidate, pricing_result, token_price
+表: benchmark_record, evidence, hardware_price, hardware_spec, import_run, model_spec, official_benchmark_candidate, pricing_result, server_profile, token_price
 {
   "evidence": 0,
   "hardware_price": 0,
@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T16:05:14",
+  "generated_at": "2026-10-15T16:25:02",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T16:05:15",
+  "generated_at": "2026-10-15T16:25:04",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -998,30 +998,363 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 }
 报告已写入 data/exports/overview.md
 
-=== 19. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
+=== 19. import-models（M13 模型结构与权重元数据） ===
+已导入 2 个模型结构（精度 bf16）
+解析成功: 2；不支持结构: 0
+[
+  {
+    "model_id": "qwen3-8b",
+    "status": "parsed",
+    "attention_kind": "gqa",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "weight_total_bytes": 16381470720,
+    "missing_fields": []
+  },
+  {
+    "model_id": "qwen3-32b",
+    "status": "parsed",
+    "attention_kind": "gqa",
+    "revision": "9216db5781bf21249d130ec9da846c4624c16137",
+    "weight_total_bytes": 65524246528,
+    "missing_fields": []
+  }
+]
+
+=== 20. import-hardware（M14 GPU SKU 与服务器形态） ===
+已导入 5 个 GPU SKU、2 个服务器形态
+本轮支持: ['nvidia-h100-sxm-80gb', 'nvidia-h200-sxm-141gb']
+待核实: ['ascend-910c', 'nvidia-b200-sxm']
+[
+  {
+    "hardware_id": "nvidia-h100-sxm-80gb",
+    "product_name": "NVIDIA H100 SXM",
+    "sku": "H100 SXM",
+    "declared": "80GB",
+    "total_memory_bytes": 80000000000,
+    "usable_memory_bytes": null,
+    "supported_in_phase2": true,
+    "verification_status": "vendor_page_verified"
+  },
+  {
+    "hardware_id": "nvidia-h200-sxm-141gb",
+    "product_name": "NVIDIA H200 SXM",
+    "sku": "H200 SXM",
+    "declared": "141GB",
+    "total_memory_bytes": 141000000000,
+    "usable_memory_bytes": null,
+    "supported_in_phase2": true,
+    "verification_status": "vendor_page_verified"
+  },
+  {
+    "hardware_id": "nvidia-h100-nvl-94gb",
+    "product_name": "NVIDIA H100 NVL",
+    "sku": "H100 NVL",
+    "declared": "94GB",
+    "total_memory_bytes": 94000000000,
+    "usable_memory_bytes": null,
+    "supported_in_phase2": false,
+    "verification_status": "vendor_page_verified"
+  },
+  {
+    "hardware_id": "ascend-910c",
+    "product_name": "Ascend 910C",
+    "sku": null,
+    "declared": null,
+    "total_memory_bytes": null,
+    "usable_memory_bytes": null,
+    "supported_in_phase2": false,
+    "verification_status": "pending_verification"
+  },
+  {
+    "hardware_id": "nvidia-b200-sxm",
+    "product_name": "NVIDIA B200 SXM",
+    "sku": "B200 SXM",
+    "declared": null,
+    "total_memory_bytes": null,
+    "usable_memory_bytes": null,
+    "supported_in_phase2": false,
+    "verification_status": "pending_verification"
+  }
+]
+
+=== 21. sizing-inventory（模型结构 + 硬件规格库存） ===
+{
+  "model_count": 2,
+  "hardware_count": 5,
+  "server_count": 2,
+  "models": [
+    {
+      "model_id": "qwen3-32b",
+      "status": "parsed",
+      "attention_kind": "gqa",
+      "layers": 64,
+      "hidden_size": 5120,
+      "kv_heads": 8,
+      "head_dim": 128,
+      "revision": "9216db5781bf21249d130ec9da846c4624c16137",
+      "weight_total_bytes": 65524246528,
+      "missing_fields": []
+    },
+    {
+      "model_id": "qwen3-8b",
+      "status": "parsed",
+      "attention_kind": "gqa",
+      "layers": 36,
+      "hidden_size": 4096,
+      "kv_heads": 8,
+      "head_dim": 128,
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+      "weight_total_bytes": 16381470720,
+      "missing_fields": []
+    }
+  ],
+  "hardware": [
+    {
+      "hardware_id": "ascend-910c",
+      "product_name": "Ascend 910C",
+      "sku": null,
+      "total_memory_bytes": null,
+      "usable_memory_bytes": null,
+      "usable_memory_status": "pending_measurement",
+      "supported_in_phase2": false,
+      "verification_status": "pending_verification",
+      "fields_pending_verification": [
+        "sku",
+        "hbm_type",
+        "total_memory_bytes",
+        "memory_bandwidth_bytes_per_s",
+        "interconnect_within_node",
+        "framework_kernel_support",
+        "supported_weight_precisions"
+      ]
+    },
+    {
+      "hardware_id": "nvidia-b200-sxm",
+      "product_name": "NVIDIA B200 SXM",
+      "sku": "B200 SXM",
+      "total_memory_bytes": null,
+      "usable_memory_bytes": null,
+      "usable_memory_status": "pending_measurement",
+      "supported_in_phase2": false,
+      "verification_status": "pending_verification",
+      "fields_pending_verification": [
+        "hbm_capacity_declared",
+        "total_memory_bytes",
+        "memory_bandwidth_bytes_per_s",
+        "interconnect_within_node",
+        "framework_kernel_support"
+      ]
+    },
+    {
+      "hardware_id": "nvidia-h100-nvl-94gb",
+      "product_name": "NVIDIA H100 NVL",
+      "sku": "H100 NVL",
+      "total_memory_bytes": 94000000000,
+      "usable_memory_bytes": null,
+      "usable_memory_status": "pending_measurement",
+      "supported_in_phase2": false,
+      "verification_status": "vendor_page_verified",
+      "fields_pending_verification": [
+        "usable_memory_bytes",
+        "framework_kernel_support"
+      ]
+    },
+    {
+      "hardware_id": "nvidia-h100-sxm-80gb",
+      "product_name": "NVIDIA H100 SXM",
+      "sku": "H100 SXM",
+      "total_memory_bytes": 80000000000,
+      "usable_memory_bytes": null,
+      "usable_memory_status": "pending_measurement",
+      "supported_in_phase2": true,
+      "verification_status": "vendor_page_verified",
+      "fields_pending_verification": [
+        "usable_memory_bytes",
+        "supported_weight_precisions",
+        "supported_kv_cache_precisions",
+        "framework_kernel_support",
+        "max_sequence_length_supported"
+      ]
+    },
+    {
+      "hardware_id": "nvidia-h200-sxm-141gb",
+      "product_name": "NVIDIA H200 SXM",
+      "sku": "H200 SXM",
+      "total_memory_bytes": 141000000000,
+      "usable_memory_bytes": null,
+      "usable_memory_status": "pending_measurement",
+      "supported_in_phase2": true,
+      "verification_status": "vendor_page_verified",
+      "fields_pending_verification": [
+        "usable_memory_bytes",
+        "supported_weight_precisions",
+        "supported_kv_cache_precisions",
+        "framework_kernel_support",
+        "max_sequence_length_supported"
+      ]
+    }
+  ],
+  "servers": [
+    {
+      "server_id": "hgx-h100-8gpu",
+      "profile_name": "NVIDIA HGX H100 (8-GPU)",
+      "gpu_hardware_id": "nvidia-h100-sxm-80gb",
+      "gpus_per_node": 8,
+      "verification_status": "vendor_page_verified"
+    },
+    {
+      "server_id": "hgx-h200-8gpu",
+      "profile_name": "NVIDIA HGX H200 (8-GPU)",
+      "gpu_hardware_id": "nvidia-h200-sxm-141gb",
+      "gpus_per_node": 8,
+      "verification_status": "pending_verification"
+    }
+  ]
+}
+
+=== 22. plan-deployment（M17 TP/DP 候选 + M18 JSON/Markdown 报告） ===
+规划结果已写入 data/exports/deployment_plan.json
+报告已写入 data/exports/sizing_report.md（16599 字节）
+状态分布: {'conditional_feasible': 6, 'infeasible': 2}
+
+=== 23. estimate-memory（M15+M16 单配置显存构成） ===
+{
+  "model_id": "qwen3-8b",
+  "hardware_id": "nvidia-h200-sxm-141gb",
+  "tp_size": 2,
+  "dp_size": 1,
+  "gpu_count": 2,
+  "weight": {
+    "total_bytes": 16381470720,
+    "per_rank_bytes": 9435703296,
+    "per_rank_lower_bound": 8191043584,
+    "per_rank_upper_bound": 9435703296,
+    "precision_label": "upper_bound_estimate",
+    "consistency_note": "结构公式总量与权重索引 metadata.total_size **完全一致**（差 0 字节）",
+    "consistency_delta_bytes": 0,
+    "basis": "Dense decoder + GQA 结构公式：L=36, h=4096, heads=32, kv_heads=8, head_dim=128, ffn=12288, vocab=151936, tie=False, qk_norm=True；每元素 2 字节",
+    "sharded_components": [
+      "attention_k",
+      "attention_o",
+      "attention_q",
+      "attention_v",
+      "ffn_down",
+      "ffn_gate",
+      "ffn_up"
+    ],
+    "replicated_components": [
+      "attention_k_norm",
+      "attention_q_norm",
+      "final_norm",
+      "layer_norm_in",
+      "layer_norm_post"
+    ],
+    "uncertain_components": [
+      "embedding",
+      "lm_head"
+    ]
+  },
+  "kv": {
+    "attention_kind": "gqa",
+    "readable": true,
+    "kv_heads_per_rank": 4,
+    "kv_head_distribution": "sharded",
+    "logical_tokens": 1602170,
+    "allocated_blocks": 16384,
+    "physical_bytes": 19327352832,
+    "unaligned_bytes": 19327352832,
+    "alignment_overhead_bytes": 0,
+    "concurrency_per_replica": 16,
+    "degradation_notes": [
+      "Paged KV：block_size=16 token/块；每请求对齐到 1024 块 → 共 16384 块；对齐放大 0 字节（0.00%）"
+    ],
+    "basis": "每 token 每层 KV = 2 × kv_heads(4/rank) × head_dim(128) × 2 字节；层数 36；每副本并发 16 × 上下文 16384",
+    "missing_fields": []
+  },
+  "runtime_items": [
+    {
+      "item": "framework_workspace",
+      "bytes": null,
+      "origin": "unknown",
+      "source": null,
+      "assumption": null
+    },
+    {
+      "item": "cuda_graph_capture",
+      "bytes": null,
+      "origin": "unknown",
+      "source": null,
+      "assumption": null
+    },
+    {
+      "item": "activation_peak",
+      "bytes": null,
+      "origin": "unknown",
+      "source": null,
+      "assumption": null
+    },
+    {
+      "item": "framework_overhead",
+      "bytes": null,
+      "origin": "unknown",
+      "source": null,
+      "assumption": null
+    },
+    {
+      "item": "combined_runtime_reserve",
+      "bytes": 14173392076,
+      "origin": "assumed",
+      "source": "示例假设",
+      "assumption": "合并运行时预留 = 可用显存 × 0.1（来源：示例假设）"
+    }
+  ],
+  "runtime_known_bytes": 14173392076,
+  "known_unknowns": [
+    "framework_workspace: 未提供预留值",
+    "cuda_graph_capture: 未提供预留值",
+    "activation_peak: 未提供预留值",
+    "framework_overhead: 未提供预留值"
+  ],
+  "per_gpu_usable_bytes": 141733920768,
+  "total_required_bytes": 42936448204,
+  "headroom_bytes": 98797472564,
+  "assumptions": [
+    "usable_memory_assumed_not_measured: 单卡可用显存取自调用方输入 141733920768 字节，非实测",
+    "运行时开销采用**合并预留**方式：可用显存 × 0.1",
+    "单卡可用显存来源：调用方提供的显式值（来源：示例假设（需现场复核））"
+  ],
+  "quality_flags": [
+    "runtime_unknown_items_present_not_treated_as_zero"
+  ]
+}
+
+=== 24. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
 已跟踪文件中未发现内部定价数值（按本地特征表扫描 9 个特征串）
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
-=== 20. pytest（全量，离线） ===
-........................................................................ [ 22%]
-........................................................................ [ 44%]
-........................................................................ [ 66%]
-........................................................................ [ 88%]
-.....................................                                    [100%]
-325 passed in 50.42s
+=== 25. pytest（全量，离线） ===
+........................................................................ [ 19%]
+........................................................................ [ 38%]
+........................................................................ [ 57%]
+........................................................................ [ 77%]
+........................................................................ [ 96%]
+..............                                                           [100%]
+374 passed in 64.10s (0:01:04)
 
-=== 21. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1128
-drwxrwxr-x 2 ssa ssa   4096 10月 15 16:05 .
-drwxrwxr-x 9 ssa ssa   4096 10月 15 16:05 ..
--rw-rw-r-- 1 ssa ssa 153526 10月 15 16:05 legacy_results.json
--rw-rw-r-- 1 ssa ssa 168877 10月 15 16:05 legacy_results_with_tests.json
--rw-rw-r-- 1 ssa ssa  68122 10月 15 16:05 overview.md
--rw-rw-r-- 1 ssa ssa   7149 10月 15 16:05 scenario.json
--rw-rw-r-- 1 ssa ssa 738349 10月 15 16:05 scenarios_sensitivity.json
+=== 26. 产物清单（内部目录不入库，仅本地查看） ===
+总计 1168
+drwxrwxr-x  2 ssa ssa   4096 10月 15 16:25 .
+drwxrwxr-x 11 ssa ssa   4096 10月 15 16:25 ..
+-rw-rw-r--  1 ssa ssa  20471 10月 15 16:25 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 15 16:25 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 15 16:25 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 15 16:25 overview.md
+-rw-rw-r--  1 ssa ssa   7149 10月 15 16:25 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 15 16:25 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16599 10月 15 16:25 sizing_report.md
 
 ==== 汇总 ====
-步骤 22 项：通过 22，失败 0
-完成时间: 2026-10-15T16:06:20+08:00
+步骤 27 项：通过 27，失败 0
+完成时间: 2026-10-15T16:26:33+08:00
 环境: Python 3.12.3
 全部步骤通过。

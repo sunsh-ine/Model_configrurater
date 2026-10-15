@@ -1,0 +1,241 @@
+# 第二阶段硬件规格库（M14）
+#
+# 原则：
+#  1. 数值**必须**有来源：本文件每条 spec 的 capacity/bandwidth 都引用抓取到的官方页面存档
+#     （data/raw/official/，含 sha256）。厂商页面没写的字段一律留空并登记在
+#     fields_pending_verification，不得用"常识"补齐。
+#  2. **型号与 SKU 分离**：H100 SXM(80GB/HBM3/3.35TB/s) 与 H100 NVL(94GB/HBM3/3.9TB/s)
+#     是两个 SKU，官方规格表里就是两列，绝不能互相顶替。
+#  3. 标称容量 ≠ 推理可分配容量：`total_memory_bytes` 是厂商标称的归一化值；
+#     `usable_memory_bytes` 必须来自实测（如 nvidia-smi），本轮为空并标记待测。
+#  4. 单位：内部统一用 Bytes；展示时区分 GB(10^9) 与 GiB(2^30)，两者都显式标注。
+#
+# 采集日期：2026-10-15
+
+schema_version: "1.0"
+collected_at: "2026-10-15T16:20:00+08:00"
+
+# ---------------------------------------------------------------------------
+# 来源（官方页面存档）
+# ---------------------------------------------------------------------------
+sources:
+  nvidia_h100_datasheet_page:
+    vendor: nvidia
+    url: https://www.nvidia.com/en-us/data-center/h100/
+    file: data/raw/vendor/nvidia_h100_datacenter_2026-10-15.html
+    sha256: aecc301719228f1068705d0ff37e79150d8988423891576e51c15dc94a4e6fe9
+    retrieved_at: "2026-10-15T16:18:00+08:00"
+    http_status: 200
+    quote: >-
+      "Product Specifications … H100 SXM | H100 NVL … GPU Memory 80GB | 94GB …
+       GPU Memory Bandwidth 3.35TB/s | 3.9TB/s … Form Factor SXM | PCIe dual-slot air-cooled
+       … Interconnect NVIDIA NVLink™: 900GB/s | NVIDIA NVLink: 600GB/s"
+    verified_fields: ["total_memory_bytes", "memory_bandwidth_bytes_per_s", "interconnect"]
+    notes: >-
+      官方规格表把 H100 SXM 与 H100 NVL 并列；80GB/3.35TB/s 属 **SXM**，
+      94GB/3.9TB/s 属 **NVL**。页面另提到 H100 NVL 双卡 NVLink 桥合起来 188GB HBM3。
+
+  nvidia_h200_datasheet_page:
+    vendor: nvidia
+    url: https://www.nvidia.com/en-us/data-center/h200/
+    file: data/raw/vendor/nvidia_h200_datacenter_2026-10-15.html
+    sha256: 73a63384e31550c15ebfb94b45065f8b6cb9e0368644daafd27023227a28152f
+    retrieved_at: "2026-10-15T16:18:00+08:00"
+    http_status: 200
+    quote: >-
+      "the NVIDIA H200 is the first GPU to offer 141 gigabytes (GB) of HBM3e memory"
+      "Specifications … H200 SXM | H200 NVL … GPU Memory 141GB | 141GB …
+       GPU Memory Bandwidth 4.8TB/s | 4.8TB/s … Interconnect NVIDIA NVLink™: 900GB/s"
+    verified_fields: ["total_memory_bytes", "memory_bandwidth_bytes_per_s", "hbm_type", "interconnect"]
+    notes: "H200 SXM 与 H200 NVL 容量带宽相同，差异在形态/TDP；本轮只用 SXM。"
+
+# ---------------------------------------------------------------------------
+# GPU SKU
+# ---------------------------------------------------------------------------
+hardware:
+  # ---- 本轮支持（第一批）-------------------------------------------------
+  - hardware_id: nvidia-h100-sxm-80gb
+    vendor: nvidia
+    product_name: "NVIDIA H100 SXM"
+    sku: "H100 SXM"
+    form_factor: SXM
+    architecture: Hopper
+    hbm_type: HBM3
+    hbm_capacity_declared: "80GB"
+    #: 标称容量的归一化基准（厂商页面用十进制 GB 表述）
+    capacity_normalization: decimal_GB
+    total_memory_bytes: 80000000000
+    memory_bandwidth_declared: "3.35TB/s"
+    memory_bandwidth_bytes_per_s: 3350000000000
+    interconnect_within_node: "NVLink 900GB/s"
+    tdp_declared: "Up to 700W (configurable)"
+    mig_declared: "Up to 7 MIGS @ 10GB each"
+    source_id: nvidia_h100_datasheet_page
+    source_quote: "H100 SXM … GPU Memory 80GB … GPU Memory Bandwidth 3.35TB/s"
+    verification_status: vendor_page_verified
+    supported_in_phase2: true
+    # 未在厂商规格页给出 -> 必须留空 + 登记，不得默认
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    fields_pending_verification:
+      - usable_memory_bytes
+      - supported_weight_precisions      # 规格页给的是算力精度，不等于权重存储精度
+      - supported_kv_cache_precisions
+      - framework_kernel_support
+      - max_sequence_length_supported
+
+  - hardware_id: nvidia-h200-sxm-141gb
+    vendor: nvidia
+    product_name: "NVIDIA H200 SXM"
+    sku: "H200 SXM"
+    form_factor: SXM
+    architecture: Hopper
+    hbm_type: HBM3e
+    hbm_capacity_declared: "141GB"
+    capacity_normalization: decimal_GB
+    total_memory_bytes: 141000000000
+    memory_bandwidth_declared: "4.8TB/s"
+    memory_bandwidth_bytes_per_s: 4800000000000
+    interconnect_within_node: "NVLink 900GB/s"
+    tdp_declared: "Up to 700W (configurable)"
+    mig_declared: "Up to 7 MIGs @18GB each"
+    source_id: nvidia_h200_datasheet_page
+    source_quote: "H200 SXM … GPU Memory 141GB … GPU Memory Bandwidth 4.8TB/s"
+    verification_status: vendor_page_verified
+    supported_in_phase2: true
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    fields_pending_verification:
+      - usable_memory_bytes
+      - supported_weight_precisions
+      - supported_kv_cache_precisions
+      - framework_kernel_support
+      - max_sequence_length_supported
+
+  # ---- 已采集但不属本轮支持：用于证明 SKU 不混用 --------------------------
+  - hardware_id: nvidia-h100-nvl-94gb
+    vendor: nvidia
+    product_name: "NVIDIA H100 NVL"
+    sku: "H100 NVL"
+    form_factor: PCIe
+    architecture: Hopper
+    hbm_type: HBM3
+    hbm_capacity_declared: "94GB"
+    capacity_normalization: decimal_GB
+    total_memory_bytes: 94000000000
+    memory_bandwidth_declared: "3.9TB/s"
+    memory_bandwidth_bytes_per_s: 3900000000000
+    interconnect_within_node: "NVLink 600GB/s"
+    tdp_declared: "350-400W (configurable)"
+    source_id: nvidia_h100_datasheet_page
+    source_quote: "H100 NVL … GPU Memory 94GB … GPU Memory Bandwidth 3.9TB/s"
+    verification_status: vendor_page_verified
+    # 与 H100 SXM 容量/带宽/形态均不同：混用会直接算错显存与拓扑
+    supported_in_phase2: false
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    fields_pending_verification: [usable_memory_bytes, framework_kernel_support]
+
+  # ---- 预留接口：数据结构就绪，等 SKU/规格核实后接入 ----------------------
+  - hardware_id: ascend-910c
+    vendor: huawei
+    product_name: "Ascend 910C"
+    sku: null
+    form_factor: null
+    architecture: null
+    hbm_type: null
+    hbm_capacity_declared: null
+    capacity_normalization: null
+    total_memory_bytes: null
+    memory_bandwidth_declared: null
+    memory_bandwidth_bytes_per_s: null
+    interconnect_within_node: null
+    tdp_declared: null
+    source_id: null
+    source_quote: null
+    verification_status: pending_verification
+    supported_in_phase2: false
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    notes: >-
+      任务书要求"保留数据结构和接口，待 SKU、HBM、并行实现与运行时信息核实后接入"。
+      本轮**不填任何数值**：未取得厂商规格页与框架侧并行/运行时实现证据，
+      因此 total_memory_bytes 等一律为 null，避免用传闻数字参与计算。
+    fields_pending_verification:
+      - sku
+      - hbm_type
+      - total_memory_bytes
+      - memory_bandwidth_bytes_per_s
+      - interconnect_within_node
+      - framework_kernel_support
+      - supported_weight_precisions
+
+  - hardware_id: nvidia-b200-sxm
+    vendor: nvidia
+    product_name: "NVIDIA B200 SXM"
+    sku: "B200 SXM"
+    form_factor: SXM
+    architecture: Blackwell
+    hbm_type: HBM3e
+    hbm_capacity_declared: null
+    capacity_normalization: null
+    total_memory_bytes: null
+    memory_bandwidth_declared: null
+    memory_bandwidth_bytes_per_s: null
+    interconnect_within_node: null
+    tdp_declared: null
+    source_id: null
+    source_quote: null
+    verification_status: pending_verification
+    supported_in_phase2: false
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    notes: >-
+      预留条目：本轮未采集 B200 官方规格页（不在第一批范围），
+      因此容量与带宽保持 null，不做任何推断。
+    fields_pending_verification:
+      - hbm_capacity_declared
+      - total_memory_bytes
+      - memory_bandwidth_bytes_per_s
+      - interconnect_within_node
+      - framework_kernel_support
+
+# ---------------------------------------------------------------------------
+# 服务器形态
+# ---------------------------------------------------------------------------
+servers:
+  - server_id: hgx-h100-8gpu
+    profile_name: "NVIDIA HGX H100 (8-GPU)"
+    gpu_hardware_id: nvidia-h100-sxm-80gb
+    gpus_per_node: 8
+    interconnect_declared: "NVLink 900GB/s per GPU"
+    source_id: nvidia_h100_datasheet_page
+    source_quote: "Server Options NVIDIA HGX H100 … with 4 or 8 GPUs"
+    verification_status: vendor_page_verified
+    # 节点级资源未由该页面给出 -> 留空，不得默认满足
+    cpu_model: null
+    host_memory_bytes: null
+    nic_bandwidth_bytes_per_s: null
+    fields_pending_verification:
+      - cpu_model
+      - host_memory_bytes
+      - nic_bandwidth_bytes_per_s
+      - gpu_numa_topology
+
+  - server_id: hgx-h200-8gpu
+    profile_name: "NVIDIA HGX H200 (8-GPU)"
+    gpu_hardware_id: nvidia-h200-sxm-141gb
+    gpus_per_node: 8
+    interconnect_declared: "NVLink 900GB/s per GPU"
+    source_id: nvidia_h200_datasheet_page
+    source_quote: "H200 SXM … Interconnect NVIDIA NVLink™: 900GB/s"
+    verification_status: pending_verification      # 该页面未直接写明 HGX H200 的卡数选项
+    note: "8 卡形态来自 HGX 系列通用形态，但当前存档页面未直接声明 8 卡选项，故保持待核实。"
+    cpu_model: null
+    host_memory_bytes: null
+    nic_bandwidth_bytes_per_s: null
+    fields_pending_verification:
+      - gpus_per_node
+      - cpu_model
+      - host_memory_bytes
+      - nic_bandwidth_bytes_per_s

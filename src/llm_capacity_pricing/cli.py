@@ -34,9 +34,16 @@ from llm_capacity_pricing.services import (
     import_benchmark_file,
     import_excel_into_db,
     import_official_candidates,
+    import_hardware,
+    import_models,
     import_sglang_candidates,
     init_db,
+    make_assumptions,
     official_coverage_summary,
+    export_plan,
+    plan_deployment_for,
+    sizing_inventory,
+    estimate_memory_for,
     validate_import,
     validate_results,
 )
@@ -387,6 +394,178 @@ def list_records_cmd(
         db_obj.dispose()
     _echo_json(rows)
 
+
+
+# ---------------------------------------------------------------------------
+# 第二阶段：模型 / 硬件 / 资源规划
+# ---------------------------------------------------------------------------
+
+
+def _parse_int_list(raw: str) -> list[int]:
+    try:
+        return [int(x) for x in raw.replace(" ", "").split(",") if x]
+    except ValueError as exc:  # pragma: no cover - typer 层已校验字符串
+        raise typer.BadParameter(f"无法解析整数列表: {raw}") from exc
+
+
+@app.command("import-models")
+def import_models_cmd(
+    manifest: str = typer.Option(
+        "data/models/model_manifest.yaml", "--manifest", help="模型清单路径"
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+    root: Optional[str] = typer.Option(None, "--root", help="项目根目录"),
+    precision: str = typer.Option("bf16", "--precision", help="本次部署请求的权重精度"),
+) -> None:
+    """导入模型结构与权重元数据（M13）。归档文件哈希不符会直接失败。"""
+    try:
+        info = import_models(manifest, db, root=root, deployment_precision=precision)
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.secho(f"已导入 {info['model_count']} 个模型结构（精度 {precision}）", fg=typer.colors.GREEN)
+    typer.echo(f"解析成功: {info['parsed_count']}；不支持结构: {info['unsupported_count']}")
+    _echo_json(info["models"])
+
+
+@app.command("import-hardware")
+def import_hardware_cmd(
+    catalog: str = typer.Option(
+        "data/hardware/hardware_catalog.yaml", "--catalog", help="硬件目录路径"
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """导入 GPU SKU 规格与服务器形态（M14）。"""
+    try:
+        info = import_hardware(catalog, db)
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    typer.secho(
+        f"已导入 {info['hardware_count']} 个 GPU SKU、{info['server_count']} 个服务器形态",
+        fg=typer.colors.GREEN,
+    )
+    typer.echo(f"本轮支持: {info['supported_in_phase2']}")
+    typer.echo(f"待核实: {info['pending_verification']}")
+    _echo_json(info["hardware"])
+
+
+@app.command("sizing-inventory")
+def sizing_inventory_cmd(
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """查看第二阶段的模型结构与硬件规格库存。"""
+    _echo_json(sizing_inventory(db))
+
+
+@app.command("estimate-memory")
+def estimate_memory_cmd(
+    model: str = typer.Option(..., "--model", help="模型 ID（如 qwen3-32b）"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 ID（如 nvidia-h100-sxm-80gb）"),
+    server: Optional[str] = typer.Option(None, "--server", help="服务器形态 ID（可选）"),
+    tp: int = typer.Option(1, "--tp", help="张量并行度"),
+    dp: int = typer.Option(1, "--dp", help="数据并行副本数"),
+    ctx: int = typer.Option(..., "--context-length", help="每请求上下文长度（token）"),
+    concurrency: int = typer.Option(..., "--concurrency", help="全局并发请求数"),
+    block_size: Optional[int] = typer.Option(None, "--block-size", help="Paged KV 块大小（token）"),
+    usable_bytes: Optional[int] = typer.Option(None, "--usable-memory-bytes", help="单卡可用显存（实测口径）"),
+    usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="或按标称容量的比例（假设）"),
+    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="该可用显存数值的来源"),
+    runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时合并预留比例（假设）"),
+    runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留的来源"),
+    kv_precision: str = typer.Option("bf16", "--kv-precision", help="KV cache 精度"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """估算单个 TP/DP 配置的显存构成（M15+M16）。"""
+    assumptions = make_assumptions(
+        per_gpu_usable_bytes=usable_bytes,
+        usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
+        usable_memory_source=usable_source,
+        runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
+        runtime_reserve_source=runtime_source,
+        block_size_tokens=block_size,
+        global_concurrency=concurrency,
+        context_length_per_request=ctx,
+    )
+    try:
+        info = estimate_memory_for(
+            db,
+            model_id=model,
+            hardware_id=hardware,
+            server_id=server,
+            tp_size=tp,
+            dp_size=dp,
+            assumptions=assumptions,
+            kv_precision=kv_precision,
+        )
+    except Exception as exc:
+        _fail(str(exc))
+        return
+    _echo_json(info)
+
+
+@app.command("plan-deployment")
+def plan_deployment_cmd(
+    model: str = typer.Option(..., "--model", help="模型 ID"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 ID"),
+    server: Optional[str] = typer.Option(None, "--server", help="服务器形态 ID（可选）"),
+    ctx: int = typer.Option(..., "--context-length", help="每请求上下文长度（token）"),
+    concurrency: int = typer.Option(..., "--concurrency", help="全局并发请求数"),
+    tp_sizes: str = typer.Option("1,2,4,8", "--tp-sizes", help="枚举的 TP 取值"),
+    dp_sizes: str = typer.Option("1,2,4,8", "--dp-sizes", help="枚举的 DP 取值"),
+    block_size: Optional[int] = typer.Option(None, "--block-size", help="Paged KV 块大小"),
+    usable_bytes: Optional[int] = typer.Option(None, "--usable-memory-bytes", help="单卡可用显存"),
+    usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="按标称容量的比例（假设）"),
+    usable_source: Optional[str] = typer.Option(None, "--usable-source", help="可用显存数值来源"),
+    runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时合并预留比例"),
+    runtime_source: Optional[str] = typer.Option(None, "--runtime-source", help="运行时预留来源"),
+    kv_precision: str = typer.Option("bf16", "--kv-precision", help="KV cache 精度"),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    report: Optional[str] = typer.Option(None, "--report", help="导出 Markdown 报告路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """枚举 TP/DP 组合并给出静态可行性（M17+M18）。"""
+    assumptions = make_assumptions(
+        per_gpu_usable_bytes=usable_bytes,
+        usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
+        usable_memory_source=usable_source,
+        runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
+        runtime_reserve_source=runtime_source,
+        block_size_tokens=block_size,
+        global_concurrency=concurrency,
+        context_length_per_request=ctx,
+        tp_sizes=_parse_int_list(tp_sizes),
+        dp_sizes=_parse_int_list(dp_sizes),
+    )
+    common = dict(
+        model_id=model,
+        hardware_id=hardware,
+        server_id=server,
+        assumptions=assumptions,
+        kv_precision=kv_precision,
+    )
+    try:
+        if out or report:
+            info = export_plan(db, out or "data/exports/deployment_plan.json", report_path=report, **common)
+            typer.secho(f"规划结果已写入 {info['plan_json']}", fg=typer.colors.GREEN)
+            if info.get("report_markdown"):
+                typer.echo(f"报告已写入 {info['report_markdown']}（{info['report_bytes']} 字节）")
+            typer.echo(f"状态分布: {info['status_counts']}")
+            return
+        plan = plan_deployment_for(db, **common)
+        typer.echo(f"状态分布: {plan['status_counts']}")
+        for c in plan["candidates"]:
+            m = c.memory
+            weight = f"{m.weight.per_rank_bytes:,}" if m and m.weight.per_rank_bytes else "—"
+            kv = f"{m.kv.physical_bytes:,}" if m and m.kv.physical_bytes else "—"
+            headroom = f"{m.headroom_bytes:,}" if m and m.headroom_bytes is not None else "—"
+            typer.echo(
+                f"  TP{c.tp_size}×DP{c.dp_size}={c.gpu_count:2d}卡 [{c.feasibility.status}] "
+                f"权重/卡={weight} KV/卡={kv} 余量={headroom}"
+            )
+    except Exception as exc:
+        _fail(str(exc))
+        return
 
 if __name__ == "__main__":
     app()

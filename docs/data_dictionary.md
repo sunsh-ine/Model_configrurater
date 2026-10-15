@@ -320,3 +320,79 @@ Pydantic 把字符串还原为 `Decimal`，保证"落库—读回—复算"完�
 | `missing_source_url` | 来源 URL 未能复核（如 HTTP 429 限流），只有本地存档可追溯 |
 | `missing_ttft_p99_ms` / `missing_tpot_p99_ms` | 候选缺对应 P99 指标（据此 SLA 恒 `not_evaluable`） |
 | `single_request_smoke_test` | `success_count == 1`，属单请求冒烟测试，不是吞吐基准 |
+
+
+---
+
+# 第二阶段数据结构（M13/M14/M15/M16/M17）
+
+> 全部定义在 `src/llm_capacity_pricing/schemas/sizing.py`；
+> 详细说明见 `docs/phase2_interface_design.md`。
+
+## 9. `ModelSpec` / `ModelWeightMetadata`（M13）
+
+| 字段组 | 字段 | 说明 |
+|---|---|---|
+| 溯源 | `model_id` `repo_id` `revision` `config_file` `config_sha256` `retrieved_at` `trust_level` | revision 固定到 commit；sha256 用于 Fail-Closed 校验 |
+| 结构 | `num_hidden_layers` `hidden_size` `num_attention_heads` `num_key_value_heads` `head_dim` `intermediate_size` `vocab_size` `max_position_embeddings` | 缺失即 `None` |
+| 结构细节 | `tie_word_embeddings` `attention_bias` `hidden_act` `rms_norm_eps` `rope_theta` `rope_scaling` `sliding_window` `use_sliding_window` `max_window_layers` | 影响权重/KV 公式 |
+| 精度 | `weight_dtype_declared`（权重文件声明）/ `deployment_precision`（本次部署请求） | **必须分开** |
+| 权重元数据 | `total_weight_bytes` `shard_count` `tensor_count` `weight_map` `tensor_metadata_available` | 来自 `model.safetensors.index.json` |
+| 状态 | `status` `missing_fields` `quality_flags` | `unsupported_architecture` 时**不得**带结构字段 |
+
+派生：`attention_kind`（mha/gqa/mqa/sliding_window/unsupported）、`supports_memory_estimate`。
+
+## 10. `HardwareSpec` / `ServerProfile` / `HardwareCompatibility`（M14）
+
+| 字段 | 说明 |
+|---|---|
+| `hardware_id` / `product_name` / `sku` / `form_factor` | **型号与 SKU 分离**（H100 SXM ≠ H100 NVL） |
+| `hbm_capacity_declared` / `capacity_normalization` / `total_memory_bytes` | 厂商标称 + 归一化基准 + 字节值 |
+| `usable_memory_bytes` / `usable_memory_status` | **只认实测**；未实测则 `None` + `pending_measurement` |
+| `memory_bandwidth_bytes_per_s` / `interconnect_within_node` / `tdp_declared` / `mig_declared` | 来自厂商规格页 |
+| `source_id` / `source_quote` / `verification_status` / `fields_pending_verification` | 来源与待核实项 |
+| `supported_in_phase2` | 本轮是否支持（Ascend 910C / B200 为 false） |
+| `ServerProfile`：`gpus_per_node` / `interconnect_declared` / 节点资源 | 未给出保持 `None` |
+| `HardwareCompatibility`：`status` / `reasons` / `unverified_conditions` | 未确认条件不得当作已满足 |
+
+## 11. `WeightMemoryEstimate`（M15）
+
+`breakdown`（embedding/attention/ffn/norm/lm_head）、`total_weight_bytes`、
+`per_rank_bytes` + 上下界 + `uncertain_components`、`distribution` + 切分/复制组件清单、
+`per_rank_precision`、`index_total_bytes` + `consistency_delta_bytes` + `consistency_note`、
+`basis`、`formula_version`、`assumptions`、`missing_fields`、`quality_flags`。
+
+## 12. `KVCacheEstimate` / `RuntimeReserve` / `MemoryEstimate`（M16）
+
+| 对象 | 关键字段 |
+|---|---|
+| `KVCacheEstimate` | `attention_kind` `kv_precision` `num_kv_heads_total/per_rank` `head_dim` `global_concurrency` `concurrency_per_replica` `context_length_per_request` `logical_token_capacity` `block_size_tokens` `allocated_blocks` `physical_bytes` `unaligned_bytes` `alignment_overhead_bytes` `kv_head_distribution` `readable` `degradation_notes` |
+| `RuntimeReserve` | `item` `bytes_estimate` `origin`（measured/vendor_documented/assumed/**unknown**）`source` `assumption` |
+| `MemoryEstimate` | `weight` `kv` `runtime_items` `per_gpu_usable_bytes` `total_required_bytes` `headroom_bytes` `known_unknowns` |
+
+不变式：`origin=unknown` ⇒ `bytes_estimate=None`（**未知不是 0**）；`origin=assumed` ⇒ 必须写来源或假设。
+
+## 13. `DeploymentCandidate` / `ResourceFeasibilityResult`（M17）
+
+`tp_size` `dp_size` `gpu_count`（= tp×dp，Schema 强校验）`nodes_required`
+`concurrency_per_replica` `memory` `feasibility`（四类状态 + `reasons`/`assumptions`/
+`unverified_conditions`/`risk_flags`）`headroom_bytes` `summary`。
+
+## 14. 第二阶段 SQLite 表
+
+| 表 | 主键 | 说明 |
+|---|---|---|
+| `model_spec` | `model_id` | 模型结构事实（含 revision、config sha256、权重总量） |
+| `hardware_spec` | `hardware_id` | GPU SKU 规格（标称容量、实测可用、来源、支持范围） |
+| `server_profile` | `server_id` | 服务器形态（单机卡数、互联） |
+
+## 15. 证据映射
+
+第二阶段的模型配置与厂商规格**复用第一阶段 `Evidence`**：
+
+| 来源 | `source_type` | `measurement_origin` | 质量标记 |
+|---|---|---|---|
+| 模型官方 config.json / 权重索引 | `third_party` | `historical_external_third_party` | `model_vendor_official_config`、`source_snapshot_archived`、`specification_not_measurement` |
+| 厂商规格页（硬件目录引用） | 记录在 `hardware_catalog.yaml` 的 `sources`（含 url/file/sha256/quote） | — | `vendor_page_verified` |
+
+> 说明：这些是**规格/配置文档**，不是实测结果或性能数据，因此不进入第一阶段的 benchmark 口径统计。

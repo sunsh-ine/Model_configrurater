@@ -2,8 +2,12 @@
 
 大模型部署基准数据与 Token 定价计算引擎（离线 MVP）。
 
-从一份 Excel 部署效能表出发，规范化入库、复算旧表经济性、做变现比例情景分析，
+**第一阶段**：从一份 Excel 部署效能表出发，规范化入库、复算旧表经济性、做变现比例情景分析，
 并内置 SGLang `bench_serving` / vLLM `bench serve` 的**版本化** Benchmark 解析适配器。
+
+**第二阶段（M12–M18）**：模型与硬件资源选型引擎——解析官方模型结构、管理 GPU SKU 规格、
+计算权重与 KV Cache 显存、枚举 TP/DP 部署候选并给出**静态**资源可行性。
+第二阶段**不写任何定价公式**，也**不做** TTFT/TPOT 性能预测。
 
 > **这不是私有化部署 SLA 预测系统，也不是对外报价系统。**
 > 所有金额为万元，`cost_scope = gpu_cost_only`（仅表内 GPU 成本，不是完整 TCO）。
@@ -81,6 +85,41 @@ python3 -m venv .venv
 .venv/bin/python -m pytest -q
 ```
 
+### 第二阶段（资源选型）：从模型与硬件出发做静态规划
+
+```bash
+# 1) 导入模型结构（读 data/models/ 里归档的官方 config.json 与权重索引）
+.venv/bin/python -m llm_capacity_pricing.cli import-models --db data/local.db --root .
+
+# 2) 导入 GPU SKU 与服务器形态
+.venv/bin/python -m llm_capacity_pricing.cli import-hardware --db data/local.db
+
+# 3) 查看库存（模型结构 / 硬件规格 / 待核实字段）
+.venv/bin/python -m llm_capacity_pricing.cli sizing-inventory --db data/local.db
+
+# 4) 单个配置的显存构成（权重 + KV + 运行时）
+.venv/bin/python -m llm_capacity_pricing.cli estimate-memory \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --tp 8 --dp 1 \
+  --context-length 8192 --concurrency 32 --block-size 16 \
+  --usable-memory-bytes 85899345920 --usable-source "现场 nvidia-smi（示例）" \
+  --runtime-reserve-fraction 0.1 --runtime-source "框架经验值（示例假设）" \
+  --db data/local.db
+
+# 5) TP/DP 候选规划 + JSON/Markdown 报告
+.venv/bin/python -m llm_capacity_pricing.cli plan-deployment \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --context-length 8192 --concurrency 32 --block-size 16 \
+  --usable-memory-bytes 85899345920 --usable-source "示例假设" \
+  --runtime-reserve-fraction 0.1 --runtime-source "示例假设" \
+  --tp-sizes 1,2,4,8 --dp-sizes 1,2 \
+  --out data/exports/deployment_plan.json --report data/exports/sizing_report.md \
+  --db data/local.db
+```
+
+> **可用显存必须显式给出**：厂商标称容量（80GB / 141GB）**不等于**推理可分配显存。
+> 不给实测值或带来源的假设，规划只会返回 `insufficient_information`（这是刻意设计）。
+> 只提供假设时结论为 `conditional_feasible`，落地前必须用 `nvidia-smi` 复核。
+
 ### 一键复现以上全部步骤
 
 ```bash
@@ -109,6 +148,11 @@ bash scripts/verify_all.sh
 | `import-sglang-candidates --file <json> --db <path> [--root <dir>]` | **M7**：导入官方 SGLang Cookbook 数值型候选，并逐字段核对存档原文 |
 | `official-coverage --db <path>` | 官方覆盖情况：两家族候选数 / 已核实数 / 有解析指标数 / **M9 门禁统计** |
 | `list-records --db <path>` | 列出全部 `record_id` 与来源类型 |
+| `import-models --manifest <yaml> --db <path> [--root .] [--precision bf16]` | **M13**：导入模型结构与权重元数据（归档文件哈希 Fail-Closed） |
+| `import-hardware --catalog <yaml> --db <path>` | **M14**：导入 GPU SKU 规格与服务器形态 |
+| `sizing-inventory --db <path>` | 第二阶段库存：模型结构 / 硬件规格 / 待核实字段 |
+| `estimate-memory --model <id> --hardware <id> --tp N --dp N --context-length N --concurrency N …` | **M15+M16**：单配置显存构成（权重 / KV / 运行时 / 余量） |
+| `plan-deployment --model <id> --hardware <id> --context-length N --concurrency N …` | **M17+M18**：枚举 TP/DP 候选 + 静态可行性 + JSON/Markdown 导出 |
 
 所有命令成功返回 `0`，失败返回非零并输出明确错误信息（缺文件、非法百分比、
 负价格、无效单位、找不到记录等）。
@@ -141,6 +185,12 @@ llm-capacity-pricing/
 │   │   ├── sglang_cookbook.py             # M7：官方 Cookbook 数值候选 + 原文逐字段核对
 │   │   ├── console_summary.py             # 官方控制台汇总块 -> 指标（机器解析）
 │   │   └── common.py                      # 字段别名 / percentile / 证据构造
+│   ├── sizing/                             # 第二阶段：资源选型
+│   │   ├── model_spec.py                   # M13 模型结构解析（HF config + 权重索引）
+│   │   ├── hardware.py                     # M14 GPU SKU / 服务器形态 / 兼容性
+│   │   ├── weights.py                      # M15 权重显存（分解 + TP 分布 + 一致性）
+│   │   ├── kv_cache.py                     # M16 KV Cache + 运行时预留
+│   │   └── planner.py                      # M17 显存合成 + TP/DP 候选 + 可行性
 │   ├── engines/
 │   │   ├── pricing.py                     # 纯 Decimal 公式（含除零语义 + float 守卫）
 │   │   ├── calculator.py                  # 编排 + 证据链 + SLA 状态 + 快照哈希
@@ -154,8 +204,12 @@ llm-capacity-pricing/
 │   │   └── markdown.py                    # 7 节报告
 │   ├── services.py                        # 服务层（CLI 与测试共用）
 │   └── cli.py                             # Typer CLI
-├── tests/                                 # 325 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（22 步，含敏感数据扫描）
+├── data/
+│   ├── models/                            # 归档的官方 config.json / 权重索引 + 清单
+│   ├── hardware/hardware_catalog.yaml     # GPU 规格库（含来源与待核实字段）
+│   └── raw/vendor/                        # 厂商规格页存档（与 benchmark 证据分开）
+├── tests/                                 # 374 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（27 步，含第二阶段与敏感扫描）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
     ├── data_dictionary.md                 # 字段字典
@@ -255,6 +309,20 @@ synthetic fixture 以 `assumption` 级证据入库，报告与校验按来源分
 存档证据（sha256）、**18 条 `partial_evidence` 候选**（6 条页面级 + 12 条官方数值型）
 与字段级缺口台账；**指标口径字典与吞吐一致性校验**；**三条派生门禁**
 （参考展示 / SLA 评估 / 经济性计算）；**200 + 60 = 260 个自动化测试**。
+
+**第二阶段已实现：** 官方模型结构解析（Qwen3-8B / Qwen3-32B，含 revision 与哈希）、
+GPU SKU 规格库（H100 SXM / H200 SXM，型号与 SKU 分离）、权重显存估算（**与官方权重索引逐字节一致**）、
+KV Cache 估算（GQA/MQA/MHA、Paged 块对齐、TP 头切分/复制）、运行时显存独立建模、
+TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报告。**49 个第二阶段测试**。
+
+**第二阶段未实现（边界内不做）：**
+
+- TTFT / TPOT / ITL / E2E 性能预测；按峰值并发推断所需 GPU 数量；
+- 跨 GPU/TP/DP 的吞吐线性外推；
+- PD 分离、MoE EP、MTP/Speculative 的资源优化（未核实结构返回 `unsupported_architecture`）；
+- 未验证量化实现的精确显存核算；
+- 把静态可行方案转成报价；
+- Ascend 910C / B200：**数据结构与接口就绪**，规格与框架证据未核实前所有数值保持 `None`。
 
 **未实现（如实标注）：**
 
