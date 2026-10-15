@@ -419,3 +419,74 @@
     不含任何实测数值。采集 DeepSeek-V3 配方页时一并存档，用于说明该配方页在站点
     中的位置。重新校验 URL 时返回 HTTP 429（限流），因此 source_url 记为 null，
     只有本地存档文件与 sha256 可追溯。
+
+# ---------------------------------------------------------------------------
+# M7 新增：SGLang Cookbook 官方**数值型**来源（含完整测试命令与控制台输出）
+#
+# status=numeric_source_partial_environment 的含义：
+#   * contains_measured_values=true —— 页面确实给了实测数值；
+#   * 但环境描述不完整（缺 model revision / 完整环境 pin / 精度），
+#     因此**不是**可复现的 official_benchmark，也不由 import-official 入库；
+#   * 这些来源的 12 条记录由 `import-sglang-candidates` 按 record_id 接入候选表，
+#     并逐字段核对本地快照。
+# Git Blob SHA（Git 对象 SHA-1）与 SHA256（文件哈希）语义不同，二者都记录。
+# ---------------------------------------------------------------------------
+
+- id: sglang_cookbook_qwen3
+  status: numeric_source_partial_environment
+  publisher: sgl-project/sglang
+  source_url: https://github.com/sgl-project/sglang/blob/main/docs/cookbook/autoregressive/Qwen/Qwen3.mdx
+  source_path: docs/cookbook/autoregressive/Qwen/Qwen3.mdx
+  requested_url: https://raw.githubusercontent.com/sgl-project/sglang/main/docs/cookbook/autoregressive/Qwen/Qwen3.mdx
+  accessed_at: "2026-10-15T14:15:00+08:00"
+  http_status: 200
+  source_git_blob_sha: 580640bd1b9ab74fb5ea0be6120050a99fa93f6d
+  evidence_file: data/raw/official/sglang_cookbook_qwen3_2026-10-15.mdx
+  evidence_sha256: 23d8e61ce899920e5606ca80c30c292a88cab02321c1bd3c610a19dba0b27425
+  contains_measured_values: true
+  candidate_family: sglang_numeric_cookbook
+  record_count: 9
+  framework: sglang
+  framework_version: "0.5.6"
+  model_name: Qwen/Qwen3-235B-A22B-Instruct-2507
+  model_revision: null
+  hardware_model: NVIDIA B200
+  deployment_gpu_count: 8
+  tp_size: 8
+  notes: >-
+    模型 Qwen/Qwen3-235B-A22B-Instruct-2507，8×B200、TP8（原文 §5.1 "Hardware: NVIDIA B200 GPU (8x)"
+    与部署命令 --tp 8 相互印证）。9 条记录 = standard/reasoning/summarization 各 3 档并发。
+    每条都带完整 `python3 -m sglang.bench_serving` 命令与 `Serving Benchmark Result` 控制台输出，
+    本机快照的 Git Blob SHA 与候选文件声明一致，12 条记录已逐字段机器核对。
+    model_revision 原文未给出（保持 null）；正文提到 ShareGPT 数据集而命令为
+    --dataset-name random，按任务书 §3.4 以命令为准并保留冲突说明。
+
+- id: sglang_cookbook_qwen3_coder
+  status: numeric_source_partial_environment
+  publisher: sgl-project/sglang
+  source_url: https://github.com/sgl-project/sglang/blob/main/docs/cookbook/autoregressive/Qwen/Qwen3-Coder.mdx
+  source_path: docs/cookbook/autoregressive/Qwen/Qwen3-Coder.mdx
+  requested_url: https://raw.githubusercontent.com/sgl-project/sglang/main/docs/cookbook/autoregressive/Qwen/Qwen3-Coder.mdx
+  accessed_at: "2026-10-15T14:15:00+08:00"
+  http_status: 200
+  source_git_blob_sha: a743f7ba3eb3a204bf9f69ffc7d21d3311fa7703
+  evidence_file: data/raw/official/sglang_cookbook_qwen3_coder_2026-10-15.mdx
+  evidence_sha256: 67ca6704360ef1a87cc3259dd12659966753f1280f7ad2fa52a7a1911b85ca1e
+  contains_measured_values: true
+  candidate_family: sglang_numeric_cookbook
+  record_count: 3
+  framework: sglang
+  framework_version: "0.5.7"
+  model_name: Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8
+  model_revision: null
+  hardware_model: AMD MI300X
+  deployment_gpu_count: 8
+  tp_size: 8
+  ep_size: 2
+  notes: >-
+    模型 Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8，8×MI300X、TP8、EP2（原文 §5.1.1
+    "Hardware: AMD MI300X GPU (8x)"、部署命令 --tp 8 与 "For 480B-A35B with FP8
+    quantization, --ep 2 is required"）。本批次只接入 AMD standard 的 3 条
+    （5.1.1.1~5.1.1.3）；原文 5.1.2.1 / 5.1.2.2（NVIDIA B200/GB200 的 FP8、NVFP4）
+    另有 6 个结果块**未被本批次输入列出**，故不生成候选，仅在
+    `import-sglang-candidates` 输出中登记为 unlisted_sections_with_results。

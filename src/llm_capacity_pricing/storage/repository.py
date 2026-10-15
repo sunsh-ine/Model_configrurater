@@ -13,7 +13,10 @@ from sqlalchemy.orm import Session
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.schemas.evidence import Evidence
-from llm_capacity_pricing.schemas.official import OfficialBenchmarkCandidate
+from llm_capacity_pricing.schemas.official import (
+    OfficialBenchmarkCandidate,
+    SglangNumericCandidate,
+)
 from llm_capacity_pricing.schemas.pricing import PricingResult
 from llm_capacity_pricing.storage.database import (
     BenchmarkRecordRow,
@@ -199,19 +202,27 @@ class Repository:
             session.merge(
                 OfficialCandidateRow(
                     candidate_id=c.candidate_id,
+                    candidate_family="manifest_partial_evidence",
+                    record_id=None,
                     manifest_id=c.manifest_id,
                     evidence_id=c.evidence_id,
                     publisher=c.publisher,
                     source_url=c.source_url,
+                    source_path=None,
+                    source_git_blob_sha=None,
                     framework=c.framework,
                     benchmark_tool=c.benchmark_tool,
                     verification_status=c.verification_status,
+                    quality_status=c.verification_status,
                     hardware_binding=c.hardware_binding,
                     hardware_model=c.hardware_model,
                     deployment_gpu_count=c.deployment_gpu_count,
                     is_throughput_benchmark=c.is_throughput_benchmark,
                     evidence_file=c.evidence_file,
                     evidence_sha256=c.evidence_sha256,
+                    can_reference_performance=c.can_reference_performance,
+                    can_evaluate_sla=c.can_evaluate_sla,
+                    can_calculate_pricing=c.can_calculate_pricing,
                     missing_fields_json=json.dumps(c.missing_fields, ensure_ascii=False),
                     metrics_json=json.dumps(
                         {k: str(v) for k, v in c.metrics.items()}, ensure_ascii=False
@@ -222,13 +233,89 @@ class Repository:
             n += 1
         return n
 
-    def list_official_candidates(self, session: Session) -> list[OfficialBenchmarkCandidate]:
-        rows = session.scalars(
-            select(OfficialCandidateRow).order_by(OfficialCandidateRow.candidate_id)
-        ).all()
+    def upsert_numeric_candidates(
+        self, session: Session, items: Iterable[SglangNumericCandidate]
+    ) -> int:
+        """写入 SGLang Cookbook **数值型**候选（同表，家族不同）。
+
+        幂等依据 ``candidate_id``（= ``official_<record_id>``）：同一记录重复导入走
+        ``merge``，不产生重复行；不同批次若内容变化，``payload_json`` 会整体覆盖但
+        ``candidate_id`` 不变，历史版本的差异由证据文件的 sha256 与
+        ``verification`` 记录留痕。
+        """
+        n = 0
+        for c in items:
+            session.merge(
+                OfficialCandidateRow(
+                    candidate_id=c.candidate_id,
+                    candidate_family=c.family,
+                    record_id=c.record_id,
+                    manifest_id=c.source_id,
+                    evidence_id=c.evidence_id,
+                    publisher=c.publisher,
+                    source_url=c.source_url,
+                    source_path=c.source_path,
+                    source_git_blob_sha=c.source_git_blob_sha,
+                    framework=c.framework,
+                    benchmark_tool="sglang.bench_serving",
+                    verification_status=c.quality_status,
+                    quality_status=c.quality_status,
+                    hardware_binding="bound" if c.hardware_model else "unbound",
+                    hardware_model=c.hardware_model,
+                    deployment_gpu_count=c.deployment_gpu_count,
+                    is_throughput_benchmark=True,
+                    evidence_file=c.evidence_file,
+                    evidence_sha256=c.evidence_sha256,
+                    can_reference_performance=c.can_reference_performance,
+                    can_evaluate_sla=c.can_evaluate_sla,
+                    can_calculate_pricing=c.can_calculate_pricing,
+                    missing_fields_json=json.dumps(c.missing_fields, ensure_ascii=False),
+                    metrics_json=json.dumps(
+                        {k: str(v) for k, v in c.metrics.items()}, ensure_ascii=False
+                    ),
+                    payload_json=_dump(c),
+                )
+            )
+            n += 1
+        return n
+
+    def list_official_candidates(
+        self, session: Session, *, family: str | None = "manifest_partial_evidence"
+    ) -> list[OfficialBenchmarkCandidate]:
+        """列出 manifest 家族的候选。
+
+        ``family=None`` 表示不过滤（仅在只需要计数/统计时使用）。
+        数值型候选请用 :meth:`list_numeric_candidates` —— 两者 schema 不同，
+        混在一起做 ``model_validate`` 会因 ``extra=forbid`` 直接报错。
+        """
+        stmt = select(OfficialCandidateRow).order_by(OfficialCandidateRow.candidate_id)
+        if family is not None:
+            stmt = stmt.where(
+                (OfficialCandidateRow.candidate_family == family)
+                | (OfficialCandidateRow.candidate_family.is_(None))
+            )
+        rows = session.scalars(stmt).all()
         return [
             OfficialBenchmarkCandidate.model_validate(json.loads(r.payload_json)) for r in rows
         ]
+
+    def list_numeric_candidates(
+        self, session: Session, *, family: str = "sglang_numeric_cookbook"
+    ) -> list[SglangNumericCandidate]:
+        rows = session.scalars(
+            select(OfficialCandidateRow)
+            .where(OfficialCandidateRow.candidate_family == family)
+            .order_by(OfficialCandidateRow.candidate_id)
+        ).all()
+        return [SglangNumericCandidate.model_validate(json.loads(r.payload_json)) for r in rows]
+
+    def candidate_family_counts(self, session: Session) -> dict[str, int]:
+        rows = session.execute(
+            select(OfficialCandidateRow.candidate_family, func.count()).group_by(
+                OfficialCandidateRow.candidate_family
+            )
+        ).all()
+        return {(family or "manifest_partial_evidence"): int(n) for family, n in rows}
 
     def benchmark_ids_by_kind(self, session: Session, *kinds: str) -> list[str]:
         """按 ``performance_source_kind`` 取记录 ID。"""

@@ -150,26 +150,45 @@ class OfficialCandidateRow(Base):
 
     与 ``benchmark_record`` 分开存放：候选缺少硬件/卡数等必填绑定信息，
     不能进入性能数据库，也不参与任何经济性计算。
+
+    两个家族共用本表（用 ``candidate_family`` 区分）：
+
+    * ``manifest_partial_evidence`` —— 由 ``official_manifest.yaml`` 登记、页面级证据；
+    * ``sglang_numeric_cookbook`` —— M7 接入的官方 Cookbook **数值型**候选：
+      有完整测试命令与控制台输出、已逐字段机器核对，但仍缺 model revision。
     """
 
     __tablename__ = "official_benchmark_candidate"
 
     candidate_id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    #: 家族标识；历史行可能为 NULL，读取时按 manifest 家族处理
+    candidate_family: Mapped[str | None] = mapped_column(String(48), index=True)
+    #: 来源内稳定记录 ID（数值型候选有；manifest 候选为 NULL）
+    record_id: Mapped[str | None] = mapped_column(String(160), index=True)
     manifest_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     evidence_id: Mapped[str] = mapped_column(
         String(128), ForeignKey("evidence.evidence_id"), nullable=False
     )
     publisher: Mapped[str] = mapped_column(String(128), nullable=False)
     source_url: Mapped[str | None] = mapped_column(Text)
+    source_path: Mapped[str | None] = mapped_column(Text)
+    #: 上游 Git 对象的 SHA-1；与文件 SHA256 语义不同，故分开存
+    source_git_blob_sha: Mapped[str | None] = mapped_column(String(40))
     framework: Mapped[str | None] = mapped_column(String(64))
     benchmark_tool: Mapped[str | None] = mapped_column(String(128))
     verification_status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    #: 候选自带的质量状态（本阶段恒为 partial_evidence）
+    quality_status: Mapped[str | None] = mapped_column(String(32))
     hardware_binding: Mapped[str] = mapped_column(String(16), nullable=False)
     hardware_model: Mapped[str | None] = mapped_column(String(255))
     deployment_gpu_count: Mapped[int | None] = mapped_column(Integer)
     is_throughput_benchmark: Mapped[bool | None] = mapped_column(Boolean)
     evidence_file: Mapped[str | None] = mapped_column(Text)
     evidence_sha256: Mapped[str | None] = mapped_column(String(64))
+    #: M9 派生门禁（NULL = 本行未做门禁评估）
+    can_reference_performance: Mapped[bool | None] = mapped_column(Boolean)
+    can_evaluate_sla: Mapped[bool | None] = mapped_column(Boolean)
+    can_calculate_pricing: Mapped[bool | None] = mapped_column(Boolean)
     missing_fields_json: Mapped[str | None] = mapped_column(Text)
     metrics_json: Mapped[str | None] = mapped_column(Text)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
@@ -198,9 +217,40 @@ class Database:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(f"sqlite:///{self.path}", future=True)
         self._session_factory = sessionmaker(bind=self.engine, expire_on_commit=False, future=True)
+        #: ``create_all`` 过程中补加的列（用于报告"从旧库升级"的实际动作）
+        self.last_migration_columns: list[str] = []
 
     def create_all(self) -> None:
         Base.metadata.create_all(self.engine)
+        self._ensure_columns()
+
+    def _ensure_columns(self) -> None:
+        """轻量迁移：为**已存在**的表补上模型新增的可空列。
+
+        新库由 ``create_all`` 一次建好；已有库（例如上一批交付的 ``data/local.db``）
+        不会被 ``create_all`` 改动，因此这里用 ``PRAGMA table_info`` 对比后
+        ``ALTER TABLE ... ADD COLUMN``。只补可空列（NOT NULL 无默认值的列无法安全补加，
+        交给新库建表处理），不做任何数据改写。
+        """
+        from sqlalchemy import inspect, text
+
+        inspector = inspect(self.engine)
+        existing_tables = set(inspector.get_table_names())
+        added: list[str] = []
+        with self.engine.begin() as conn:
+            for table in Base.metadata.sorted_tables:
+                if table.name not in existing_tables:
+                    continue
+                have = {c["name"] for c in inspector.get_columns(table.name)}
+                for col in table.columns:
+                    if col.name in have or not col.nullable:
+                        continue
+                    type_sql = col.type.compile(self.engine.dialect)
+                    conn.execute(
+                        text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {type_sql}')
+                    )
+                    added.append(f"{table.name}.{col.name}")
+        self.last_migration_columns = added
 
     def session(self) -> Session:
         return self._session_factory()

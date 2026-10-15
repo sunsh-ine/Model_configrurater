@@ -29,7 +29,10 @@ from pydantic import BaseModel
 from llm_capacity_pricing.schemas.pricing import (
     BILLING_PERIOD,
     COST_SCOPE,
+    COST_SCOPE_CONFIRMATION_STATUS,
+    COST_SCOPE_UNCONFIRMED,
     CURRENCY_ASSUMPTION,
+    CURRENCY_UNCONFIRMED,
     PRICE_UNIT,
     PricingResult,
 )
@@ -190,6 +193,11 @@ def _restore(obj: Any, keys: Collection[str], key: str | None = None) -> Any:
 EXPORT_BOUNDARY_NOTICES = [
     "本文件为离线计算 MVP 输出，不是对外报价，不是 SLA 承诺，也不是实际营收。",
     "cost_scope = gpu_cost_only：仅含表内 GPU 摊销/租金成本，不是完整 TCO。",
+    "cost_scope_unconfirmed 逐项列出**未经确认是否已包含**的成本项（机房/电力/网络/"
+    "人工/软件/折旧租金），确认状态见 cost_scope_confirmation_status。",
+    "金额字段名为 theoretical_full_load_revenue 或 scenario_revenue，"
+    "不得对外表述为「客户实际营收」「预期利润」或「正式报价」。",
+    "官方来源的 Benchmark 候选不参与本文件中的任何经济性计算。",
     "金额为理论满载潜力（或指定变现比例下的情景估算），非实际营收。",
     "旧表 I/J/K/L/M 保留在 legacy_* 字段，recomputed 结果另存，不互相覆盖。",
     f"金额/比率字段以可精确恢复的十进制字符串编码；兼容读取见 {DECIMALS_ENCODING['compatible_reader']}。",
@@ -203,9 +211,13 @@ def _result_payload(res: PricingResult) -> dict[str, Any]:
 def export_envelope_meta(extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """所有导出文件共用的口径声明（币种 / 成本范围 / 结果类型 / 数值编码）。"""
     meta: dict[str, Any] = {
-        "currency": "UNCONFIRMED",
+        "currency": CURRENCY_UNCONFIRMED,
+        "currency_confirmed": False,
         "currency_assumption": CURRENCY_ASSUMPTION,
         "cost_scope": COST_SCOPE,
+        "cost_scope_unconfirmed": list(COST_SCOPE_UNCONFIRMED),
+        "cost_scope_confirmation_status": COST_SCOPE_CONFIRMATION_STATUS,
+        "commercial_quote_allowed": False,
         "price_unit": PRICE_UNIT,
         "billing_period": BILLING_PERIOD,
         "decimals_encoding": DECIMALS_ENCODING,

@@ -14,6 +14,8 @@ VALID_STATUS = {
     "not_a_result_dataset",
     "pending_verification",
     "partial_evidence",
+    # M7：官方 Cookbook 数值型来源（有实测数值但环境描述不完整）
+    "numeric_source_partial_environment",
     "verified",
 }
 

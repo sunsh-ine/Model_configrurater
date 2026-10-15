@@ -202,7 +202,7 @@ Excel 记录中全部为 `None` → 任何 SLA 结论均为 `not_evaluable`。
 | `status` | enum | `ok` / `partial` / `not_evaluable` |
 | `not_evaluable_reason` | str | 不可计算原因 |
 | `scope` | enum | `business` / `test`。标出该结果是否来自人工测试数据（fixture） |
-| `result_type` | enum | `theoretical_full_load_potential` / `scenario_estimate`。**说明这是理论上限或情景估算，不是实际营收、不是报价** |
+| `result_type` | enum | `theoretical_full_load_potential` / `scenario_sensitivity_estimate`。**说明这是理论上限或情景估算，不是实际营收、不是报价** |
 | `performance_record_id` | str | 指向 `BenchmarkRecord`（吞吐/时延来源），构成结果→性能记录的证据链 |
 | `hardware_price_id` | str? | 指向 `HardwarePrice`（成本来源）；找不到时 `None` 并写 `linkage_warnings` |
 | `token_price_id` | str? | 指向 `TokenPrice`（单价来源）；找不到时同上 |
@@ -246,6 +246,26 @@ Excel 记录中全部为 `None` → 任何 SLA 结论均为 `not_evaluable`。
 当成可算数据。`success_count == 1` 的候选会被强制标记 `single_request_smoke_test`
 且 `is_throughput_benchmark = False`。
 
+## 6.5 `SglangNumericCandidate`（官方数值型候选，M7）
+
+与 §6 的页面级候选**同表不同家族**（`candidate_family = "sglang_numeric_cookbook"`）。
+这类来源给出了完整测试命令与控制台输出，因此字段更全、并且**每个数值都能溯源到原文标签**。
+
+| 字段组 | 字段 | 说明 |
+|---|---|---|
+| 标识 | `candidate_id` / `record_id` / `source_id` / `source_section` | `candidate_id = official_<record_id>`；`source_section` 是原文标题锚点（如 `5.1.1.3`） |
+| 来源 | `source_url` / `source_path` / `source_git_blob_sha` / `evidence_file` / `evidence_sha256` | Git Blob SHA-1 与文件 SHA256 **语义不同**，分开存 |
+| 模型环境 | `model_name` / `model_revision`(空) / `model_precision` / `framework_version` / `hardware_model` / `deployment_gpu_count` / `tp_size` / `ep_size` | 原文未提供的保持 `None` |
+| 负载 | `scenario_label` / `dataset_name` / `input_len_target` / `output_len_target` / `configured_max_concurrency` / `num_prompts` / `traffic_request_rate_raw` | `--max-concurrency` 是配置值；`inf` 存为符号字符串 |
+| 测量 | `metrics`（原文核对值）/ `metrics_from_candidate_file`（候选文件原值）/ `raw_labels` / `symbols` | 两者不一致时以 `metrics`（原文）为准 |
+| 口径 | `metric_definition_ids` / `metric_semantics_version` / `throughput_consistency` / `semantic_warnings` | 见 `docs/benchmark_metric_dictionary.md` |
+| 核对 | `verification`（`source_block_found` / `command_found` / `compared_fields` / `matched_fields` / `mismatches` / `command_conflicts`） | `verified_against_source` 为派生属性 |
+| 门禁 | `can_reference_performance` / `can_evaluate_sla` / `can_calculate_pricing` / `commercial_quote_allowed` / `applicability_notes` | M9 派生，不接受人工填写 |
+| 缺口 | `missing_fields` / `quality_flags` | `model_revision` 缺失必登记 |
+
+`PricingResult` 另新增：`cost_scope_unconfirmed`（未确认是否包含的成本项，6 项）与
+`cost_scope_confirmation_status`。
+
 ## 7. SQLite 表结构
 
 | 表 | 主键 | 说明 |
@@ -254,7 +274,7 @@ Excel 记录中全部为 `None` → 任何 SLA 结论均为 `not_evaluable`。
 | `hardware_price` | `hardware_price_id` | GPU 价格 |
 | `token_price` | `token_price_id` | 模型价格 |
 | `benchmark_record` | `record_id` | 效能记录（含 `performance_source_kind`、`verification_status` 便于分级查询） |
-| `official_benchmark_candidate` | `candidate_id` | 官方**候选**记录（`partial_evidence`）：字段级缺口台账，**不是**性能记录，不参与任何计算 |
+| `official_benchmark_candidate` | `candidate_id` | 官方**候选**记录（`partial_evidence`）：按 `candidate_family` 分两个家族（页面级 / M7 数值型），字段级缺口台账，**不是**性能记录，不参与任何计算 |
 | `pricing_result` | `scenario_id` | 计算结果（含 `scope` / `result_type` / 三个输入 ID / `sla_status`） |
 | `import_run` | `import_run_id` | 导入批次（文件、sha256、时间、条数） |
 

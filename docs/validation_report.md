@@ -38,7 +38,7 @@
 | 2 | 测试数据无显式开关 | 无法区分业务与测试口径 | `--include-test-data` 才得 36 / 180：`结果条数: 36（业务 32 + 测试 4）`、`含测试数据情景条数: 180`，且结果标 `scope="test"` |
 | 3 | 库内残留测试态结果 | 默认口径跑完后，库里仍留着 fixture 的 4 条结果 | 默认口径落库时主动清理：`残留的 synthetic_fixture 结果行: 0`，`最终 pricing_result 总数: 192`，`按 scope 分解: [('business', 192)]` |
 | 4 | 金额 JSON 精度 | `Decimal` 以裸 number 导出，读取器按 double 解析会丢精度 | 金额/比率字段改为**可精确恢复的十进制字符串** + `loads_tolerant` 兼容读取；`test_high_precision_value_survives_string_encoding` 等 22 个用例固定 |
-| 5 | 币种/结果性质语义模糊 | `currency = None`，结果未声明是理论上限还是情景 | `currency = "UNCONFIRMED"`、`result_type ∈ {theoretical_full_load_potential, scenario_estimate}`、`cost_scope`、`price_unit`、`billing_period` 全量声明 |
+| 5 | 币种/结果性质语义模糊 | `currency = None`，结果未声明是理论上限还是情景 | `currency = "UNCONFIRMED"`、`result_type ∈ {theoretical_full_load_potential, scenario_sensitivity_estimate}`、`cost_scope`、`price_unit`、`billing_period` 全量声明 |
 | 6 | 历史外部数据可能被读成内部实测 | 只有 `source_type`（载体）可判断 | 新增 `measurement_origin` + `is_internal_measurement` + `ALLOWED_ORIGINS` 强校验 + 4 项导入检查 |
 | 7 | 结果缺少输入侧证据链 | `PricingResult` 无输入 ID 与 SLA 字段 | 新增 `performance_record_id` / `hardware_price_id` / `token_price_id` / `evidence_ids` / `linkage_warnings` / `sla_status` / `sla_not_evaluable_reasons`，并以 `validate-results`（9 项）固定 |
 | 8 | 报告免责声明位置 | 收入表的免责声明排在 160 行表格**之后**，读者可能先看到数字 | 免责声明移到表格**之前**（`test_revenue_section_has_adjacent_disclaimer` 固定） |
@@ -302,7 +302,7 @@ bash scripts/verify_all.sh            # 19 步；输出同时写入 docs/test_ru
 
 | 约束 | 实现 / 证据 |
 |---|---|
-| 结果类型显式 | `result_type = theoretical_full_load_potential`（满载）/ `scenario_estimate`（情景） |
+| 结果类型显式 | `result_type = theoretical_full_load_potential`（满载）/ `scenario_sensitivity_estimate`（情景） |
 | 边界声明 | `cost_scope=gpu_cost_only`、`not_customer_quote`、`sla_commitment_not_provided` |
 | 免责声明位置 | 移到收入表**之前**（`test_revenue_section_has_adjacent_disclaimer`） |
 | 禁用措辞 | JSON/Markdown 均不得出现 `guaranteed_sla` / `official_quote` / `total_cost_of_ownership`；`test_json_exports_contain_no_positive_claims`、`test_report_contains_required_disclaimers` |

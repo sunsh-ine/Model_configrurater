@@ -22,6 +22,7 @@ from typing import Any
 
 import yaml
 
+from llm_capacity_pricing.engines.applicability import PriceContext, assess_applicability
 from llm_capacity_pricing.importers.console_summary import (
     extract_summary_blocks,
     html_to_text,
@@ -162,6 +163,26 @@ def build_candidate(
     )
     present += sorted(f"metrics.{k}" for k in metrics)
 
+    # M9：门禁由实际字段派生。页面级证据通常缺硬件绑定或 model revision，
+    # 因此可作**官方参考数值**展示，但不得用于 SLA 结论或经济性计算。
+    applicability = assess_applicability(
+        source_locatable=bool(entry.get("source_url") or evidence_file),
+        model_name=entry.get("model_name"),
+        model_revision=entry.get("model_revision"),
+        model_precision=entry.get("model_precision"),
+        hardware_model=entry.get("hardware_model"),
+        deployment_gpu_count=entry.get("deployment_gpu_count"),
+        framework_version=entry.get("framework_version"),
+        workload_defined=bool(entry.get("dataset_name") or entry.get("input_length")),
+        metrics=metrics,
+        sla_requirement=None,
+        price=PriceContext(currency="UNCONFIRMED", currency_confirmed=False),
+        measurement_origin_is_official=True,
+    )
+    for flag in ("sla_conclusion_blocked", "not_a_commercial_quote"):
+        if flag in applicability.quality_flags and flag not in flags:
+            flags.append(flag)
+
     candidate = OfficialBenchmarkCandidate(
         candidate_id=f"official_{entry['id']}",
         manifest_id=entry["id"],
@@ -196,12 +217,29 @@ def build_candidate(
         metrics=metrics,
         raw_labels=raw_labels,
         is_throughput_benchmark=is_throughput,
+        can_reference_performance=applicability.can_reference_performance,
+        can_evaluate_sla=applicability.can_evaluate_sla,
+        can_calculate_pricing=applicability.can_calculate_pricing,
+        commercial_quote_allowed=applicability.commercial_quote_allowed,
+        applicability_notes=applicability.applicability_notes,
         present_fields=present,
         missing_fields=missing,
         notes=notes,
         quality_flags=flags,
     )
     return candidate, evidence
+
+
+#: 非 partial_evidence 条目的跳过原因（按 status 给出可读说明）
+SKIP_REASON: dict[str, str] = {
+    "pending_verification": "尚无证据文件，等待补齐",
+    "not_a_result_dataset": "非结果数据集（仅工具/格式说明）",
+    "numeric_source_partial_environment": (
+        "数值型来源：由 import-sglang-candidates 按 record_id 接入候选表，"
+        "不由 import-official 处理"
+    ),
+    "verified": "已核实来源：应由 official_benchmark 导入路径处理",
+}
 
 
 def build_all_candidates(
@@ -218,11 +256,7 @@ def build_all_candidates(
                 {
                     "id": entry["id"],
                     "status": entry["status"],
-                    "reason": (
-                        "尚无证据文件，等待补齐"
-                        if entry["status"] == "pending_verification"
-                        else "非结果数据集（仅工具/格式说明）"
-                    ),
+                    "reason": SKIP_REASON.get(entry["status"], "非候选来源（未入库）"),
                 }
             )
             continue

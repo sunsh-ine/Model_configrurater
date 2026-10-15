@@ -65,12 +65,19 @@ python3 -m venv .venv
 .venv/bin/python -m llm_capacity_pricing.cli import-vllm \
   --file data/fixtures/vllm_synthetic.json --metadata config/fixture_vllm.yaml --db data/local.db
 
-# 10) 导入官方候选（partial_evidence）+ 查看官方覆盖情况
+# 10) 导入官方页面候选（partial_evidence）
 .venv/bin/python -m llm_capacity_pricing.cli import-official \
   --manifest data/sources/official_manifest.yaml --db data/local.db --root .
+
+# 11) 导入官方数值型候选（M7：12 条，含原文逐字段核对）
+.venv/bin/python -m llm_capacity_pricing.cli import-sglang-candidates \
+  --file data/incoming/sglang_official_benchmark_candidates_20261015.json \
+  --db data/local.db --root .
+
+# 12) 查看官方覆盖与门禁统计
 .venv/bin/python -m llm_capacity_pricing.cli official-coverage --db data/local.db
 
-# 11) 测试
+# 13) 测试
 .venv/bin/python -m pytest -q
 ```
 
@@ -99,7 +106,8 @@ bash scripts/verify_all.sh
 | `import-sglang --file <jsonl> --metadata <yaml> [--db <path>]` | SGLang 适配器导入 |
 | `import-vllm --file <json> --metadata <yaml> [--db <path>]` | vLLM 适配器导入 |
 | `import-official --manifest <yaml> --db <path> [--root <dir>]` | 把 manifest 中 `partial_evidence` 条目导入候选表（含 sha256 校验） |
-| `official-coverage --db <path>` | 官方覆盖情况：候选数 / 已核实数 / 有解析指标数 / 冒烟测试数 |
+| `import-sglang-candidates --file <json> --db <path> [--root <dir>]` | **M7**：导入官方 SGLang Cookbook 数值型候选，并逐字段核对存档原文 |
+| `official-coverage --db <path>` | 官方覆盖情况：两家族候选数 / 已核实数 / 有解析指标数 / **M9 门禁统计** |
 | `list-records --db <path>` | 列出全部 `record_id` 与来源类型 |
 
 所有命令成功返回 `0`，失败返回非零并输出明确错误信息（缺文件、非法百分比、
@@ -130,11 +138,14 @@ llm-capacity-pricing/
 │   │   ├── sglang_adapter.py              # bench_serving JSONL
 │   │   ├── vllm_adapter.py                # bench serve JSON
 │   │   ├── official_manifest.py           # manifest -> 候选记录（sha256 校验）
+│   │   ├── sglang_cookbook.py             # M7：官方 Cookbook 数值候选 + 原文逐字段核对
 │   │   ├── console_summary.py             # 官方控制台汇总块 -> 指标（机器解析）
 │   │   └── common.py                      # 字段别名 / percentile / 证据构造
 │   ├── engines/
 │   │   ├── pricing.py                     # 纯 Decimal 公式（含除零语义 + float 守卫）
-│   │   └── calculator.py                  # 编排 + 证据链 + SLA 状态 + 快照哈希
+│   │   ├── calculator.py                  # 编排 + 证据链 + SLA 状态 + 快照哈希
+│   │   ├── applicability.py               # M9：参考/SLA/经济性三条派生门禁
+│   │   └── metric_semantics.py            # M8：指标口径字典 + 一致性 + 溯源校验
 │   ├── storage/
 │   │   ├── database.py                    # SQLAlchemy 2.x / SQLite
 │   │   └── repository.py                  # 幂等 upsert + 读取 + 测试态结果清理
@@ -143,8 +154,8 @@ llm-capacity-pricing/
 │   │   └── markdown.py                    # 7 节报告
 │   ├── services.py                        # 服务层（CLI 与测试共用）
 │   └── cli.py                             # Typer CLI
-├── tests/                                 # 200 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（19 步）
+├── tests/                                 # 260 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（21 步）
 └── docs/
     ├── data_dictionary.md                 # 字段字典
     ├── formulas.md                        # 计算公式
@@ -196,10 +207,22 @@ synthetic fixture 以 `assumption` 级证据入库，报告与校验按来源分
 `hardware_price_id` / `token_price_id` / `evidence_ids`，缺价格关联时写
 `linkage_warnings` 而不是静默；`sla_status` 在缺 P99 时恒为 `not_evaluable` 并附原因；
 `result_type` 明确该结果是理论上限（`theoretical_full_load_potential`）还是情景估算
-（`scenario_estimate`）。`validate-results` 用 9 项检查固定这些性质。
+（`scenario_sensitivity_estimate`）。`validate-results` 用 9 项检查固定这些性质。
 
 **可复算。** 每次结果都带 `input_snapshot_hash`、`pricing_engine_version` 与
 逐步留痕 `steps`；同一输入 + 同一版本必然得到同一结果。
+
+**数据适用性门禁（M9）。** "能用来干什么"是**派生状态**，不是人工标记：
+`can_reference_performance`（可作官方参考展示）/ `can_evaluate_sla`（可用于某个**具体**
+需求的 SLA 结论，要求版本、精度、SKU、卡数、拓扑、负载、统计口径、P99 全部齐备且相符）/
+`can_calculate_pricing`（可进经济性计算，另需币种、成本、价格、有效期、计费规则）。
+当前 18 条候选：参考 12、SLA 0、经济性 0。正式报价在第一阶段**不存在**
+（`commercial_quote_allowed` 恒 False）。
+
+**指标口径隔离（M8）。** 口径定义集中在 `engines/metric_semantics.py`，
+`docs/benchmark_metric_dictionary.md` 的表格由代码生成并有防漂移测试；
+吞吐一致性校验 `吞吐 ≈ 累计 token / 时长`（容差 1e-3，实测最大误差 2.27e-4）；
+每个指标的取值还要能溯源到它自己那一行控制台输出（`label_provenance_issues`）。
 
 ---
 
@@ -208,13 +231,16 @@ synthetic fixture 以 `assumption` 级证据入库，报告与校验按来源分
 **已实现：** Excel 三表导入与幂等落库；旧表 32 行 Decimal 复算（0 不匹配）；
 变现比例情景与 10/30/50/70/100% 敏感性（默认 160 条）；SGLang / vLLM 版本化适配器与
 字段改名映射；业务/测试数据隔离与 `validate-results` 证据链校验；官方来源 manifest、
-存档证据（sha256）、6 条 `partial_evidence` 候选与字段级缺口台账；JSON / Markdown 报告；
-**200 个自动化测试**。
+存档证据（sha256）、**18 条 `partial_evidence` 候选**（6 条页面级 + 12 条官方数值型）
+与字段级缺口台账；**指标口径字典与吞吐一致性校验**；**三条派生门禁**
+（参考展示 / SLA 评估 / 经济性计算）；**200 + 60 = 260 个自动化测试**。
 
 **未实现（如实标注）：**
 
-- 官方 Benchmark **完整实测记录 0 条**：6 条候选都缺硬件型号与卡数等关键配置，
-  按"不允许补造缺失配置"的要求停在 `partial_evidence`，未捏造；
+- 官方 Benchmark **完整可复现记录 0 条**：12 条官方数值候选有完整测试命令与原始输出、
+  已逐字段核对，但缺 `model_revision` 与完整环境 pin；6 条页面级候选缺硬件绑定。
+  按"不允许补造缺失配置"的要求全部停在 `partial_evidence`，未捏造；
+- **官方候选不参与经济性计算**：`can_evaluate_sla = 0`、`can_calculate_pricing = 0`（18 条全为否）；
 - SLA 评估不可用：无 P99 TTFT/TPOT 实测数据，相关字段持续 `not_evaluable`；
 - 完整 TCO 未实现：只有 GPU 成本；
 - **有意不做**：跨配置的每卡→集群吞吐外推、自动选卡满足 SLA、异构 P/D 自动搜索、

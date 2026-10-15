@@ -71,7 +71,13 @@ def official_db(excel_db: str) -> str:
 def test_manifest_loads_and_statuses_known(root):
     entries = load_manifest(root / MANIFEST)
     statuses = {e["status"] for e in entries}
-    assert statuses <= {"partial_evidence", "pending_verification", "not_a_result_dataset", "verified"}
+    assert statuses <= {
+        "partial_evidence",
+        "pending_verification",
+        "not_a_result_dataset",
+        "numeric_source_partial_environment",  # M7 新增：官方数值型来源
+        "verified",
+    }
     assert sum(1 for e in entries if e["status"] == "verified") == 0
 
 
@@ -79,9 +85,10 @@ def test_only_partial_evidence_entries_are_imported(root):
     candidates, evidences, skipped = build_all_candidates(root / MANIFEST, root=root)
     assert len(candidates) == 6
     assert len(evidences) == 6
-    # 14 条 manifest = 6 条 partial_evidence 入库 + 6 条 not_a_result_dataset
-    # + 2 条 pending_verification 占位，后两类不进候选表。
-    assert len(skipped) == 8
+    # 16 条 manifest = 6 条 partial_evidence 入库 + 6 条 not_a_result_dataset
+    # + 2 条 pending_verification 占位 + 2 条 numeric_source_partial_environment
+    #（M7 的数值型来源由 import-sglang-candidates 处理），后三类不进本路径的候选表。
+    assert len(skipped) == 10
     assert all(c.verification_status == "partial_evidence" for c in candidates)
     assert all(s["status"] != "partial_evidence" for s in skipped)
 
@@ -327,7 +334,7 @@ def test_cli_import_official(excel_db, tmp_path):
     )
     assert r.exit_code == 0, r.output
     assert "6 条官方候选证据" in r.output
-    assert "跳过 8 条未入库条目" in r.output
+    assert "跳过 10 条未入库条目" in r.output
 
 
 def test_cli_official_coverage(excel_db):

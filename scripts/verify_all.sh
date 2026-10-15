@@ -23,6 +23,7 @@ CLI="$PY -m llm_capacity_pricing.cli"
 
 EXCEL="data/raw/Token产能计算器-0910.xlsx"
 MANIFEST="data/sources/official_manifest.yaml"
+INCOMING="data/incoming/sglang_official_benchmark_candidates_20261015.json"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -207,41 +208,47 @@ run_step 5 "import-excel（第三次，再验幂等）" 1 '^(导入完成|工作
 run_step 6 "import-sglang / import-vllm（synthetic fixture，测试数据）" 1 '^已导入 [0-9]+ 条' \
   step_import_fixtures
 
-run_step 7 "import-official（官方候选 partial_evidence）" 1 '^(已导入 [0-9]+ 条官方候选|跳过 [0-9]+ 条)' \
+run_step 7 "import-official（官方页面候选 partial_evidence）" 1 '^(已导入 [0-9]+ 条官方候选|跳过 [0-9]+ 条)' \
   $CLI import-official --manifest "$MANIFEST" --db "$DB" --root "$ROOT"
 
-run_step 8 "official-coverage" 1 '^  "(candidate_count|verified_count|with_parsed_metrics|throughput_benchmarks|single_request_smoke_tests)"' \
+run_step 8 "import-sglang-candidates（M7 官方数值型候选，含原文逐字段核对）" 1 '^(已导入 [0-9]+ 条官方数值候选|原文逐字段核对通过)' \
+  $CLI import-sglang-candidates --file "$INCOMING" --db "$DB" --root "$ROOT"
+
+run_step 9 "import-sglang-candidates（重复导入，验幂等）" 1 '^(已导入 [0-9]+ 条官方数值候选|原文逐字段核对通过)' \
+  $CLI import-sglang-candidates --file "$INCOMING" --db "$DB" --root "$ROOT"
+
+run_step 10 "official-coverage（两家族候选 + M9 门禁）" 1 '^  "(candidate_count|numeric_candidates|verified_count|can_evaluate_sla|can_calculate_pricing|numeric_verified_against_source)"' \
   $CLI official-coverage --db "$DB"
 
-run_step 9 "validate-import" 1 '^(校验项:|全部校验通过)|\[FAIL\]' \
+run_step 11 "validate-import" 1 '^(校验项:|全部校验通过)|\[FAIL\]' \
   $CLI validate-import --db "$DB"
 
-run_step 10 "calculate-all --mode legacy_full_load（默认业务口径）" 1 '^(已导出|结果条数|注意:)' \
+run_step 12 "calculate-all --mode legacy_full_load（默认业务口径）" 1 '^(已导出|结果条数|注意:)' \
   $CLI calculate-all --mode legacy_full_load --db "$DB" --out "$OUT_DIR/legacy_results.json"
 
-run_step 11 "calculate-all --mode legacy_full_load --include-test-data（测试口径）" 1 '^(已导出|结果条数|注意:)' \
+run_step 13 "calculate-all --mode legacy_full_load --include-test-data（测试口径）" 1 '^(已导出|结果条数|注意:)' \
   $CLI calculate-all --mode legacy_full_load --db "$DB" \
   --out "$OUT_DIR/legacy_results_with_tests.json" --include-test-data
 
-run_step 12 "scenario（单条，U=0.30）" 1 '^(情景结果已写入)|scenario_revenue_10k_per_gpu_year' \
+run_step 14 "scenario（单条，U=0.30）" 1 '^(情景结果已写入)|scenario_revenue_10k_per_gpu_year' \
   $CLI scenario --record excel_部署效能_2 --utilization 0.30 --db "$DB" --out "$OUT_DIR/scenario.json"
 
-run_step 13 "validate-results（结果可追溯 + SLA 口径）" 1 '^(结果条数:|校验项:|全部校验通过)|\[FAIL\]' \
+run_step 15 "validate-results（结果可追溯 + SLA 口径）" 1 '^(结果条数:|校验项:|全部校验通过)|\[FAIL\]' \
   $CLI validate-results --db "$DB"
 
-run_step 14 "旧表复算误差摘要 + 敏感性导出" 1 '^(复算覆盖行数|最大误差|超容差不匹配数|默认敏感性情景条数|含测试数据情景条数|入库计数)' \
+run_step 16 "旧表复算误差摘要 + 敏感性导出" 1 '^(复算覆盖行数|最大误差|超容差不匹配数|默认敏感性情景条数|含测试数据情景条数|入库计数)' \
   step_legacy_recompute
 
-run_step 15 "回到业务口径并复核库内计数（清理测试态结果行）" 1 '^(最终 pricing_result 总数|按 scope 分解|按 mode  分解|残留的 synthetic_fixture)' \
+run_step 17 "回到业务口径并复核库内计数（清理测试态结果行）" 1 '^(最终 pricing_result 总数|按 scope 分解|按 mode  分解|残留的 synthetic_fixture)' \
   step_scope_recheck
 
-run_step 16 "report（默认业务口径）" 1 '^(报告已写入)|"(bytes|records|scenario_results|legacy_results)"' \
+run_step 18 "report（默认业务口径，含未确认项与官方候选概览）" 1 '^(报告已写入)|"(bytes|records|scenario_results|legacy_results)"' \
   $CLI report --db "$DB" --out "$OUT_DIR/overview.md"
 
-run_step 17 "pytest" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 19 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 18 "产物清单" 1 '\.(json|md)$' \
+run_step 20 "产物清单" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

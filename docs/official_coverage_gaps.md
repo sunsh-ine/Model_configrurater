@@ -1,33 +1,125 @@
-# 官方 Benchmark 覆盖缺口报告（M5 / 验收整改任务 4）
+# 官方 Benchmark 覆盖缺口报告（M5 + M7）
 
-- 采集日期：2026-10-15
+- 最近更新：2026-10-15（M7 批次）
 - 采集方式：人工触发的 HTTP 抓取（**无自动爬取、不绕过访问限制**）。线索检索借助
   codex CLI 的联网检索能力定位候选页面，**每个 URL 都由本机 curl 独立复核 HTTP 状态后**
   才抓取存档，未直接采信检索结果中的任何数值。
-- 清单文件：`data/sources/official_manifest.yaml`（14 条）
-- 存档证据：`data/raw/official/*.html`（12 个文件，每个都记录 sha256）
-- 入库命令：`import-official` → 表 `official_benchmark_candidate`
-- 覆盖查询：`official-coverage`（当前输出见 §1）
+- 清单文件：`data/sources/official_manifest.yaml`（**16 条**）
+- 存档证据：`data/raw/official/`（12 个 HTML + **2 个 .mdx**，每个都记录 sha256）
+- 入库命令：`import-official`（页面级候选）与 `import-sglang-candidates`（M7 数值型候选）
+  → 同一张表 `official_benchmark_candidate`，用 `candidate_family` 区分
+- 覆盖查询：`official-coverage`
 
-## 1. 结论
+> **本文件在 M5 之后由 M7 续写**：§0 是本批次（M7）的结论与逐条核对，§1 起保留 M5 的
+> 页面级核查记录。两批数据都在候选表里，互不覆盖。
 
-**本次仍未取得任何可入库的 `official_benchmark` 实测记录：verified = 0 条
-（`official-coverage` 输出 `verified_count: 0`）。**
+## 0. M7 批次：SGLang Cookbook 官方数值型候选
 
-但本阶段把"不完整但不是零证据"的来源变成了**结构化缺口台账**，而不是丢掉：
+### 0.1 结论
+
+**完整可复现的官方案例仍为 verified = 0 条**（`official-coverage` 输出
+`verified_count: 0`），但本次取得了 12 条"有完整测试命令 + 原始控制台输出、
+且已逐字段机器核对"的官方**数值**记录。
 
 ```json
 {
-  "candidate_count": 6,
+  "candidate_count": 18,
+  "by_family": {"manifest_partial_evidence": 6, "sglang_numeric_cookbook": 12},
+  "manifest_candidates": 6,
+  "numeric_candidates": 12,
   "verified_count": 0,
-  "by_publisher": {"lmsys-sglang": 4, "vllm": 2},
-  "with_parsed_metrics": 1,
-  "throughput_benchmarks": 0,
-  "single_request_smoke_tests": 1
+  "by_publisher": {"lmsys-sglang": 4, "vllm": 2, "sgl-project/sglang": 12},
+  "with_parsed_metrics": 13,
+  "throughput_benchmarks": 12,
+  "single_request_smoke_tests": 1,
+  "numeric_verified_against_source": 12,
+  "numeric_missing_model_revision": 12,
+  "numeric_source_count": 2,
+  "gates": {
+    "can_reference_performance": 12,
+    "can_evaluate_sla": 0,
+    "can_calculate_pricing": 0,
+    "commercial_quote_allowed": 0
+  }
 }
 ```
 
-要点：
+两个来源、12 条记录：
+
+| 来源 | 条数 | 模型 | 硬件 / 拓扑 | 文档版本 |
+|---|---|---|---|---|
+| SGLang Qwen3 Cookbook | 9 | Qwen/Qwen3-235B-A22B-Instruct-2507 | 8×B200、TP8 | SGLang 0.5.6 |
+| SGLang Qwen3-Coder Cookbook | 3 | Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8 | 8×MI300X、TP8、EP2 | SGLang 0.5.7 |
+
+每条记录都具备：完整 `python3 -m sglang.bench_serving` 命令、`Serving Benchmark Result`
+控制台输出（26 项指标）、场景标签、目标 ISL/OSL、并发与请求数。**缺的是配置侧的
+可复现要素**：`model_revision`、完整环境 pin、以及 Qwen3 的权重精度。
+
+### 0.2 为什么这 12 条仍然不是 `official_benchmark`
+
+任务书 §5.2 要求"官方实验配置 + 原始指标 + 可追溯来源"三者齐备才可升级。本批次的
+12 条满足后两项（指标来自原文、来源已存档且 Blob SHA 与 SHA256 双校验通过），
+但**实验配置缺少 model revision 与环境 pin**——按"不编造缺失配置"的原则，
+不能宣称可复现，因此：
+
+- `quality_status` 恒为 `partial_evidence`；
+- `can_reference_performance = True`（可作**官方参考数值**展示）；
+- `can_evaluate_sla = False`、`can_calculate_pricing = False`（不得用于 SLA 结论与经济性计算）；
+- 模型 revision 保持 `null`，并登记在 `missing_fields`。
+
+### 0.3 逐条核对方式与结果
+
+核对不是人工比对，而是**机器解析**：按标题锚点（`5.1.1.1` 等）定位章节 →
+取该节的 benchmark 命令与输出块 → 与候选 JSON 逐字段比较。
+
+| 比对类别 | 字段 |
+|---|---|
+| 命令参数 | `--model`、`--dataset-name`、`--random-input-len`、`--random-output-len`、`--num-prompts`、`--max-concurrency` |
+| 控制台指标 | 成功请求数、时长、累计输入/输出 token、集群输入/输出吞吐、TTFT P99、TPOT Mean/P99、观测并发 |
+| 交叉校验 | 命令里的 `--max-concurrency` 与输出块 "Max request concurrency" 是否一致 |
+| 环境字段 | 硬件型号（`NVIDIA B200` / `AMD MI300X`）、卡数（`(8x)`）、`--tp 8`、`--ep 2` 与原文文字/命令对照 |
+
+结果：**12/12 通过，0 处不一致**（每条比对 13–14 个字段）。六条参考断言全部命中：
+
+| 记录 | 配置并发 | 集群 Input tok/s | 集群 Output tok/s | TTFT P99 ms | TPOT P99 ms |
+|---|---:|---:|---:|---:|---:|
+| Qwen3 5.1.1.1 | 1 | 140.07 | 96.65 | 166.05 | 10.15 |
+| Qwen3 5.1.1.2 | 16 | 810.44 | 832.04 | 727.08 | 24.09 |
+| Qwen3 5.1.1.3 | 100 | 2713.46 | 2738.78 | 863.11 | 41.19 |
+| Coder 5.1.1.1 | 1 | 82.68 | 57.19 | 662.15 | 17.08 |
+| Coder 5.1.1.2 | 16 | 455.77 | 468.83 | 1318.63 | 43.48 |
+| Coder 5.1.1.3 | 64 | 893.84 | 956.80 | 529.01 | 204.24 |
+
+### 0.4 本批次发现的三个坑（已修）
+
+1. **四反引号围栏**：Coder 原文用 ````text Output 包裹并内嵌 ```python，
+   按固定三反引号匹配会整体错位，导致 6 个真实结果块被漏掉。已按 CommonMark 规则
+   重写围栏扫描（闭合反引号数 ≥ 开启数）。
+2. **命令归属错位**：同一段落窗口里同时有 "Model Deployment Command" 与
+   "Benchmark Command" 时取错，把下一节的命令配给了上一节。已改为取最近标记 +
+   限定在本节范围内匹配。
+3. **`(retokenized)` 覆盖真值**：`Total generated tokens (retokenized)` 会命中
+   `Total generated tokens` 的映射，把 4210 覆盖成 4206。已让括号限定词参与查表。
+
+### 0.5 原文中存在但本批次未接入的结果块
+
+Qwen3-Coder 原文的 `5.1.2.1`（FP8）与 `5.1.2.2`（NVFP4）两节还有 **6 个结果块**
+（NVIDIA B200/GB200 配置）。它们**不在本批次提供的候选文件内**，因此：
+
+- 不生成候选记录（避免自行扩大数据集）；
+- 在 `import-sglang-candidates` 输出中登记为 `unlisted_sections_with_results: ['5.1.2', '5.1.2.1', '5.1.2.2']`、
+  `unlisted_result_block_count: 6`，供后续批次按需接入。
+
+### 0.6 正文与命令冲突的处理
+
+两个来源的正文都提到使用 ShareGPT_Vicuna_unfiltered 数据集，而实际测试命令是
+`--dataset-name random`。按任务书 §3.4，**以命令为测试参数依据**，并把冲突写进
+`verification.command_conflicts`，同时打 `narrative_conflicts_with_benchmark_command` 标记。
+候选中的 `dataset_name` 因此是 `random`，不是 `sharegpt`。
+
+---
+
+## 1. M5 批次的结论（保留）
 
 - 6 条候选全部标记 `verification_status = "partial_evidence"`，**不进**
   `benchmark_record`，更不会参与任何 SLA / 产能结论；
@@ -41,7 +133,7 @@
 
 按照任务书 §8 M5："若无法获得 2 条完整来源，**不得捏造**"，此缺口以本文件如实记录。
 
-## 2. 逐来源核查记录（manifest 全部 14 条）
+## 2. 逐来源核查记录（M5 批次的 14 条；manifest 现共 16 条，M7 新增 2 条见 §0）
 
 | # | 条目 ID | 发布方 | status | 请求 URL | HTTP | 含实测数值 | 判定 |
 |---|---|---|---|---|---|---|---|

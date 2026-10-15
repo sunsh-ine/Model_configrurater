@@ -3,8 +3,19 @@
   "result_type": "scenario_sensitivity_estimate",
   "meta": {
     "currency": "UNCONFIRMED",
+    "currency_confirmed": false,
     "currency_assumption": "CNY; pending business confirmation",
     "cost_scope": "gpu_cost_only",
+    "cost_scope_unconfirmed": [
+      "datacenter_space",
+      "electricity",
+      "network",
+      "labor_and_operations",
+      "software_license",
+      "depreciation_or_rental"
+    ],
+    "cost_scope_confirmation_status": "unconfirmed_pending_business_review",
+    "commercial_quote_allowed": false,
     "price_unit": "currency_unit_per_1M_tokens",
     "billing_period": "per_gpu_year",
     "decimals_encoding": {
@@ -15,7 +26,7 @@
       "compatible_reader": "llm_capacity_pricing.reporting.json_export.loads_tolerant",
       "compute_path": "all formulas use decimal.Decimal; JSON is an encoding boundary only"
     },
-    "generated_at": "2026-10-15T13:55:30",
+    "generated_at": "2026-10-15T14:49:10",
     "pricing_engine_version": "0.1.0",
     "mode": "scenario",
     "record_id": "excel_部署效能_2",
@@ -27,6 +38,9 @@
   "boundary_notices": [
     "本文件为离线计算 MVP 输出，不是对外报价，不是 SLA 承诺，也不是实际营收。",
     "cost_scope = gpu_cost_only：仅含表内 GPU 摊销/租金成本，不是完整 TCO。",
+    "cost_scope_unconfirmed 逐项列出**未经确认是否已包含**的成本项（机房/电力/网络/人工/软件/折旧租金），确认状态见 cost_scope_confirmation_status。",
+    "金额字段名为 theoretical_full_load_revenue 或 scenario_revenue，不得对外表述为「客户实际营收」「预期利润」或「正式报价」。",
+    "官方来源的 Benchmark 候选不参与本文件中的任何经济性计算。",
     "金额为理论满载潜力（或指定变现比例下的情景估算），非实际营收。",
     "旧表 I/J/K/L/M 保留在 legacy_* 字段，recomputed 结果另存，不互相覆盖。",
     "金额/比率字段以可精确恢复的十进制字符串编码；兼容读取见 llm_capacity_pricing.reporting.json_export.loads_tolerant。",
@@ -65,6 +79,15 @@
       "scenario_surplus_before_other_costs_10k_per_gpu_year": "0.6480341738880",
       "scenario_cluster_revenue_10k_year": "425.1842733911040",
       "cost_scope": "gpu_cost_only",
+      "cost_scope_unconfirmed": [
+        "datacenter_space",
+        "electricity",
+        "network",
+        "labor_and_operations",
+        "software_license",
+        "depreciation_or_rental"
+      ],
+      "cost_scope_confirmation_status": "unconfirmed_pending_business_review",
       "currency": "UNCONFIRMED",
       "currency_assumption": "CNY; pending business confirmation",
       "price_unit": "currency_unit_per_1M_tokens",

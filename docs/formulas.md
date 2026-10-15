@@ -163,7 +163,7 @@ scenario_cluster_revenue_10k_year = scenario_revenue_10k_per_gpu_year * deployme
 
 导出文件同时显式声明四件套：`currency`（未确认时 `"UNCONFIRMED"`）、
 `currency_assumption`、`cost_scope`、`price_unit` / `billing_period`，以及结果类型
-`result_type`（`theoretical_full_load_potential` 或 `scenario_estimate`）。
+`result_type`（`theoretical_full_load_potential` 或 `scenario_sensitivity_estimate`）。
 
 校验见 `tests/test_json_precision.py`（22 个用例）：`test_money_is_encoded_as_string_not_number`、
 `test_high_precision_value_survives_string_encoding`、

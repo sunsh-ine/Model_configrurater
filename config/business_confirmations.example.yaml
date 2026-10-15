@@ -1,0 +1,70 @@
+# 业务确认记录（示例模板）
+#
+# 用途：本项目的金额类输出目前全部建立在"未确认"的商业假设上。任何对外使用
+# （含内部经营决策）之前，都需要业务方**逐项书面确认**下列事项，并把确认结果
+# 落到本文件（复制为 config/business_confirmations.yaml）。
+#
+# 设计原则：确认是**显式记录**，不是改代码默认值。系统只读取这里的结论，
+# 不会因为"看起来合理"就自动放行；未确认项在 JSON 与 Markdown 报告中始终可见。
+#
+# 注意：本文件是模板，字段名与 schemas/pricing.py 中的常量一一对应。
+
+schema_version: "1.0"
+confirmed_by: null          # 确认人（姓名/工号）
+confirmed_at: null          # 确认时间（ISO8601）
+confirmation_document: null # 确认依据（邮件/会议纪要/合同编号等可追溯引用）
+
+items:
+  - key: currency
+    question: "模型 Token 价格与 GPU 成本使用什么币种？"
+    current_assumption: "CNY; pending business confirmation"
+    status: unconfirmed      # unconfirmed | confirmed | rejected
+    value: null              # 确认后填写，例如 "CNY"
+    impact: "所有金额字段的币种；影响全部收入/成本/比率结论"
+
+  - key: cost_scope
+    question: "GPU价格!C（万元/卡/年）是否已包含下列成本项？"
+    current_assumption: "gpu_cost_only"
+    status: unconfirmed
+    value: null
+    checklist:
+      datacenter_space: null        # 机房空间/托管
+      electricity: null             # 电力
+      network: null                 # 网络带宽
+      labor_and_operations: null    # 人工与运维
+      software_license: null        # 软件许可
+      depreciation_or_rental: null  # 折旧或租金（含硬件本体）
+    impact: "决定能否把结果称为 TCO；未确认前只能称 gpu_cost_only"
+
+  - key: cache_metric_semantics
+    question: "Excel H 列『总缓存命中率』是物理 KV 命中率，还是可计费缓存命中 Token 比例？"
+    current_assumption: "unknown（仅作旧表定价代理假设）"
+    status: unconfirmed
+    value: null
+    impact: "输入侧收入公式中命中/未命中单价的加权方式"
+
+  - key: price_valid_period
+    question: "Token 单价与 GPU 成本的适用有效期？"
+    current_assumption: "未提供（valid_from/valid_to 均为空）"
+    status: unconfirmed
+    value: null
+    impact: "价格时效性；过期价格不得用于对外结论"
+
+  - key: billing_rules
+    question: "是否存在合同层面的计费规则（缓存计费口径、最小计费单位、阶梯价）？"
+    current_assumption: "未提供"
+    status: unconfirmed
+    value: null
+    impact: "billable_cached_input_ratio 是否可推导；正式报价的前提"
+
+  - key: annual_seconds
+    question: "年度可用时间是否采用 365 天（31536000 秒），还是需扣除维护窗口？"
+    current_assumption: "31536000（365 天）"
+    status: unconfirmed
+    value: null
+    impact: "全部年化金额；改动属口径变更，需重建等价性基线"
+
+# 确认后会发生什么（不改代码）：
+#   * currency=confirmed 且 cost_scope 各项确认 -> 报告口径表显示为"已确认"，
+#     经济性结论可对外表述（但仍不出具正式报价，第一阶段不提供报价能力）；
+#   * 任何一项仍为 unconfirmed -> 相关结论保持"未确认"标注，且不得用于对外场景。

@@ -13,7 +13,11 @@ from typing import Any, Iterable, Sequence
 from llm_capacity_pricing.schemas.benchmark import BenchmarkRecord
 from llm_capacity_pricing.schemas.costs import HardwarePrice, TokenPrice
 from llm_capacity_pricing.schemas.evidence import Evidence
-from llm_capacity_pricing.schemas.pricing import PricingResult
+from llm_capacity_pricing.schemas.pricing import (
+    COST_SCOPE_CONFIRMATION_STATUS,
+    COST_SCOPE_UNCONFIRMED,
+    PricingResult,
+)
 
 SENSITIVITY_LEVELS = [Decimal("0.10"), Decimal("0.30"), Decimal("0.50"), Decimal("0.70"), Decimal("1.00")]
 
@@ -52,6 +56,7 @@ def build_report(
     include_test_data: bool = False,
     excluded_test_records: Sequence[str] = (),
     official_candidates: Sequence[Any] = (),
+    numeric_candidates: Sequence[Any] = (),
 ) -> str:
     L: list[str] = []
     add = L.append
@@ -78,6 +83,27 @@ def build_report(
         "`not_evaluable` |"
     )
     add("| 金额编码 | 导出 JSON 中金额为可精确恢复的十进制字符串 |")
+    add(
+        "| 成本范围未确认项 | "
+        + "、".join(f"`{c}`" for c in COST_SCOPE_UNCONFIRMED)
+        + f"（确认状态 `{COST_SCOPE_CONFIRMATION_STATUS}`）—— 上述各项**是否已包含在"
+        "表内成本中尚未确认**，因此本报告的成本与收入比不能当作完整 TCO 结论 |"
+    )
+    if numeric_candidates:
+        by_source: dict[str, int] = {}
+        for c in numeric_candidates:
+            by_source[c.source_id] = by_source.get(c.source_id, 0) + 1
+        add(
+            "| 官方数值候选 | 本次接入 "
+            f"{len(numeric_candidates)} 条（"
+            + "，".join(f"{k} {v} 条" for k, v in sorted(by_source.items()))
+            + "）；全部为 `partial_evidence`，**完整可复现的 verified=0**，"
+            "不参与本报告任何经济性计算 |"
+        )
+    if official_candidates:
+        add(
+            f"| 官方页面候选 | {len(official_candidates)} 条（页面级证据，同上不参与计算） |"
+        )
     add("")
 
     # "真实"数据（Excel/官方/实测）与人工 fixture 严格分开统计，
@@ -414,6 +440,46 @@ def build_report(
             "> **已核实的完整官方案例仍然为 0 条**：没有任何候选同时具备完整部署配置"
             "（模型 revision、框架版本、硬件型号与卡数、数据集）与全部必需指标。"
             "详见 `docs/official_coverage_gaps.md`。"
+        )
+        add("")
+
+    if numeric_candidates:
+        add("### 6.4 官方数值型候选（SGLang Cookbook，M7 接入）")
+        add("")
+        verified = sum(1 for c in numeric_candidates if c.verification.verified_against_source)
+        add(
+            f"共 {len(numeric_candidates)} 条，其中 **{verified} 条**已与本地存档的官方原文"
+            "逐字段机器核对一致（命令参数 + 控制台输出）。全部保持 `partial_evidence`："
+            "官方原文未给出 model revision 等配置项。"
+        )
+        add("")
+        add(
+            "| record_id | 来源 | 场景 | 配置并发 | 观测并发 | 集群 in/out tok/s "
+            "| TTFT P99 | TPOT P99 | 原文核对 | 参考可用 | SLA 可用 | 经济性可用 |"
+        )
+        add("|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for c in numeric_candidates:
+            m = c.metrics
+            add(
+                f"| `{c.record_id}` | {c.source_id} | {c.scenario_label} "
+                f"| {c.configured_max_concurrency} | {m.get('observed_concurrency', '—')} "
+                f"| {m.get('input_throughput_tok_s', '—')} / {m.get('output_throughput_tok_s', '—')} "
+                f"| {m.get('ttft_p99_ms', '—')} | {m.get('tpot_p99_ms', '—')} "
+                f"| {'✅' if c.verification.verified_against_source else '❌'} "
+                f"| {'是' if c.can_reference_performance else '否'} "
+                f"| {'是' if c.can_evaluate_sla else '否'} "
+                f"| {'是' if c.can_calculate_pricing else '否'} |"
+            )
+        add("")
+        add(
+            "> **集群吞吐是整套 8 卡一起跑出来的**，不是单卡能力；`配置并发` 与 `观测并发`"
+            "是两个不同口径（前者来自测试命令 `--max-concurrency`，后者来自控制台的"
+            " `Concurrency` 行）。指标口径见 `docs/benchmark_metric_dictionary.md`。"
+        )
+        add("")
+        add(
+            "> 这些候选**不参与**本报告第 4、5 节的经济性计算：'经济性可用' 一列全为否，"
+            "因为币种与成本范围尚未业务确认，且候选缺 model revision。"
         )
         add("")
     grouped: dict[str, list[Evidence]] = {}

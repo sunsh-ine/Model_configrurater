@@ -34,6 +34,19 @@ CURRENCY_UNCONFIRMED = "UNCONFIRMED"
 PRICE_UNIT = "currency_unit_per_1M_tokens"
 BILLING_PERIOD = "per_gpu_year"
 
+#: ``GPU价格!C`` 只确认为"Excel 表内的每卡年成本基准"，以下成本项**是否已包含未经确认**。
+#: 逐项列出而不是笼统写一句，避免读者把 gpu_cost_only 误当成完整 TCO（任务书 §6.3）。
+COST_SCOPE_UNCONFIRMED: tuple[str, ...] = (
+    "datacenter_space",
+    "electricity",
+    "network",
+    "labor_and_operations",
+    "software_license",
+    "depreciation_or_rental",
+)
+#: 成本边界的确认状态（未确认，等待业务复核）。
+COST_SCOPE_CONFIRMATION_STATUS = "unconfirmed_pending_business_review"
+
 
 class PricingScenario(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -105,6 +118,11 @@ class PricingResult(BaseModel):
 
     # ---- 溯源 / 边界声明 ------------------------------------------------
     cost_scope: str = COST_SCOPE
+    #: 未确认是否已包含的成本项（机房/电力/网络/人工/软件/折旧租金），逐项列出
+    cost_scope_unconfirmed: list[str] = Field(
+        default_factory=lambda: list(COST_SCOPE_UNCONFIRMED)
+    )
+    cost_scope_confirmation_status: str = COST_SCOPE_CONFIRMATION_STATUS
     #: 币种。Excel 未写明时为 CURRENCY_UNCONFIRMED，不默认人民币。
     currency: str = CURRENCY_UNCONFIRMED
     currency_assumption: str | None = None

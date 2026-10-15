@@ -28,6 +28,7 @@ from llm_capacity_pricing.importers.excel_importer import (
     import_excel,
 )
 from llm_capacity_pricing.importers.sglang_adapter import parse_sglang_bench_serving_jsonl_full
+from llm_capacity_pricing.importers.sglang_cookbook import build_numeric_candidates
 from llm_capacity_pricing.importers.vllm_adapter import parse_vllm_bench_serve_json_full
 from llm_capacity_pricing.reporting.json_export import (
     build_legacy_export,
@@ -221,25 +222,91 @@ def import_official_candidates(
 
 
 def official_coverage_summary(db_path: str | Path) -> dict[str, Any]:
-    """官方覆盖摘要：入册候选 vs. 仍未入库的 manifest 条目。"""
+    """官方覆盖摘要：入册候选（两个家族）+ 门禁统计。"""
     db, repo = open_db(db_path)
     try:
         with db.session() as session:
-            candidates = repo.list_official_candidates(session)
+            manifest_candidates = repo.list_official_candidates(session)
+            numeric_candidates = repo.list_numeric_candidates(session)
+            family_counts = repo.candidate_family_counts(session)
     finally:
         db.dispose()
+    all_candidates = list(manifest_candidates) + list(numeric_candidates)
     by_publisher: dict[str, int] = {}
-    for c in candidates:
+    for c in all_candidates:
         by_publisher[c.publisher] = by_publisher.get(c.publisher, 0) + 1
     return {
-        "candidate_count": len(candidates),
-        "verified_count": 0,  # 完整官方案例仍为 0，见 docs/official_coverage_gaps.md
+        "candidate_count": len(all_candidates),
+        "by_family": family_counts,
+        "manifest_candidates": len(manifest_candidates),
+        "numeric_candidates": len(numeric_candidates),
+        # 完整可复现的 official_benchmark 仍为 0（见 docs/official_coverage_gaps.md）
+        "verified_count": 0,
         "by_publisher": by_publisher,
-        "with_parsed_metrics": sum(1 for c in candidates if c.metrics),
-        "throughput_benchmarks": sum(1 for c in candidates if c.is_throughput_benchmark),
+        "with_parsed_metrics": sum(1 for c in all_candidates if c.metrics),
+        "throughput_benchmarks": sum(1 for c in all_candidates if c.is_throughput_benchmark),
         "single_request_smoke_tests": sum(
-            1 for c in candidates if c.is_throughput_benchmark is False
+            1 for c in all_candidates if c.is_throughput_benchmark is False
         ),
+        # 数值型候选与原文的逐字段核对情况（M7）
+        "numeric_verified_against_source": sum(
+            1 for c in numeric_candidates if c.verification.verified_against_source
+        ),
+        "numeric_missing_model_revision": sum(
+            1 for c in numeric_candidates if "model_revision" in c.missing_fields
+        ),
+        "numeric_source_count": len({c.source_id for c in numeric_candidates}),
+        # M9 派生门禁：能作参考展示 / 能评估 SLA / 能进经济性计算
+        "gates": {
+            "can_reference_performance": sum(
+                1 for c in all_candidates if c.can_reference_performance
+            ),
+            "can_evaluate_sla": sum(1 for c in all_candidates if c.can_evaluate_sla),
+            "can_calculate_pricing": sum(1 for c in all_candidates if c.can_calculate_pricing),
+            "commercial_quote_allowed": 0,
+        },
+    }
+
+
+def import_sglang_candidates(
+    incoming_path: str | Path,
+    db_path: str | Path,
+    *,
+    root: str | Path | None = None,
+) -> dict[str, Any]:
+    """M7：导入 SGLang Cookbook 官方**数值型**候选，并逐字段核对原文。
+
+    候选以 ``official_<record_id>`` 为稳定主键幂等 upsert，**不进入**
+    ``benchmark_record``，也不参与任何经济性计算。
+    """
+    base = Path(root) if root is not None else Path(incoming_path).resolve().parent.parent
+    candidates, evidences, summary = build_numeric_candidates(incoming_path, root=base)
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            repo.upsert_evidence(session, evidences)
+            repo.upsert_numeric_candidates(session, candidates)
+            session.commit()
+    finally:
+        db.dispose()
+    return {
+        **summary,
+        "imported_count": len(candidates),
+        "candidate_ids": [c.candidate_id for c in candidates],
+        "record_ids": [c.record_id for c in candidates],
+        "per_record": [
+            {
+                "record_id": c.record_id,
+                "source_section": c.source_section,
+                "verified_against_source": c.verification.verified_against_source,
+                "mismatch_count": len(c.verification.mismatches),
+                "missing_fields": c.missing_fields,
+                "can_reference_performance": c.can_reference_performance,
+                "can_evaluate_sla": c.can_evaluate_sla,
+                "can_calculate_pricing": c.can_calculate_pricing,
+            }
+            for c in candidates
+        ],
     }
 
 
@@ -929,6 +996,7 @@ def export_report(
             records = repo.list_benchmarks(session)
             import_runs = _import_runs(session)
             official_candidates = repo.list_official_candidates(session)
+            numeric_candidates = repo.list_numeric_candidates(session)
     finally:
         db.dispose()
 
@@ -948,6 +1016,7 @@ def export_report(
         include_test_data=include_test_data,
         excluded_test_records=legacy_meta["excluded_test_records"],
         official_candidates=official_candidates,
+        numeric_candidates=numeric_candidates,
     )
     p = Path(out_path)
     p.parent.mkdir(parents=True, exist_ok=True)

@@ -79,6 +79,13 @@ class OfficialBenchmarkCandidate(BaseModel):
     #: 单请求冒烟测试必须显式为 ``False``。
     is_throughput_benchmark: bool | None = None
 
+    # ---- M9 门禁（派生，不接受人工填写）----------------------------------
+    can_reference_performance: bool = False
+    can_evaluate_sla: bool = False
+    can_calculate_pricing: bool = False
+    commercial_quote_allowed: bool = False
+    applicability_notes: list[str] = Field(default_factory=list)
+
     # ---- 缺口台账 --------------------------------------------------------
     present_fields: list[str] = Field(default_factory=list)
     missing_fields: list[str] = Field(default_factory=list)
@@ -124,6 +131,154 @@ class OfficialBenchmarkCandidate(BaseModel):
         if self.metrics.get("success_count") == 1:
             if self.is_throughput_benchmark is not False:
                 raise ValueError("success_count=1 的单请求样例必须显式标记 is_throughput_benchmark=False")
+            if "single_request_smoke_test" not in self.quality_flags:
+                raise ValueError("成功请求数为 1 时必须带 single_request_smoke_test 质量标记")
+        return self
+
+    def metric(self, name: str) -> Decimal | None:
+        return self.metrics.get(name)
+
+
+# ---------------------------------------------------------------------------
+# SGLang Cookbook 官方**数值**候选（M7）
+# ---------------------------------------------------------------------------
+#
+# 与上面的 manifest 候选的区别：这类来源**明确给出了完整测试命令与原始控制台输出**
+# （含模型、硬件、卡数、TP/EP、负载参数与全部指标），因此可以逐字段机器核对；
+# 但**仍缺 model revision / 完整环境 pin / 精度**，所以依旧是 ``partial_evidence``，
+# 不允许自动升级为可复现的 ``official_benchmark``。
+
+#: 记录级核对结果：把"JSON 里的数"与"原文控制台输出的数"逐字段对上
+class CandidateVerification(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_section: str
+    source_block_found: bool = False
+    command_found: bool = False
+    compared_fields: list[str] = Field(default_factory=list)
+    matched_fields: list[str] = Field(default_factory=list)
+    #: 形如 ``"input_token_throughput_tps: json=140.07 source=140.08"``
+    mismatches: list[str] = Field(default_factory=list)
+    #: 正文叙述与测试命令冲突（如叙述 ShareGPT、命令为 --dataset-name random）
+    command_conflicts: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+    @property
+    def verified_against_source(self) -> bool:
+        return (
+            self.source_block_found
+            and self.command_found
+            and bool(self.compared_fields)
+            and not self.mismatches
+        )
+
+
+class SglangNumericCandidate(BaseModel):
+    """官方公开的**数值型** Benchmark 候选（来源已存档、已逐字段核对）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # ---- 标识 ------------------------------------------------------------
+    candidate_id: str
+    family: Literal["sglang_numeric_cookbook"] = "sglang_numeric_cookbook"
+    record_id: str
+    source_id: str
+    source_section: str
+    evidence_id: str
+
+    # ---- 来源与证据 ------------------------------------------------------
+    publisher: str
+    source_url: str | None = None
+    source_path: str | None = None
+    source_git_blob_sha: str | None = None
+    evidence_file: str | None = None
+    evidence_sha256: str | None = None
+    accessed_at: datetime | None = None
+    evidence_type: str = "official_project_published_benchmark"
+    quality_status: Literal["partial_evidence"] = "partial_evidence"
+    #: 本阶段任何候选都**不得**作为 SLA 承诺依据
+    eligible_for_sla_guarantee: bool = False
+
+    # ---- 模型 / 环境 -----------------------------------------------------
+    model_name: str | None = None
+    model_revision: str | None = None
+    model_precision: str | None = None
+    framework: str | None = None
+    framework_version: str | None = None
+    backend_version: str | None = None
+    hardware_model: str | None = None
+    deployment_gpu_count: int | None = None
+    tp_size: int | None = None
+    ep_size: int | None = None
+    dp_size: int | None = None
+    pd_mode: str | None = None
+
+    # ---- 负载 ------------------------------------------------------------
+    scenario_label: str | None = None
+    dataset_name: str | None = None
+    input_len_target: int | None = None
+    output_len_target: int | None = None
+    configured_max_concurrency: int | None = None
+    num_prompts: int | None = None
+    #: ``"inf"`` 等符号值原样保存在这里，**不**进入 ``metrics``，更不参与财务计算
+    traffic_request_rate_raw: str | None = None
+
+    # ---- 测量 ------------------------------------------------------------
+    #: 已核对后的指标（优先取原文控制台输出；原文缺失时才回落到候选文件，并打标记）
+    metrics: dict[str, Decimal] = Field(default_factory=dict)
+    #: 候选文件里**原始提供的**数值，保留用于逐项对照（不参与展示口径）
+    metrics_from_candidate_file: dict[str, Decimal] = Field(default_factory=dict)
+    raw_labels: dict[str, str] = Field(default_factory=dict)
+    symbols: dict[str, str] = Field(default_factory=dict)
+    #: 字段 -> 指标口径 ID（见 docs/benchmark_metric_dictionary.md）
+    metric_definition_ids: dict[str, str] = Field(default_factory=dict)
+    metric_semantics_version: str = "1.0"
+    #: 吞吐一致性校验（``吞吐 ≈ 累计 token / 时长``）的逐项结果
+    throughput_consistency: list[dict[str, Any]] = Field(default_factory=list)
+    #: 口径可疑点（如 TPOT 与 ITL 取值完全相同，需人工确认是否被混用）
+    semantic_warnings: list[str] = Field(default_factory=list)
+
+    #: 是否为真正的吞吐基准。``None`` = 无成功数无法判定；``False`` = 单请求冒烟测试。
+    is_throughput_benchmark: bool | None = None
+
+    # ---- 原始性 ----------------------------------------------------------
+    launch_command: str | None = None
+    benchmark_command: str | None = None
+    verification: CandidateVerification
+
+    # ---- M9 门禁（派生，不接受人工填写）----------------------------------
+    can_reference_performance: bool = False
+    can_evaluate_sla: bool = False
+    can_calculate_pricing: bool = False
+    commercial_quote_allowed: bool = False
+    applicability_notes: list[str] = Field(default_factory=list)
+
+    # ---- 缺口台账 --------------------------------------------------------
+    present_fields: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+    quality_flags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _guard(self) -> "SglangNumericCandidate":
+        for key, value in self.metrics.items():
+            if not isinstance(value, Decimal) or not value.is_finite():
+                raise ValueError(
+                    f"metrics[{key!r}] 必须是有限 Decimal：符号值（如 inf）应留在 symbols/traffic_request_rate_raw"
+                )
+        if self.model_revision in (None, "") and "model_revision" not in self.missing_fields:
+            raise ValueError("model_revision 缺失时必须登记在 missing_fields")
+        if self.can_evaluate_sla and self.model_revision in (None, ""):
+            raise ValueError("缺 model_revision 的记录不得声称 can_evaluate_sla")
+        if self.eligible_for_sla_guarantee:
+            raise ValueError("第一阶段候选不得标记 eligible_for_sla_guarantee=True")
+        if self.commercial_quote_allowed:
+            raise ValueError("第一阶段不产出正式商业报价，commercial_quote_allowed 必须为 False")
+        if self.quality_status == "verified" and not self.verification.verified_against_source:
+            raise ValueError("未通过原文逐字段核对的记录不得标记 verified")
+        success = self.metrics.get("success_count")
+        if success is not None and success == 1:
+            if self.is_throughput_benchmark is not False:
+                raise ValueError("成功请求数为 1 的记录必须显式标记 is_throughput_benchmark=False")
             if "single_request_smoke_test" not in self.quality_flags:
                 raise ValueError("成功请求数为 1 时必须带 single_request_smoke_test 质量标记")
         return self

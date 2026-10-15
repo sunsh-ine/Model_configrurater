@@ -34,12 +34,14 @@ from llm_capacity_pricing.services import (
     import_benchmark_file,
     import_excel_into_db,
     import_official_candidates,
+    import_sglang_candidates,
     init_db,
     official_coverage_summary,
     validate_import,
     validate_results,
 )
 from llm_capacity_pricing.importers.official_manifest import OfficialManifestError
+from llm_capacity_pricing.importers.sglang_cookbook import SglangCookbookError
 
 app = typer.Typer(
     add_completion=False,
@@ -275,7 +277,10 @@ def import_official_cmd(
         _fail(str(exc))
         return
     typer.secho(f"已导入 {info['candidate_count']} 条官方候选证据（partial_evidence）", fg=typer.colors.GREEN)
-    typer.echo(f"跳过 {info['skipped_count']} 条未入库条目（pending_verification / 非结果数据集）")
+    typer.echo(
+        f"跳过 {info['skipped_count']} 条未入库条目"
+        "（pending_verification / 非结果数据集 / 数值型来源由 import-sglang-candidates 处理）"
+    )
     _echo_json(
         {
             "candidates": info["candidates"],
@@ -284,11 +289,52 @@ def import_official_cmd(
     )
 
 
+@app.command("import-sglang-candidates")
+def import_sglang_candidates_cmd(
+    file: str = typer.Option(
+        "data/incoming/sglang_official_benchmark_candidates_20261015.json",
+        "--file",
+        help="官方数值候选 JSON（只读输入）",
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+    root: Optional[str] = typer.Option(
+        None, "--root", help="项目根目录（证据文件相对路径的基准，默认取输入文件的上级目录）"
+    ),
+) -> None:
+    """导入官方 SGLang Cookbook **数值型**候选，并逐字段核对存档原文。
+
+    候选保持 ``partial_evidence``，不进入性能数据库，也不参与经济性计算。
+    """
+    try:
+        info = import_sglang_candidates(file, db, root=root)
+    except (SglangCookbookError, FileNotFoundError) as exc:
+        _fail(str(exc))
+        return
+    typer.secho(
+        f"已导入 {info['imported_count']} 条官方数值候选（partial_evidence）",
+        fg=typer.colors.GREEN,
+    )
+    typer.echo(f"按来源: {info['by_source']}")
+    typer.echo(
+        f"原文逐字段核对通过: {info['verified_against_source']}/{info['imported_count']}"
+        f"（不一致 {info['imported_count'] - info['verified_against_source']} 条）"
+    )
+    for sid, meta in info["sources"].items():
+        if not meta.get("present_in_input"):
+            continue
+        typer.echo(
+            f"  {sid}: sha256匹配={meta.get('sha256_matches_spec')} "
+            f"git_blob匹配={meta.get('git_blob_sha_matches_declared')} "
+            f"原文未列出但有结果块的章节={meta.get('unlisted_sections_with_results')}"
+        )
+    _echo_json({"candidate_ids": info["candidate_ids"], "per_record": info["per_record"]})
+
+
 @app.command("official-coverage")
 def official_coverage_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
-    """查看官方 Benchmark 覆盖情况（候选数 / 已核实数 / 缺口）。"""
+    """查看官方 Benchmark 覆盖情况（候选数 / 已核实数 / 门禁统计）。"""
     _echo_json(official_coverage_summary(db))
 
 

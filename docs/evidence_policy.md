@@ -150,7 +150,7 @@ Excel 导入的每条记录都带 `source_sheet=部署效能`、`source_row=N`�
 | `token_price_id` | 指向 `TokenPrice`（单价来源），缺失时同上 |
 | `evidence_ids` | 引用到的全部 `Evidence` |
 | `scope` | `business` / `test`，标记该结果是否来自人工测试数据 |
-| `result_type` | `theoretical_full_load_potential` / `scenario_estimate`，说明这是理论上限还是情景估算 |
+| `result_type` | `theoretical_full_load_potential` / `scenario_sensitivity_estimate`，说明这是理论上限还是情景估算 |
 | `sla_status` + `sla_not_evaluable_reasons` | SLA 是否可评估；缺 P99 时恒为 `not_evaluable` 并写明原因 |
 | `currency` / `cost_scope` / `price_unit` / `billing_period` | 金额口径四件套，缺失币种时为 `UNCONFIRMED` |
 
