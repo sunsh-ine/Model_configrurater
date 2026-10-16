@@ -60,15 +60,78 @@ __all__ = ["load_plan_request", "evaluate_plan"]
 DOMAINS: tuple[str, ...] = ("input", "sizing", "performance", "economics", "governance")
 
 
+#: 常见校验错误 -> 修正建议（M41：报错要能直接照着改）
+_ERROR_HINTS: dict[str, str] = {
+    "missing": "该字段必填，请补上",
+    "extra_forbidden": "不认识这个字段名，请改用正确字段名",
+    "literal_error": "取值不在允许范围内，请改用列出的取值之一",
+    "int_parsing": "需要整数",
+    "decimal_parsing": "需要数字（可带引号，如 \"0.9\"）",
+    "greater_than_equal": "数值超出下限",
+    "string_type": "需要字符串",
+    "list_type": "需要列表，例如 [1, 2, 4, 8]",
+    "dict_type": "需要键值对",
+    "model_type": "该段结构不正确",
+}
+
+#: 已知字段的常见写错 -> 正确名（用于"是不是想写 X"）
+_FIELD_ALIAS_HINTS: dict[str, str] = {
+    "template": "template_id",
+    "hardware": "hardware_ids（顶层是列表）",
+    "model": "model_id",
+    "sla_requirement": "sla",
+    "cost_template": "cost",
+    "benchmark": "cost（成本模板在 cost 段）",
+}
+
+
+def _suggest_field(name: str, known: Sequence[str]) -> str | None:
+    """给一个拼错的字段名猜正确名（只提示，不自动改）。"""
+    if name in _FIELD_ALIAS_HINTS:
+        return _FIELD_ALIAS_HINTS[name]
+    import difflib
+
+    close = difflib.get_close_matches(name, list(known), n=1, cutoff=0.75)
+    return close[0] if close else None
+
+
+def _format_config_error(config: str | Path, exc: Exception) -> str:
+    """把 Pydantic 校验错误翻译成"文件 + 字段路径 + 修正建议"。"""
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return f"配置 {config} 校验失败: {exc}"
+    known_fields = list(PlanRequest.model_fields)
+    lines = [f"配置 {config} 校验失败（{len(errors())} 处）："]
+    for error in errors():
+        loc = ".".join(str(x) for x in error.get("loc") or ()) or "<顶层>"
+        hint = _ERROR_HINTS.get(error.get("type", ""), "")
+        message = str(error.get("msg") or "").strip()
+        suggestion = _suggest_field(loc.split(".")[-1], known_fields)
+        detail = f"  - {loc}: {hint or message}"
+        if suggestion:
+            detail += f"（是不是想写 `{suggestion}`？）"
+        elif message and hint:
+            detail += f"（原始信息：{message}）"
+        lines.append(detail)
+    lines.append(
+        "参考 data/examples/scenario_minimal.example.yaml 与 "
+        "docs/plan_config_reference.md 的字段说明。"
+    )
+    return "\n".join(lines)
+
+
 def load_plan_request(config: str | Path) -> PlanRequest:
-    """从 YAML 读取统一评估配置。字段即 ``PlanRequest`` 的结构。"""
+    """从 YAML 读取统一评估配置。字段即 ``PlanRequest`` 的结构。
+
+    校验失败时给出**字段路径 + 修正建议**，而不是抛一段 Pydantic 原始堆栈（M41）。
+    """
     raw = yaml.safe_load(Path(config).read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
-        raise ServiceError(f"{config} 顶层必须是映射")
+        raise ServiceError(f"{config} 顶层必须是映射（键值对），当前是 {type(raw).__name__}")
     try:
         return PlanRequest.model_validate(raw)
-    except Exception as exc:  # noqa: BLE001 - 转成带文件名的可读错误
-        raise ServiceError(f"配置 {config} 校验失败: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001 - 转成带字段路径的提示
+        raise ServiceError(_format_config_error(config, exc)) from exc
 
 
 def _assumptions(request: PlanRequest):
@@ -224,6 +287,15 @@ def evaluate_plan(
     # ------------------------------------------------------------------
     performance_status = "not_configured"
     ranked: dict[str, Any] = {}
+    if not runs:
+        # M41：无论是否配置了 SLA，只要库里没有实测，就直接告诉用户怎么补
+        next_data.append(
+            "导入目标配置的性能实测（import-performance）后才可能给出 SLA 结论"
+        )
+        next_data.append(
+            "没有现成实测时：先 `plan-benchmarks` 生成压测清单与 metadata 模板，"
+            "按清单采集后再用 `import-performance` 导入"
+        )
     if request.sla is None:
         missing.append("sla: 未给出 SLA 需求，无法评价性能是否达标")
     else:
@@ -250,9 +322,6 @@ def evaluate_plan(
             for entry in ranking.entries:
                 ranked[entry.candidate_id] = entry
         if not runs:
-            next_data.append(
-                "导入目标配置的性能实测（import-performance）后才可能给出 SLA 结论"
-            )
             performance_status = "missing_data"
     domains["performance"] = performance_status
 
