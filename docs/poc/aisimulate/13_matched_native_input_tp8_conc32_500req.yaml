@@ -1,0 +1,13 @@
+engine:
+  mode: aggregated
+  model: Qwen/Qwen3-32B-FP8
+  hardware: h100_sxm
+  backend: vllm
+  backend_version: current
+  workers:
+    aggregated:
+      parallelism: {tensor: 8, replicas: 1}
+traffic:
+  source: {type: synthetic, input_tokens: 8192, output_tokens: 256}
+  load: {type: concurrency, concurrency: 32}
+  stop: {requests: 500}

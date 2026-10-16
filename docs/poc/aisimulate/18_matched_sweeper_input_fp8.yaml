@@ -1,0 +1,24 @@
+# P1.3 严格对齐对照：把扫描器的搜索空间收缩到**一个点**
+# 身份：Qwen/Qwen3-32B-FP8 @ h100_sxm, vllm, tp8 pp1 dp1, replicas 1, 8 卡
+# 负载：ISL 8192 / OSL 256 / 并发(batch_size) 32 —— 与原生 predict 完全一致
+matched_vllm_tp8_bs32:
+  serving_mode: agg
+  model_path: Qwen/Qwen3-32B-FP8
+  system_name: h100_sxm
+  backend_name: vllm
+  backend_version: "0.24.0"
+  isl: 8192
+  osl: 256
+  ttft: 100000.0
+  tpot: 1000.0
+  total_gpus: 8
+  database_mode: SILICON
+  agg_num_gpu_candidates: [8]
+  agg_tp_candidates: [8]
+  agg_pp_candidates: [1]
+  agg_dp_candidates: [1]
+  agg_moe_tp_candidates: [1]
+  agg_moe_ep_candidates: [1]
+  agg_cp_candidates: [1]
+  decode_max_batch_size: 32
+  # 量化模式不覆盖：两侧都从 HF config 推断（严格对齐）
