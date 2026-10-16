@@ -74,7 +74,12 @@ from llm_capacity_pricing.schemas.performance import SlaPolicy
 
 app = typer.Typer(
     add_completion=False,
-    help="离线 LLM 部署基准数据与 Token 定价计算引擎（MVP）",
+    help=(
+        "离线 LLM 部署方案评估引擎。\n\n"
+        "**日常只需一条命令**：`plan --config <scenario.yaml> --out report.md`\n"
+        "（一份配置 → 一次评估 → 一份报告；资源/性能/成本/报价资格四个领域分开给结论）\n\n"
+        "其余命令是数据管理、校验、单领域诊断与报告的高级入口，通常不需要手动调用。"
+    ),
     no_args_is_help=True,
 )
 
@@ -101,7 +106,78 @@ def _parse_utilization(raw: str) -> Decimal:
     return value
 
 
-@app.command("init-db")
+# --------------------------------------------------------------------------
+# S1：统一评估入口（一份配置 + 一条命令 + 一份结果）
+# --------------------------------------------------------------------------
+
+
+@app.command("plan", rich_help_panel="① 主入口（日常使用）")
+def plan_cmd(
+    config: str = typer.Option(..., "--config", help="统一评估配置 YAML"),
+    out: Optional[str] = typer.Option(None, "--out", help="Markdown 报告路径"),
+    json_out: Optional[str] = typer.Option(
+        None, "--json-out", help="结构化结果 JSON 路径"
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """统一评估入口：读一份配置，跑通资源/性能/成本/治理四个领域。"""
+    from llm_capacity_pricing.reporting.plan_report import build_plan_report
+    from llm_capacity_pricing.workflow import evaluate_plan, load_plan_request
+
+    try:
+        request = load_plan_request(config)
+    except ServiceError as exc:
+        _fail(str(exc))
+        return
+
+    result = evaluate_plan(request, db_path=db)
+
+    typer.secho(
+        f"整体状态: {result.status}（领域: "
+        + ", ".join(f"{k}={v}" for k, v in result.domains.items())
+        + "）",
+        fg=typer.colors.GREEN if result.status == "ok" else typer.colors.YELLOW,
+    )
+    typer.echo(f"候选数: {len(result.candidates)}")
+    publishable = [c.candidate_id for c in result.candidates if c.quote_publishable]
+    typer.secho(
+        f"可发布正式报价的候选: {publishable or '无'}",
+        fg=typer.colors.GREEN if publishable else typer.colors.YELLOW,
+    )
+    for b in result.blockers:
+        typer.secho(f"  [{b.domain}] {b.code}: {b.message}", fg=typer.colors.RED)
+    for item in result.missing_inputs:
+        typer.echo(f"  缺少输入: {item}")
+
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        md = build_plan_report(result)
+        path.write_text(md, encoding="utf-8")
+        typer.echo(f"报告已写入 {out}（{len(md.encode('utf-8'))} 字节）")
+    if json_out:
+        path = Path(json_out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        typer.echo(f"结果已写入 {json_out}")
+
+    _echo_json(
+        {
+            "status": result.status,
+            "domains": result.domains,
+            "candidate_count": len(result.candidates),
+            "publishable": publishable,
+            "blocker_codes": [b.code for b in result.blockers],
+            "missing_inputs": result.missing_inputs,
+            "summary": result.summary,
+        }
+    )
+
+
+@app.command("init-db", rich_help_panel="② 数据导入")
 def init_db_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -112,7 +188,7 @@ def init_db_cmd(
     _echo_json(info["counts"])
 
 
-@app.command("import-excel")
+@app.command("import-excel", rich_help_panel="② 数据导入")
 def import_excel_cmd(
     file: str = typer.Option(..., "--file", help="Excel 文件路径"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
@@ -136,7 +212,7 @@ def import_excel_cmd(
         )
 
 
-@app.command("validate-import")
+@app.command("validate-import", rich_help_panel="③ 校验与库存")
 def validate_import_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -152,7 +228,7 @@ def validate_import_cmd(
     typer.secho("全部校验通过。", fg=typer.colors.GREEN)
 
 
-@app.command("calculate-all")
+@app.command("calculate-all", rich_help_panel="④ 计算与诊断（高级）")
 def calculate_all_cmd(
     mode: str = typer.Option("legacy_full_load", "--mode", help="legacy_full_load | scenario"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
@@ -207,7 +283,7 @@ def calculate_all_cmd(
     )
 
 
-@app.command("scenario")
+@app.command("scenario", rich_help_panel="④ 计算与诊断（高级）")
 def scenario_cmd(
     record: str = typer.Option(..., "--record", help="benchmark record_id，如 excel_部署效能_2"),
     utilization: str = typer.Option(..., "--utilization", help="变现比例 U ∈ [0,1]"),
@@ -238,7 +314,7 @@ def scenario_cmd(
     typer.secho(f"情景结果已写入 {info['out']}", fg=typer.colors.GREEN)
 
 
-@app.command("report")
+@app.command("report", rich_help_panel="⑤ 报告")
 def report_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
     out: str = typer.Option("data/exports/overview.md", "--out", help="Markdown 输出路径"),
@@ -254,7 +330,7 @@ def report_cmd(
     typer.secho(f"报告已写入 {info['out']}", fg=typer.colors.GREEN)
 
 
-@app.command("import-sglang")
+@app.command("import-sglang", rich_help_panel="② 数据导入")
 def import_sglang_cmd(
     file: str = typer.Option(..., "--file", help="SGLang bench_serving 结果文件 (JSONL)"),
     metadata: str = typer.Option(..., "--metadata", help="元数据 YAML 路径"),
@@ -270,7 +346,7 @@ def import_sglang_cmd(
     typer.secho(f"已导入 {len(info['records'])} 条 SGLang 记录", fg=typer.colors.GREEN)
 
 
-@app.command("import-vllm")
+@app.command("import-vllm", rich_help_panel="② 数据导入")
 def import_vllm_cmd(
     file: str = typer.Option(..., "--file", help="vLLM bench serve 结果文件 (JSON)"),
     metadata: str = typer.Option(..., "--metadata", help="元数据 YAML 路径"),
@@ -286,7 +362,7 @@ def import_vllm_cmd(
     typer.secho(f"已导入 {len(info['records'])} 条 vLLM 记录", fg=typer.colors.GREEN)
 
 
-@app.command("import-official")
+@app.command("import-official", rich_help_panel="② 数据导入")
 def import_official_cmd(
     manifest: str = typer.Option(
         "data/sources/official_manifest.yaml", "--manifest", help="官方来源 manifest 路径"
@@ -318,7 +394,7 @@ def import_official_cmd(
     )
 
 
-@app.command("import-sglang-candidates")
+@app.command("import-sglang-candidates", rich_help_panel="② 数据导入")
 def import_sglang_candidates_cmd(
     file: str = typer.Option(
         "data/incoming/sglang_official_benchmark_candidates_20261015.json",
@@ -359,7 +435,7 @@ def import_sglang_candidates_cmd(
     _echo_json({"candidate_ids": info["candidate_ids"], "per_record": info["per_record"]})
 
 
-@app.command("official-coverage")
+@app.command("official-coverage", rich_help_panel="③ 校验与库存")
 def official_coverage_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -367,7 +443,7 @@ def official_coverage_cmd(
     _echo_json(official_coverage_summary(db))
 
 
-@app.command("validate-results")
+@app.command("validate-results", rich_help_panel="③ 校验与库存")
 def validate_results_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
     include_test_data: bool = typer.Option(
@@ -391,7 +467,7 @@ def validate_results_cmd(
     typer.secho("全部校验通过。", fg=typer.colors.GREEN)
 
 
-@app.command("list-records")
+@app.command("list-records", rich_help_panel="③ 校验与库存")
 def list_records_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -430,7 +506,7 @@ def _parse_int_list(raw: str) -> list[int]:
         raise typer.BadParameter(f"无法解析整数列表: {raw}") from exc
 
 
-@app.command("import-models")
+@app.command("import-models", rich_help_panel="② 数据导入")
 def import_models_cmd(
     manifest: str = typer.Option(
         "data/models/model_manifest.yaml", "--manifest", help="模型清单路径"
@@ -450,7 +526,7 @@ def import_models_cmd(
     _echo_json(info["models"])
 
 
-@app.command("import-hardware")
+@app.command("import-hardware", rich_help_panel="② 数据导入")
 def import_hardware_cmd(
     catalog: str = typer.Option(
         "data/hardware/hardware_catalog.yaml", "--catalog", help="硬件目录路径"
@@ -472,7 +548,7 @@ def import_hardware_cmd(
     _echo_json(info["hardware"])
 
 
-@app.command("sizing-inventory")
+@app.command("sizing-inventory", rich_help_panel="③ 校验与库存")
 def sizing_inventory_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -480,7 +556,7 @@ def sizing_inventory_cmd(
     _echo_json(sizing_inventory(db))
 
 
-@app.command("estimate-memory")
+@app.command("estimate-memory", rich_help_panel="④ 计算与诊断（高级）")
 def estimate_memory_cmd(
     model: str = typer.Option(..., "--model", help="模型 ID（如 qwen3-32b）"),
     hardware: str = typer.Option(..., "--hardware", help="硬件 ID（如 nvidia-h100-sxm-80gb）"),
@@ -540,7 +616,7 @@ def estimate_memory_cmd(
     _echo_json(info)
 
 
-@app.command("plan-deployment")
+@app.command("plan-deployment", rich_help_panel="④ 计算与诊断（高级）")
 def plan_deployment_cmd(
     model: str = typer.Option(..., "--model", help="模型 ID"),
     hardware: str = typer.Option(..., "--hardware", help="硬件 ID"),
@@ -624,7 +700,7 @@ def plan_deployment_cmd(
 # ---------------------------------------------------------------------------
 
 
-@app.command("import-performance")
+@app.command("import-performance", rich_help_panel="② 数据导入")
 def import_performance_cmd(
     file: Optional[str] = typer.Option(None, "--file", help="单个压测结果文件（SGLang JSONL / vLLM JSON）"),
     metadata: Optional[str] = typer.Option(None, "--metadata", help="对应的适配器元数据 YAML"),
@@ -652,7 +728,7 @@ def import_performance_cmd(
     _echo_json({"run_ids": info["run_ids"], "skipped": info.get("skipped", [])})
 
 
-@app.command("match-benchmark")
+@app.command("match-benchmark", rich_help_panel="④ 计算与诊断（高级）")
 def match_benchmark_cmd(
     model: str = typer.Option(..., "--model", help="目标模型名（如 Qwen/Qwen3-32B）"),
     hardware: Optional[str] = typer.Option(None, "--hardware", help="目标硬件型号"),
@@ -694,7 +770,7 @@ def match_benchmark_cmd(
     _echo_json(info)
 
 
-@app.command("capacity-profile")
+@app.command("capacity-profile", rich_help_panel="④ 计算与诊断（高级）")
 def capacity_profile_cmd(
     target_concurrency: Optional[int] = typer.Option(None, "--target-concurrency", help="目标并发（检查覆盖）"),
     min_duration_s: Optional[str] = typer.Option(None, "--min-duration-s", help="可持续容量的最短测试时长（秒）"),
@@ -721,7 +797,7 @@ def capacity_profile_cmd(
     _echo_json(info)
 
 
-@app.command("calibrate-performance")
+@app.command("calibrate-performance", rich_help_panel="④ 计算与诊断（高级）")
 def calibrate_performance_cmd(
     metric: str = typer.Option("output_throughput_tok_s", "--metric", help="要估算的指标"),
     concurrency: int = typer.Option(..., "--concurrency", help="目标并发"),
@@ -746,7 +822,7 @@ def calibrate_performance_cmd(
     _echo_json(info)
 
 
-@app.command("evaluate-sla")
+@app.command("evaluate-sla", rich_help_panel="④ 计算与诊断（高级）")
 def evaluate_sla_cmd(
     requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON（requirement_id/ttft_p99_ms_max/...）"),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="指定用于判定的实测记录"),
@@ -814,7 +890,7 @@ def evaluate_sla_cmd(
     _echo_json(info)
 
 
-@app.command("rank-deployments")
+@app.command("rank-deployments", rich_help_panel="④ 计算与诊断（高级）")
 def rank_deployments_cmd(
     model: str = typer.Option(..., "--model", help="模型 ID（如 qwen3-32b）"),
     hardware: str = typer.Option(..., "--hardware", help="硬件 ID（如 nvidia-h100-sxm-80gb）"),
@@ -878,7 +954,7 @@ def rank_deployments_cmd(
     _echo_json(info)
 
 
-@app.command("performance-report")
+@app.command("performance-report", rich_help_panel="⑤ 报告")
 def performance_report_cmd(
     out: str = typer.Option("data/exports/performance_report.md", "--out", help="Markdown 报告路径"),
     target_concurrency: Optional[int] = typer.Option(None, "--target-concurrency", help="目标并发"),
@@ -897,7 +973,7 @@ def performance_report_cmd(
 # --------------------------------------------------------------------------
 
 
-@app.command("import-cost-catalog")
+@app.command("import-cost-catalog", rich_help_panel="② 数据导入")
 def import_cost_catalog_cmd(
     file: str = typer.Option(..., "--file", help="成本目录 YAML（成本项 + 计费规则）"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
@@ -924,7 +1000,7 @@ def import_cost_catalog_cmd(
     )
 
 
-@app.command("cost-catalog")
+@app.command("cost-catalog", rich_help_panel="③ 校验与库存")
 def cost_catalog_cmd(
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
 ) -> None:
@@ -942,7 +1018,7 @@ def cost_catalog_cmd(
     _echo_json(info)
 
 
-@app.command("import-commercial-confirmations")
+@app.command("import-commercial-confirmations", rich_help_panel="② 数据导入")
 def import_commercial_confirmations_cmd(
     file: str = typer.Option(..., "--file", help="人工商务确认 YAML"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
@@ -955,7 +1031,7 @@ def import_commercial_confirmations_cmd(
     _echo_json(info)
 
 
-@app.command("tco")
+@app.command("tco", rich_help_panel="④ 计算与诊断（高级）")
 def tco_cmd(
     plan_file: str = typer.Option(..., "--plan-file", help="成本方案模板 YAML"),
     template: str = typer.Option(..., "--template", help="模板 ID"),
@@ -1017,7 +1093,7 @@ def tco_cmd(
     )
 
 
-@app.command("revenue-scenario")
+@app.command("revenue-scenario", rich_help_panel="④ 计算与诊断（高级）")
 def revenue_scenario_cmd(
     demand_file: str = typer.Option(..., "--demand-file", help="业务需求情景 YAML"),
     scenario: str = typer.Option(..., "--scenario", help="情景 ID"),
@@ -1090,7 +1166,7 @@ def _phase4_facts(
     }
 
 
-@app.command("record-sla-evidence")
+@app.command("record-sla-evidence", rich_help_panel="④ 计算与诊断（高级）")
 def record_sla_evidence_cmd(
     candidate_id: str = typer.Option(..., "--candidate", help="候选 ID（证据绑定的对象）"),
     requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON"),
@@ -1152,7 +1228,7 @@ def record_sla_evidence_cmd(
     _echo_json(info)
 
 
-@app.command("import-quote-approvals")
+@app.command("import-quote-approvals", rich_help_panel="② 数据导入")
 def import_quote_approvals_cmd(
     file: str = typer.Option(..., "--file", help="人工审批记录 YAML"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
@@ -1167,7 +1243,7 @@ def import_quote_approvals_cmd(
     _echo_json(info)
 
 
-@app.command("quote-eligibility")
+@app.command("quote-eligibility", rich_help_panel="⑥ 治理与报价（高级）")
 def quote_eligibility_cmd(
     candidate_id: str = typer.Option(..., "--candidate", help="候选 ID"),
     requirement_id: str = typer.Option(..., "--requirement-id", help="需求 ID"),
@@ -1270,7 +1346,7 @@ def quote_eligibility_cmd(
     )
 
 
-@app.command("phase4-decision")
+@app.command("phase4-decision", rich_help_panel="⑥ 治理与报价（高级）")
 def phase4_decision_cmd(
     model: str = typer.Option(..., "--model", help="模型 ID"),
     hardware: str = typer.Option(..., "--hardware", help="硬件 ID"),
@@ -1353,7 +1429,7 @@ def phase4_decision_cmd(
     )
 
 
-@app.command("phase4-report")
+@app.command("phase4-report", rich_help_panel="⑤ 报告")
 def phase4_report_cmd(
     out: str = typer.Option("data/exports/phase4_report.md", "--out", help="Markdown 报告路径"),
     decision_json: Optional[str] = typer.Option(
@@ -1374,76 +1450,6 @@ def phase4_report_cmd(
     )
 
 
-
-# --------------------------------------------------------------------------
-# S1：统一评估入口（一份配置 + 一条命令 + 一份结果）
-# --------------------------------------------------------------------------
-
-
-@app.command("plan")
-def plan_cmd(
-    config: str = typer.Option(..., "--config", help="统一评估配置 YAML"),
-    out: Optional[str] = typer.Option(None, "--out", help="Markdown 报告路径"),
-    json_out: Optional[str] = typer.Option(
-        None, "--json-out", help="结构化结果 JSON 路径"
-    ),
-    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
-) -> None:
-    """统一评估入口：读一份配置，跑通资源/性能/成本/治理四个领域。"""
-    from llm_capacity_pricing.reporting.plan_report import build_plan_report
-    from llm_capacity_pricing.workflow import evaluate_plan, load_plan_request
-
-    try:
-        request = load_plan_request(config)
-    except ServiceError as exc:
-        _fail(str(exc))
-        return
-
-    result = evaluate_plan(request, db_path=db)
-
-    typer.secho(
-        f"整体状态: {result.status}（领域: "
-        + ", ".join(f"{k}={v}" for k, v in result.domains.items())
-        + "）",
-        fg=typer.colors.GREEN if result.status == "ok" else typer.colors.YELLOW,
-    )
-    typer.echo(f"候选数: {len(result.candidates)}")
-    publishable = [c.candidate_id for c in result.candidates if c.quote_publishable]
-    typer.secho(
-        f"可发布正式报价的候选: {publishable or '无'}",
-        fg=typer.colors.GREEN if publishable else typer.colors.YELLOW,
-    )
-    for b in result.blockers:
-        typer.secho(f"  [{b.domain}] {b.code}: {b.message}", fg=typer.colors.RED)
-    for item in result.missing_inputs:
-        typer.echo(f"  缺少输入: {item}")
-
-    if out:
-        path = Path(out)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        md = build_plan_report(result)
-        path.write_text(md, encoding="utf-8")
-        typer.echo(f"报告已写入 {out}（{len(md.encode('utf-8'))} 字节）")
-    if json_out:
-        path = Path(json_out)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        typer.echo(f"结果已写入 {json_out}")
-
-    _echo_json(
-        {
-            "status": result.status,
-            "domains": result.domains,
-            "candidate_count": len(result.candidates),
-            "publishable": publishable,
-            "blocker_codes": [b.code for b in result.blockers],
-            "missing_inputs": result.missing_inputs,
-            "summary": result.summary,
-        }
-    )
 
 if __name__ == "__main__":
     app()

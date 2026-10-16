@@ -1558,20 +1558,39 @@ def _catalog_sources() -> list[dict[str, Any]]:
 PERF_TEST_KINDS = ("synthetic_fixture",)
 
 
+#: 性能适配器注册表（S4 扩展点 2）。
+#:
+#: 新增一个压测框架/结果格式时，**只需在这里加一行**：
+#: 适配器必须满足 ``parse(file, metadata) -> (list[BenchmarkRecord], list[Evidence])``，
+#: 之后由 ``run_from_adapter`` 统一转成 BenchmarkRun / PerformanceProfile。
+#: 匹配、SLA 判定与 TCO 都只认统一后的对象，因此**不需要**改动任何领域核心。
+#:
+#: 这是一个普通查找表，不是插件框架：没有动态发现、没有抽象基类、
+#: 没有注册装饰器 —— 符合"出现第二种实现才抽取接口"的原则。
+PERFORMANCE_ADAPTERS: dict[str, tuple[str, str]] = {
+    "vllm": (
+        "llm_capacity_pricing.importers.vllm_adapter",
+        "parse_vllm_bench_serve_json_full",
+    ),
+    "sglang": (
+        "llm_capacity_pricing.importers.sglang_adapter",
+        "parse_sglang_bench_serving_jsonl_full",
+    ),
+}
+
+
 def _perf_importer(kind: str):
-    if kind == "sglang":
-        from llm_capacity_pricing.importers.sglang_adapter import (
-            parse_sglang_bench_serving_jsonl_full,
+    """按注册表取适配器（延迟导入，避免启动时加载全部导入器）。"""
+    entry = PERFORMANCE_ADAPTERS.get(kind)
+    if entry is None:
+        raise ServiceError(
+            f"未知性能数据来源 {kind!r}（已注册：{sorted(PERFORMANCE_ADAPTERS)}）；"
+            "新增格式请实现适配器并注册到 PERFORMANCE_ADAPTERS"
         )
+    module_name, func_name = entry
+    import importlib
 
-        return parse_sglang_bench_serving_jsonl_full
-    if kind == "vllm":
-        from llm_capacity_pricing.importers.vllm_adapter import (
-            parse_vllm_bench_serve_json_full,
-        )
-
-        return parse_vllm_bench_serve_json_full
-    raise ServiceError(f"未知性能数据来源 {kind!r}（支持 sglang / vllm）")
+    return getattr(importlib.import_module(module_name), func_name)
 
 
 def import_performance_run(
@@ -1582,8 +1601,10 @@ def import_performance_run(
     kind: str = "vllm",
 ) -> dict[str, Any]:
     """导入一次压测结果（M20）。走第一阶段已验证的版本化适配器。"""
+    # 先解析来源类型：未知 kind 要立刻报错，而不是先读文件再失败
+    importer = _perf_importer(kind)
     meta = yaml.safe_load(Path(metadata_file).read_text(encoding="utf-8"))
-    records, evidences = _perf_importer(kind)(file, meta)
+    records, evidences = importer(file, meta)
     if not records:
         raise ServiceError(f"未从 {file} 解析出任何记录")
     runs = [

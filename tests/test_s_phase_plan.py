@@ -590,3 +590,95 @@ def test_s2_reports_do_not_reimplement_business_rules(tmp_path, root):
         src = (_P("src/llm_capacity_pricing/reporting") / name).read_text(encoding="utf-8")
         for forbidden in ("evaluate_sla(", "match(", "compute_tco(", "evaluate_quote_eligibility("):
             assert forbidden not in src, f"{name} 不应直接调用 {forbidden}"
+
+
+# ==========================================================================
+# S5：简化配置、CLI 与报告
+# ==========================================================================
+
+
+def _full_plan_result(tmp_path, root):
+    db = _sizing_db(tmp_path, root, "s5.db")
+    import_cost_catalog(CATALOG, db)
+    from llm_capacity_pricing.services import (
+        import_commercial_confirmations,
+        import_quote_approvals,
+    )
+
+    import_commercial_confirmations(
+        "data/examples/phase4_commercial_confirmation.example.yaml", db
+    )
+    import_quote_approvals("data/examples/phase4_approvals.example.yaml", db)
+    return evaluate_plan(load_plan_request(FULL), db_path=db)
+
+
+def test_s5_report_body_hides_internal_vocabulary(tmp_path, root):
+    """正文（1–5 节）不得出现内部匹配等级/分桶/聚合 ID；附录可以有。"""
+    md = build_plan_report(_full_plan_result(tmp_path, root))
+    body, _, appendix = md.partition("## 6. 附录")
+
+    assert body and appendix
+    for internal in (
+        "observed_pass",
+        "exact_match",
+        "comparable_reference",
+        "conditional_feasible",
+        "requires_benchmark",
+        "aggregate:",
+        "measured_internal",
+    ):
+        assert internal not in body, f"正文泄漏内部术语：{internal}"
+
+    # 用户语言出现
+    assert any(label in body for label in ("实测达标", "证据不足", "缺少实测", "未配置需求"))
+    assert "条件可行" in body
+    # 附录保留可复核细节
+    assert "TP" in appendix
+
+
+def test_s5_report_distinguishes_measured_estimated_assumed_missing(tmp_path, root):
+    """报告必须能让读者分清实测 / 估算 / 假设 / 缺失。"""
+    md = build_plan_report(_full_plan_result(tmp_path, root))
+    body = md.partition("## 6. 附录")[0]
+    assert "性能数据性质" in body and "成本口径" in body
+    # 未配置/缺失要显式写出，而不是留空
+    assert ("未评估" in body) or ("缺失" in body) or ("缺少实测" in body)
+
+
+def test_s5_report_has_next_steps_section(tmp_path, root):
+    md = build_plan_report(_full_plan_result(tmp_path, root))
+    assert "## 4. 缺口与下一步" in md
+    assert "## 5. 结论边界" in md
+
+
+def test_s5_cli_help_puts_plan_first_and_keeps_advanced_commands(tmp_path):
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "① 主入口" in result.output
+    assert "plan --config" in result.output
+    # 历史命令仍在（作为高级入口保留）
+    for name in ("import-excel", "calculate-all", "rank-deployments", "phase4-decision"):
+        assert name in result.output
+    # plan 出现在其它命令之前
+    assert result.output.index("① 主入口") < result.output.index("② 数据导入")
+
+
+def test_s5_config_reference_documents_required_and_optional(root: Path):
+    doc = (root / "docs/plan_config_reference.md").read_text(encoding="utf-8")
+    for token in ("model_id", "hardware_ids", "workload.input_len", "advanced",
+                  "governance", "只维护一份配置"):
+        assert token in doc, token
+
+
+def test_s5_examples_are_a_subset_relation(root: Path):
+    """两份示例配置不得互相矛盾：完整示例是最小示例的超集。"""
+    minimal = yaml.safe_load((root / MINIMAL).read_text(encoding="utf-8"))
+    full = yaml.safe_load((root / FULL).read_text(encoding="utf-8"))
+    assert full["model_id"] == minimal["model_id"]
+    assert full["hardware_ids"] == minimal["hardware_ids"]
+    for key, value in minimal["workload"].items():
+        assert full["workload"].get(key) == value, key
+    for key, value in minimal["resources"].items():
+        assert full["resources"].get(key) == value, key
+    # 完整示例只在最小示例之上**追加**段落
+    assert set(full) - set(minimal) == {"sla", "cost", "demand", "budget", "governance"}

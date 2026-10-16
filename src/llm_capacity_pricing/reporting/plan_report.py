@@ -33,9 +33,46 @@ _DOMAIN_NAME = {
 }
 _STATUS_LABEL = {"ok": "完整", "partial": "部分结论", "blocked": "未开始（输入有阻断）"}
 
+#: 内部状态 -> 面向使用者的说法（报告正文不暴露内部枚举）
+_SLA_LABEL = {
+    "observed_pass": "实测达标",
+    "observed_fail": "实测未达标",
+    "estimated_only": "仅估算（不算达标）",
+    "not_evaluable": "证据不足",
+}
+_BUCKET_LABEL = {
+    "verified_sla_met": "已实测满足",
+    "measured_but_sla_unmet": "实测不满足",
+    "requires_benchmark": "需要补测",
+    "excluded": "静态不可行",
+}
+
+
+def _sla_label(candidate: Any) -> str:
+    if candidate.sla_status in _SLA_LABEL:
+        return _SLA_LABEL[candidate.sla_status]
+    if candidate.performance_status == "missing_data":
+        return "缺少实测"
+    if candidate.performance_status == "not_configured":
+        return "未配置需求"
+    return "未评估"
+
 
 def _fmt(value: Any) -> str:
     return "—" if value is None else str(value)
+
+
+_STATIC_LABEL = {
+    "feasible": "可行",
+    "conditional_feasible": "条件可行（需按假设复核）",
+    "infeasible": "不可行",
+    "insufficient_information": "信息不足",
+    "unsupported": "本轮不支持",
+}
+
+
+def _static_label(status: str) -> str:
+    return _STATIC_LABEL.get(status, status)
 
 
 def _data_kind(candidate: Any, domain: str) -> str:
@@ -124,8 +161,8 @@ def build_plan_report(result: PlanResult) -> str:
         for c in result.candidates:
             add(
                 f"| `{c.candidate_id}` | {c.gpu_count} | {c.tp_size}×{c.dp_size} "
-                f"| {c.static_status} "
-                f"| {c.sla_status or c.performance_status} "
+                f"| {_static_label(c.static_status)} "
+                f"| {_sla_label(c)} "
                 f"| {_data_kind(c, 'performance')} "
                 f"| {_fmt(c.total_cash_over_horizon)} {_fmt(c.currency)} "
                 f"| {_data_kind(c, 'economics')} "

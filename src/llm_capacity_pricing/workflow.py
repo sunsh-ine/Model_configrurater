@@ -647,6 +647,18 @@ def _recommendations(
                 f"成本完整且可比者中全周期成本最低：`{cheapest.candidate_id}`"
                 "—— 仅成本结论，不代表性能或可报价"
             )
+    buckets = {}
+    for c in candidates:
+        buckets[c.rank_bucket or c.performance_status] = (
+            buckets.get(c.rank_bucket or c.performance_status, 0) + 1
+        )
+    if buckets:
+        from llm_capacity_pricing.reporting.plan_report import _BUCKET_LABEL
+
+        readable = "、".join(
+            f"{_BUCKET_LABEL.get(k, k)} {v} 个" for k, v in sorted(buckets.items())
+        )
+        out.append(f"性能证据分布：{readable}")
     out.append(
         "本结果**不包含**跨维度综合评分：成本、性能与报价资格三者独立"
     )
