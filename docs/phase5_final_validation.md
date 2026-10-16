@@ -374,7 +374,7 @@ SLA 是面向用户体验的承诺，只能用客户端口径支撑。这是**�
 第三阶段允许显式 `allow_synthetic=True` 的算法验证路径，此时 synthetic 数据也能产出
 `observed_pass` —— 报告里会给出一个误导性的"可对外声称"布尔值。
 
-**修复**：`can_claim_sla` 现在同时要求：`essential_match` 严格匹配、
+**修复**：`can_claim_sla` 现在同时要求：`exact_match` 严格匹配、
 可信等级属于 `PRODUCTION_TRUST_LEVELS`（复用同一份权威定义）、且不含 synthetic 数据。
 `data_trust` 也改为：混合可信等级时保持 `None`（不再取"最乐观的那个"）。
 
