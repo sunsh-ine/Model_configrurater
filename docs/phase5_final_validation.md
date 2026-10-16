@@ -194,12 +194,63 @@ python -m llm_capacity_pricing.cli check-import --db data/local.db --out consist
 
 ---
 
-## 六、M39–M42：待执行
+## 六、M39：现场性能与 SLA 可信度验证 ✅
+
+### 6.1 交付
+
+`perf/site_validation.py` + CLI `validate-site`。把三个既有能力串成一次可解释验证：
+容量分析、配置/负载匹配、SLA 逐子项判定；**不新增判定规则**，
+所有结论都来自既有实现，这里只组织输入、汇总结论，并把"为什么不能评价"写成清单。
+
+输出包含：各并发点证据（含时长/失败率/样本是否满足可持续门槛）、已观测峰值吞吐与并发、
+可持续容量（未认定时给出原因）、匹配等级与原因、**负载与统计口径逐项对齐情况**、
+SLA 逐子项状态、以及不可评价原因。
+
+### 6.2 收紧的一处门禁
+
+SLA 评估新增 `metric_side_not_client` 门禁：服务端时延与客户端时延不可互换，
+SLA 是面向用户体验的承诺，只能用客户端口径支撑。这是**追加**的收紧
+（`metric_side` 默认即 `client`），既有数据与既有测试全部不受影响。
+
+### 6.3 验收对照
+
+| 计划 §M39 验收 | 结果 |
+|---|---|
+| 同模型同配置、不同长度/并发不能证明目标 SLA | ✅ `test_m39_different_length_cannot_prove_target_sla`、`test_m39_different_concurrency_cannot_prove_target_sla` |
+| 真实达标与真实不达标都正确报告 | ✅ `test_m39_clean_measured_group_reports_curve_and_subchecks`（`observed_pass`）、`test_m39_real_fail_is_reported_correctly`（`observed_fail`） |
+| Synthetic 仍不可替代真实依据 | ✅ `test_m39_synthetic_data_cannot_substitute_real_evidence` |
+| 输出曲线/峰值/可持续容量/逐子项/对齐情况 | ✅ `test_m39_clean_measured_group_reports_curve_and_subchecks` |
+| 可持续容量需重复观测 | ✅ `test_m39_sustainability_requires_repeats_and_duration` |
+
+---
+
+## 七、M40：真实成本与方案比较闭环 ✅
+
+### 7.1 交付
+
+* `PlanResult.summary.cost_comparability`：结构化输出**参照方案、可比较候选、
+  不可比较候选及其原因码**（币种/口径/周期/金额缺失），与报告文字共用同一套判据；
+* 报告的 **3.1 成本可比性**小节把不可比较原因翻译成用户语言；
+* **一条硬性提醒**：当"成本最低"的候选没有可用性能实测时，报告明确写出
+  "**不得**把它称为最优部署 —— 成本低与性能达标是两个独立维度，缺性能证据的方案需要先补测"。
+
+### 7.2 验收对照
+
+| 计划 §M40 验收 | 结果 |
+|---|---|
+| 输出可比较与不可比较候选及原因 | ✅ `test_m40_summary_exposes_comparable_and_not_comparable_candidates` |
+| 缺性能数据的低成本方案不得称为最优部署 | ✅ `test_m40_cheapest_without_performance_evidence_is_not_called_optimal`（含对照：有实测时不加该提醒） |
+| SLA 与成本是独立维度 | ✅ `test_m40_measured_cheapest_has_no_warning` |
+| 允许情景估算，未确认价格不得宣称正式价格 | ✅ `test_m40_unconfirmed_price_is_never_a_formal_price` |
+| 报告呈现可比性 | ✅ `test_m40_report_renders_comparability_section` |
+
+---
+
+## 八、M41–M42：待执行
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| M39 | 现场性能与 SLA 可信度验证（容量曲线、稳定容量、逐子项判定） | ⬜ 未开始 |
-| M40 | 真实成本与方案比较闭环（可比/不可比候选并列） | ⬜ 未开始 |
+| M41 | 降低用户操作成本（配置报错定位、报告层次、补测提示） | ⬜ 未开始 |
 | M39 | 现场性能与 SLA 可信度验证（容量曲线、稳定容量、逐子项判定） | ⬜ 未开始 |
 | M40 | 真实成本与方案比较闭环（可比/不可比候选并列） | ⬜ 未开始 |
 | M41 | 降低用户操作成本（配置报错定位、报告层次、补测提示） | ⬜ 未开始 |
@@ -207,17 +258,18 @@ python -m llm_capacity_pricing.cli check-import --db data/local.db --out consist
 
 ---
 
-## 七、回归记录
+## 九、回归记录
 
 | 轮次 | 全量测试 | 全链路步骤 | 第一阶段回归 | 反向场景 |
 |---|---|---|---|---|
 | S 阶段封板（92944e3） | 683 passed | 53 / 53 | 160 / 192 / 0 | 17 / 17 |
 | M35 + M36 | 709 passed | 54 / 54 | 160 / 192 / 0 | 17 / 17 |
-| M35–M38 | **727 passed** | **56 / 56** | **160 / 192 / 0** | **17 / 17** |
+| M35–M38 | 727 passed | 56 / 56 | 160 / 192 / 0 | 17 / 17 |
+| M35–M40 | **740 passed** | **57 / 57** | **160 / 192 / 0** | **17 / 17** |
 
 ---
 
-## 八、未闭环事项（与前几阶段一致）
+## 十、未闭环事项（与前几阶段一致）
 
 1. **真实性能验收未验证** —— 缺少目标模型 / GPU / 配置的真实压测记录；
 2. **商业报价不可发布** —— 未接入可信审批系统，且无已确认真实价格；

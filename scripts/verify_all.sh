@@ -643,13 +643,22 @@ run_step 52 "plan-benchmarks（M37 压测实验清单 + metadata 模板）" 1 '^
     --runtime-reserve-fraction 0.1 \
     --out "$OUT_DIR/benchmark_experiments.json" --metadata-dir "$OUT_DIR/metadata" --db "$DB"
 
-run_step 53 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 53 "validate-site（M39 现场性能与 SLA 可信度：容量/匹配/逐子项/不可评价原因）" 1 '^匹配等级 |^  "(group_key|run_count|match_level|sla_status|can_claim_sla)"' \
+  $CLI validate-site \
+    --requirement '{"requirement_id":"req-site","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
+    --model SYNTHETIC-MODEL-C --model-revision synthetic-revision-1 --precision bf16 \
+    --hardware SYNTHETIC-GPU-C --gpu-count 4 --tp 4 --dp 1 \
+    --framework vllm --framework-version synthetic-fw-1.0 \
+    --concurrency 8 --input-len 1024 --output-len 256 --dataset random \
+    --arrival-mode unbounded --out "$OUT_DIR/site_validation.json" --db "$DB"
+
+run_step 54 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 54 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 55 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 55 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 56 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

@@ -3822,3 +3822,57 @@ def verify_reimport_is_stable(
         ),
         "raw": _json.dumps({"stable": stable}),
     }
+
+
+# --------------------------------------------------------------------------
+# 第五阶段 M39：现场性能与 SLA 可信度验证
+# --------------------------------------------------------------------------
+
+
+def validate_site_performance_for(
+    db_path: str | Path,
+    *,
+    requirement: dict[str, Any],
+    facts: dict[str, Any],
+    policy: Any = None,
+    run_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """M39：对现场实测做完整验证（容量曲线 + 匹配 + SLA 逐子项 + 不可评价原因）。
+
+    只读：不修改任何记录的信任等级。
+    """
+    from llm_capacity_pricing.perf.capacity_analyzer import grouping_key
+    from llm_capacity_pricing.perf.site_validation import validate_site_performance
+    from llm_capacity_pricing.schemas.performance import SlaRequirement
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    if run_ids:
+        wanted = set(run_ids)
+        runs = [r for r in runs if r.run_id in wanted]
+    if not runs:
+        raise ServiceError("性能证据池为空：没有可验证的实测记录")
+
+    target = _target_from_facts(facts)
+    # 限定在"最佳匹配所在分组"内验证：不同分组混在一起会得到错误的曲线
+    best_run, _best_match_result = _best_match(target, runs)
+    if best_run is not None:
+        key = grouping_key(best_run)
+        runs = [r for r in runs if grouping_key(r) == key]
+
+    validation = validate_site_performance(
+        runs=runs,
+        target=target,
+        requirement=SlaRequirement.model_validate(requirement),
+        policy=policy,
+    )
+    payload = validation.to_dict()
+    payload["notice"] = (
+        "本验证只读。容量/匹配/SLA 三条结论相互独立；"
+        "synthetic 数据即使算出结论也只能用于算法验证。"
+    )
+    return payload

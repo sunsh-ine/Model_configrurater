@@ -574,6 +574,12 @@ def evaluate_plan(
                 for c in candidates
                 if c.economics_status == "computed" and not c.cost_incomplete
             ],
+            # M40：可比较 / 不可比较候选（含原因），供报告与下游直接消费
+            "cost_comparability": (
+                _cost_comparability_summary(candidates)
+                if economics_status == "computed"
+                else {}
+            ),
         },
         limitations=_limitations(domains),
         generated_at=datetime.now(timezone.utc),
@@ -673,6 +679,46 @@ def _cost_profile(candidate: PlanCandidate) -> Any:
     )
 
 
+def _cost_comparability_summary(candidates: Sequence[PlanCandidate]) -> dict[str, Any]:
+    """M40：把"可比较 / 不可比较"候选结构化输出（含不可比较原因）。
+
+    与 `_cost_recommendations` 共用同一套判据（``cost_comparability``），
+    因此报告文字与结构化结果不会打架。
+    """
+    from llm_capacity_pricing.decision.comparison import cost_comparability
+
+    profiles = {c.candidate_id: _cost_profile(c) for c in candidates}
+    reference_id = None
+    reference_profile = None
+    for candidate in candidates:
+        profile = profiles[candidate.candidate_id]
+        if not profile.incomplete and profile.total_cash_over_horizon is not None:
+            reference_id, reference_profile = candidate.candidate_id, profile
+            break
+    comparable: list[str] = []
+    not_comparable: dict[str, str] = {}
+    if reference_profile is not None:
+        for candidate in candidates:
+            kind, _notes = cost_comparability(
+                profiles[candidate.candidate_id], reference_profile
+            )
+            if kind == "comparable":
+                comparable.append(candidate.candidate_id)
+            elif candidate.candidate_id != reference_id:
+                not_comparable[candidate.candidate_id] = kind
+    else:
+        for candidate in candidates:
+            kind, _notes = cost_comparability(
+                profiles[candidate.candidate_id], None
+            )
+            not_comparable[candidate.candidate_id] = kind
+    return {
+        "reference_candidate_id": reference_id,
+        "comparable": sorted(comparable),
+        "not_comparable": dict(sorted(not_comparable.items())),
+    }
+
+
 def _cost_recommendations(candidates: Sequence[PlanCandidate]) -> list[str]:
     """成本高低结论（M35）。
 
@@ -731,6 +777,14 @@ def _cost_recommendations(candidates: Sequence[PlanCandidate]) -> list[str]:
         f"{reference_profile.cost_basis} / {reference_profile.horizon_years} 年）"
         "—— 仅成本结论，不代表性能或可报价"
     )
+    # M40：成本最低 ≠ 最优部署。缺性能证据时把这句话说死。
+    if cheapest.sla_status not in ("observed_pass", "observed_fail"):
+        out.append(
+            f"⚠️ `{cheapest.candidate_id}` **没有可用的性能实测**"
+            f"（SLA {cheapest.sla_status or '不可评估'}）："
+            "**不得**把它称为最优部署 —— 成本低与性能达标是两个独立维度，"
+            "缺性能证据的方案需要先补测"
+        )
     if reasons:
         out.append(
             "不可比候选及原因："

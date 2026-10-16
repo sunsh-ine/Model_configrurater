@@ -240,6 +240,25 @@ def evaluate_sla(
                     "配置不匹配的实测数据不能作为该需求的 SLA 依据",
                 ],
             )
+    # ---- 门禁 2c：指标口径侧必须是客户端（M39 收紧）------------------
+    # 服务端时延与客户端时延不可互换：SLA 是面向用户体验的承诺，
+    # 只能用客户端口径的实测支撑。该门禁是**追加**的收紧 ——
+    # `metric_side` 默认就是 client，因此既有数据不受影响。
+    if run.profile.metric_side != "client":
+        return SlaEvaluation(
+            requirement_id=requirement.requirement_id,
+            target_ref=target_ref,
+            status="not_evaluable",
+            policy_id=policy.policy_id,
+            matched_run_id=run.run_id,
+            match_level=match_result.level if match_result else None,
+            data_trust=run.data_trust,
+            reasons=[
+                f"metric_side_not_client:{run.profile.metric_side}",
+                "服务端口径与客户端口径不可互换：不得用服务端时延支撑面向用户的 SLA 承诺",
+            ],
+        )
+
     trust: DataTrust = run.data_trust
     accepted = set(policy.accepted_trust_levels)
     if trust == "synthetic_fixture" and policy.allow_synthetic:

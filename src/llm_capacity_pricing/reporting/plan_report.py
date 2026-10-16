@@ -75,6 +75,15 @@ def _static_label(status: str) -> str:
     return _STATIC_LABEL.get(status, status)
 
 
+#: 成本不可比原因 -> 用户语言
+_COMPARABILITY_LABEL = {
+    "incomplete_cost": "成本不完整或金额缺失（不得按 0 排序）",
+    "not_comparable_currency": "币种不同（不得直接比较金额）",
+    "not_comparable_basis": "买断/租赁口径不同（不是同一口径）",
+    "not_comparable_horizon": "计算年限不同（全周期总额不可直接比较）",
+}
+
+
 def _data_kind(candidate: Any, domain: str) -> str:
     """标注该领域结论的数据性质：实测 / 估算 / 假设 / 缺失。"""
     if domain == "performance":
@@ -196,6 +205,27 @@ def build_plan_report(result: PlanResult) -> str:
     for item in result.recommendations:
         add(f"- {item}")
     add("")
+
+    # ---- 成本可比性 ----
+    comparability = (result.summary or {}).get("cost_comparability") or {}
+    if comparability:
+        add("## 3.1 成本可比性")
+        add("")
+        add(
+            "参照方案：`{}`".format(comparability.get("reference_candidate_id") or "无")
+        )
+        comparable = comparability.get("comparable") or []
+        add(
+            "**可比较候选**：" + ("、".join(f"`{c}`" for c in comparable) if comparable else "无")
+        )
+        not_comparable = comparability.get("not_comparable") or {}
+        if not_comparable:
+            add("")
+            add("**不可比较候选**（不参与成本高低比较）：")
+            add("")
+            for cid, kind in not_comparable.items():
+                add(f"- `{cid}`：{_COMPARABILITY_LABEL.get(kind, kind)}")
+        add("")
 
     # ---- 缺口 ----
     add("## 4. 缺口与下一步")

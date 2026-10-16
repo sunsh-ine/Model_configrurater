@@ -52,6 +52,7 @@ from llm_capacity_pricing.services import (
     cost_catalog_summary,
     data_quality_report,
     check_import_consistency_for,
+    validate_site_performance_for,
     import_commercial_confirmations,
     import_quote_approvals,
     plan_benchmarks_for,
@@ -181,6 +182,76 @@ def plan_cmd(
             "blocker_codes": [b.code for b in result.blockers],
             "missing_inputs": result.missing_inputs,
             "summary": result.summary,
+        }
+    )
+
+
+@app.command("validate-site", rich_help_panel="① 主入口（日常使用）")
+def validate_site_cmd(
+    requirement: str = typer.Option(..., "--requirement", help="SLA 需求 JSON"),
+    model: str = typer.Option(..., "--model", help="模型名（与实测签名一致）"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件型号（签名写法，如 NVIDIA H100 SXM）"),
+    gpu_count: int = typer.Option(..., "--gpu-count", help="GPU 卡数"),
+    tp: int = typer.Option(..., "--tp", help="TP 大小"),
+    dp: int = typer.Option(1, "--dp", help="DP 大小"),
+    precision: Optional[str] = typer.Option(None, "--precision", help="权重精度"),
+    model_revision: Optional[str] = typer.Option(None, "--model-revision", help="模型版本"),
+    framework: Optional[str] = typer.Option(None, "--framework", help="推理框架"),
+    framework_version: Optional[str] = typer.Option(None, "--framework-version", help="框架版本"),
+    concurrency: Optional[int] = typer.Option(None, "--concurrency", help="配置并发"),
+    input_len: Optional[int] = typer.Option(None, "--input-len", help="输入长度"),
+    output_len: Optional[int] = typer.Option(None, "--output-len", help="输出长度"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="数据集"),
+    arrival_mode: Optional[str] = typer.Option(None, "--arrival-mode", help="到达方式"),
+    run_ids: Optional[str] = typer.Option(None, "--run-ids", help="限定 run_id（逗号分隔）"),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M39：现场性能与 SLA 可信度验证（容量 / 匹配 / SLA 逐子项 / 不可评价原因）。"""
+    facts = _phase4_facts(
+        model=model, model_revision=model_revision, precision=precision,
+        hardware=hardware, gpu_count=gpu_count, tp=tp, dp=dp,
+        framework=framework, framework_version=framework_version,
+        concurrency=concurrency, input_len=input_len, output_len=output_len,
+        dataset=dataset, arrival_mode=arrival_mode,
+    )
+    try:
+        info = validate_site_performance_for(
+            db,
+            requirement=json.loads(requirement),
+            facts=facts,
+            run_ids=_parse_str_list(run_ids) if run_ids else None,
+        )
+    except (ServiceError, ValueError) as exc:
+        _fail(str(exc))
+        return
+    typer.secho(
+        f"匹配等级 {info['match_level']}；SLA 状态 {info['sla_status']}"
+        f"（可对外声称依据：{'是' if info['can_claim_sla'] else '否'}）",
+        fg=typer.colors.GREEN if info["can_claim_sla"] else typer.colors.YELLOW,
+    )
+    if info["maximum_sustainable_capacity"] is not None:
+        typer.echo(f"可持续容量: 并发 {info['maximum_sustainable_capacity']}")
+    else:
+        typer.secho("可持续容量: 未认定（证据不足）", fg=typer.colors.YELLOW)
+    for reason in info["not_evaluable_reasons"]:
+        typer.echo(f"  不能评价的原因: {reason}")
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "group_key": info["group_key"],
+            "run_count": info["run_count"],
+            "match_level": info["match_level"],
+            "sla_status": info["sla_status"],
+            "can_claim_sla": info["can_claim_sla"],
+            "maximum_sustainable_capacity": info["maximum_sustainable_capacity"],
+            "not_evaluable_reason_count": len(info["not_evaluable_reasons"]),
         }
     )
 
