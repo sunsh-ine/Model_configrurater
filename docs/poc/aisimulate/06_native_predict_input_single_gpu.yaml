@@ -1,0 +1,12 @@
+# PoC：用目标负载（ISL 8192 / OSL 256 / 并发 32）在 h100_sxm 上做一次原生预测
+engine:
+  mode: aggregated
+  model: Qwen/Qwen3-32B-FP8
+  hardware: h100_sxm
+  backend: vllm
+  workers:
+    aggregated: {}
+traffic:
+  source: {type: synthetic, input_tokens: 8192, output_tokens: 256}
+  load: {type: concurrency, concurrency: 32}
+  stop: {requests: 200}

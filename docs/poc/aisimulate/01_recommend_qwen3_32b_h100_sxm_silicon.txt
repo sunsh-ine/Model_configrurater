@@ -1,0 +1,77 @@
+/tmp/aisim-venv/bin/aiconfigurator:6: DeprecationWarning: `aiconfigurator cli recommend` is running from the deprecated AIConfigurator distribution, which is planned for removal in AIConfigurator 0.13.0. Install `aisimulate==0.12.0` and keep running `aiconfigurator cli recommend ...`; AISimulate preserves the established command name and arguments. Migration guide: https://github.com/ai-dynamo/aiconfigurator/blob/main/docs/aisimulate_migration.md
+  sys.exit(main())
+15:43:44 [aiconfigurator] [W] [deprecation.py:39] `aiconfigurator cli recommend` is running from the deprecated AIConfigurator distribution, which is planned for removal in AIConfigurator 0.13.0. Install `aisimulate==0.12.0` and keep running `aiconfigurator cli recommend ...`; AISimulate preserves the established command name and arguments. Migration guide: https://github.com/ai-dynamo/aiconfigurator/blob/main/docs/aisimulate_migration.md
+15:43:44 [aiconfigurator] [I] [main.py:3154] Loading AIConfigurator version: 0.12.1
+15:43:44 [aiconfigurator] [I] [main.py:3155] Number of top configurations to output: 5 (change with --top-n)
+15:43:44 [aiconfigurator] [I] [main.py:3065] Finding minimum GPUs for Qwen/Qwen3-32B-FP8 on h100_sxm (backend=trtllm)
+15:43:45 [aiconfigurator] [W] [perf_database.py:831] Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)
+15:43:45 [aiconfigurator] [W] [perf_database.py:831] Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/b200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)
+15:43:45 [aiconfigurator] [I] [utils.py:1211] Quant inference result: quant_algo=fp8_block, kv_cache_quant_algo=None, quant_dynamic=True
+15:43:45 [aiconfigurator] [I] [utils.py:1318] Loaded model config for Qwen/Qwen3-32B-FP8: architecture=Qwen3ForCausalLM, layers=64, n=64, n_kv=8, d=128, hidden_size=5120, inter_size=25600, vocab=151936, context=40960, topk=0, num_experts=0, moe_inter_size=25600, extra_params={'architecture': 'Qwen3ForCausalLM', 'use_qk_norm': True}
+15:43:46 [aiconfigurator] [I] [perf_database.py:1314] Loading database for system='h100_sxm', backend='trtllm', version='1.3.0rc20'
+15:43:46 [aiconfigurator] [W] [perf_database.py:2629] Loading low-fidelity fallback rows for mla_bmm_perf.parquet from /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h100_sxm/mla_bmm/sglang/0.5.14/mla_bmm_perf.parquet. Queries returning these rows are framework-implicit and may differ from real backend behavior.
+15:43:48 [aiconfigurator] [I] [main.py:2148] Starting experiment: agg
+15:43:48 [aiconfigurator] [I] [main.py:2148] Starting experiment: disagg
+15:43:52 [aiconfigurator] [W] [attention_lanes.py:249] resolve_attention_lane_order: unknown backend 'trtllm' — no framework defaults available
+15:43:54 [aiconfigurator] [I] [main.py:2152] Experiment agg completed with 13 results.
+15:43:56 [aiconfigurator] [W] [main.py:2173] Experiment disagg returned no results. Possible causes: (1) TTFT/TPOT constraints are too tight — try relaxing --ttft or --tpot; (2) the model does not fit — try a quantized model; (3) no perf data in the database for this configuration. For frontier/new models without silicon data, try --database-mode HYBRID.
+15:43:56 [aiconfigurator] [I] [report_and_save.py:740] 
+********************************************************************************
+*                         AIConfigurator Final Results                         *
+********************************************************************************
+  ----------------------------------------------------------------------------
+  Input Configuration & SLA Target:
+    Model: Qwen/Qwen3-32B-FP8 (is_moe: False)
+    Target Concurrency: 32.0
+    agg GPUs needed: 24 (replicas: 3)
+    Best Experiment Chosen: agg
+  ----------------------------------------------------------------------------
+  Overall Best Configuration:
+    - Best Throughput: 2,934.67 tokens/s
+    - Per-GPU Throughput: 122.28 tokens/s/gpu
+    - Per-User Throughput: 86.90 tokens/s/user
+    - Request Rate: 11.51 req/s
+    - TTFT: 397.92ms
+    - TPOT: 11.51ms
+    - Request Latency: 3332.24ms
+  ----------------------------------------------------------------------------
+  Pareto Frontier:
+     Qwen/Qwen3-32B-FP8 Pareto Frontier: tokens/s/gpu_cluster vs tokens/s/user  
+   +---------------------------------------------------------------------------+
+150+ ** agg                                                                    |
+   | xx agg selected                                                           |
+   |                                                                           |
+125+                           x                                               |
+   |                            ******                                         |
+   |                                  **                                       |
+100+                                    ******                                 |
+   |                                          ****                             |
+ 75+                                              *****                        |
+   |                                                   ******                  |
+   |                                                        *                  |
+ 50+                                                         *                 |
+   |                                                         *                 |
+   |                                                          ****             |
+ 25+                                                              ****         |
+   |                                                                           |
+   |                                                                           |
+  0+                                                                           |
+   ++------------------+-----------------+------------------+-----------------++
+    0                 60                120                180              240 
+tokens/s/gpu_cluster               tokens/s/user                                
+
+  ----------------------------------------------------------------------------
+  Deployment Details:
+    (p) stands for prefill, (d) stands for decode, bs stands for batch size, a replica stands for the smallest scalable unit xPyD of the disagg system
+    Some math: total gpus used = replicas * gpus/replica
+               gpus/replica = (p)gpus/worker * (p)workers + (d)gpus/worker * (d)workers; for Agg, gpus/replica = gpus/worker
+               gpus/worker = tp * pp * dp = etp * ep * pp for MoE models; tp * pp for dense models (underlined numbers are the actual values in math)
+
+agg Top Configurations: (Ranked by total_gpus_needed)
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+| Rank | backend | tokens/s/gpu | tokens/s/user | req/s |  TTFT  | request_latency | concurrency | total_gpus (used) | replicas | gpus/replica | gpus/worker | parallel | bs |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+|  1   |  trtllm |    122.28    |     86.90     | 11.51 | 397.92 |     3332.24     |  39 (=13x3) |    24 (24=3x8)    |    3     |      8       |   8 (=8x1)  |  tp8pp1  | 13 |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+********************************************************************************
+15:43:56 [aiconfigurator] [I] [main.py:2262] All experiments completed in 8.23 seconds

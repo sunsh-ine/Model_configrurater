@@ -576,6 +576,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35–M38** 核心数据契约冻结 + 真实数据准备规范、质量分级与压测清单 |
 | [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D9，含数据来源取舍、匹配口径与报告导读） |
 | [`docs/demo_v1_1_final_validation.md`](docs/demo_v1_1_final_validation.md) | **Demo V1.1 封板**（N1 取值绑定加固 + N2 验证结果与冻结声明） |
+| [`docs/aisimulate_poc.md`](docs/aisimulate_poc.md) | **N3/N4** NVIDIA AISimulate 独立 PoC（支持矩阵、离线实验、口径警告、字段映射与集成决策） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |

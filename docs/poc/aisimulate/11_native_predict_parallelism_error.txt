@@ -1,0 +1,5 @@
+usage: aisimulate [-h] {predict,recommend} ...
+aisimulate: error: p_tp8.yaml: 1 validation error for CorePredictionConfig
+engine.workers.aggregated.parallelism.preset
+  Extra inputs are not permitted [type=extra_forbidden, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden

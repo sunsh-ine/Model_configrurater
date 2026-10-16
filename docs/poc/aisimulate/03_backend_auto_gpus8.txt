@@ -1,0 +1,106 @@
+/tmp/aisim-venv/bin/aiconfigurator:6: DeprecationWarning: `aiconfigurator cli default` is running from the deprecated AIConfigurator distribution, which is planned for removal in AIConfigurator 0.13.0. Install `aisimulate==0.12.0` and keep running `aiconfigurator cli default ...`; AISimulate preserves the established command name and arguments. Migration guide: https://github.com/ai-dynamo/aiconfigurator/blob/main/docs/aisimulate_migration.md
+  sys.exit(main())
+15:46:22 [aiconfigurator] [W] [deprecation.py:39] `aiconfigurator cli default` is running from the deprecated AIConfigurator distribution, which is planned for removal in AIConfigurator 0.13.0. Install `aisimulate==0.12.0` and keep running `aiconfigurator cli default ...`; AISimulate preserves the established command name and arguments. Migration guide: https://github.com/ai-dynamo/aiconfigurator/blob/main/docs/aisimulate_migration.md
+15:46:22 [aiconfigurator] [I] [main.py:3154] Loading AIConfigurator version: 0.12.1
+15:46:22 [aiconfigurator] [I] [main.py:3155] Number of top configurations to output: 5 (change with --top-n)
+15:46:22 [aiconfigurator] [I] [main.py:3232] Effective parameters: ISL=8192, OSL=256, TTFT=400.0ms, TPOT=30.0ms, backend=auto
+15:46:22 [aiconfigurator] [W] [perf_database.py:831] Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)
+15:46:22 [aiconfigurator] [W] [perf_database.py:831] Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/b200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)
+15:46:23 [aiconfigurator] [I] [utils.py:1211] Quant inference result: quant_algo=fp8_block, kv_cache_quant_algo=None, quant_dynamic=True
+15:46:23 [aiconfigurator] [I] [utils.py:1318] Loaded model config for Qwen/Qwen3-32B-FP8: architecture=Qwen3ForCausalLM, layers=64, n=64, n_kv=8, d=128, hidden_size=5120, inter_size=25600, vocab=151936, context=40960, topk=0, num_experts=0, moe_inter_size=25600, extra_params={'architecture': 'Qwen3ForCausalLM', 'use_qk_norm': True}
+15:46:23 [aiconfigurator] [I] [perf_database.py:1314] Loading database for system='h100_sxm', backend='trtllm', version='1.3.0rc20'
+15:46:23 [aiconfigurator] [W] [perf_database.py:2629] Loading low-fidelity fallback rows for mla_bmm_perf.parquet from /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h100_sxm/mla_bmm/sglang/0.5.14/mla_bmm_perf.parquet. Queries returning these rows are framework-implicit and may differ from real backend behavior.
+15:46:26 [aiconfigurator] [I] [perf_database.py:1314] Loading database for system='h100_sxm', backend='sglang', version='0.5.14'
+15:46:26 [aiconfigurator] [W] [perf_database.py:2629] Loading low-fidelity fallback rows for mla_bmm_perf.parquet from /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h100_sxm/mla_bmm/trtllm/1.3.0rc20/mla_bmm_perf.parquet. Queries returning these rows are framework-implicit and may differ from real backend behavior.
+15:46:28 [aiconfigurator] [I] [perf_database.py:1314] Loading database for system='h100_sxm', backend='vllm', version='0.24.0'
+15:46:29 [aiconfigurator] [W] [task_v2.py:1225] agg fmha_quant_mode=fp8 (inferred from the model checkpoint) has no 'context_attention' perf data for system='h100_sxm', backend='vllm', version='0.24.0'; falling back to bfloat16 FMHA data. Predictions are conservative if the deployed engine runs fp8 FMHA; set fmha_quant_mode explicitly to override.
+15:46:30 [aiconfigurator] [W] [task_v2.py:1225] prefill fmha_quant_mode=fp8 (inferred from the model checkpoint) has no 'context_attention' perf data for system='h100_sxm', backend='vllm', version='0.24.0'; falling back to bfloat16 FMHA data. Predictions are conservative if the deployed engine runs fp8 FMHA; set prefill_fmha_quant_mode explicitly to override.
+15:46:30 [aiconfigurator] [I] [main.py:2148] Starting experiment: agg_trtllm
+15:46:32 [aiconfigurator] [W] [attention_lanes.py:249] resolve_attention_lane_order: unknown backend 'trtllm' — no framework defaults available
+15:46:33 [aiconfigurator] [I] [main.py:2152] Experiment agg_trtllm completed with 13 results.
+15:46:33 [aiconfigurator] [I] [main.py:2148] Starting experiment: disagg_trtllm
+15:46:36 [aiconfigurator] [W] [main.py:2173] Experiment disagg_trtllm returned no results. Possible causes: (1) TTFT/TPOT constraints are too tight — try relaxing --ttft or --tpot; (2) the model does not fit — try a larger --total-gpus value or a quantized model; (3) no perf data in the database for this configuration. For frontier/new models without silicon data, try --database-mode HYBRID.
+15:46:36 [aiconfigurator] [I] [main.py:2148] Starting experiment: agg_sglang
+15:46:41 [aiconfigurator] [I] [sweep.py:650] sweep_agg: error at tp=2 pp=1 dp=1 moe_tp=1 moe_ep=1, skipping
+15:46:41 [aiconfigurator] [I] [sweep.py:650] sweep_agg: error at tp=2 pp=1 dp=1 moe_tp=1 moe_ep=1, skipping
+15:46:41 [aiconfigurator] [I] [sweep.py:650] sweep_agg: error at tp=4 pp=1 dp=1 moe_tp=1 moe_ep=1, skipping
+15:46:42 [aiconfigurator] [I] [main.py:2152] Experiment agg_sglang completed with 57 results.
+15:46:42 [aiconfigurator] [I] [main.py:2148] Starting experiment: disagg_sglang
+15:46:42 [aiconfigurator] [W] [sweep.py:788] sweep_disagg/prefill: error at parallel tp=2 pp=1 dp=1 moe_tp=1 moe_ep=1; skipping. err=sglang CP requires tp_size=1 and attention_dp_size=1 when cp_size>1 (CP and attention TP/DP are mutually exclusive on sglang). Got tp_size=2, attention_dp_size=1, cp_size=2.
+15:46:42 [aiconfigurator] [W] [sweep.py:788] sweep_disagg/prefill: error at parallel tp=2 pp=1 dp=1 moe_tp=1 moe_ep=1; skipping. err=sglang CP requires tp_size=1 and attention_dp_size=1 when cp_size>1 (CP and attention TP/DP are mutually exclusive on sglang). Got tp_size=2, attention_dp_size=1, cp_size=4.
+15:46:42 [aiconfigurator] [W] [sweep.py:788] sweep_disagg/prefill: error at parallel tp=4 pp=1 dp=1 moe_tp=1 moe_ep=1; skipping. err=sglang CP requires tp_size=1 and attention_dp_size=1 when cp_size>1 (CP and attention TP/DP are mutually exclusive on sglang). Got tp_size=4, attention_dp_size=1, cp_size=2.
+15:46:45 [aiconfigurator] [I] [main.py:2152] Experiment disagg_sglang completed with 7 results.
+15:46:45 [aiconfigurator] [I] [main.py:2148] Starting experiment: agg_vllm
+15:46:49 [aiconfigurator] [I] [main.py:2152] Experiment agg_vllm completed with 36 results.
+15:46:49 [aiconfigurator] [I] [main.py:2148] Starting experiment: disagg_vllm
+15:46:52 [aiconfigurator] [W] [main.py:2173] Experiment disagg_vllm returned no results. Possible causes: (1) TTFT/TPOT constraints are too tight — try relaxing --ttft or --tpot; (2) the model does not fit — try a larger --total-gpus value or a quantized model; (3) no perf data in the database for this configuration. For frontier/new models without silicon data, try --database-mode HYBRID.
+15:46:52 [aiconfigurator] [I] [report_and_save.py:740] 
+********************************************************************************
+*                         AIConfigurator Final Results                         *
+********************************************************************************
+  ----------------------------------------------------------------------------
+  Input Configuration & SLA Target:
+    Model: Qwen/Qwen3-32B-FP8 (is_moe: False)
+    Total GPUs: 8
+    Best Experiment Chosen: disagg at 169.57 tokens/s/gpu (disagg 1.24x better than agg)
+  ----------------------------------------------------------------------------
+  Overall Best Configuration:
+    - Best Throughput: 1,356.59 tokens/s
+    - Per-GPU Throughput: 169.57 tokens/s/gpu
+    - Per-User Throughput: 40.31 tokens/s/user
+    - Request Rate: 5.30 req/s
+    - TTFT: 305.73ms
+    - TPOT: 24.80ms
+    - Request Latency: 6630.75ms
+  ----------------------------------------------------------------------------
+  Pareto Frontier:
+      Qwen/Qwen3-32B-FP8 Pareto Frontier: tokens/s/gpu_cluster vs tokens/s/user 
+     +-------------------------------------------------------------------------+
+250.0+ ** agg                                                                  |
+     | ff disagg                                                               |
+     | xx disagg selected                                                      |
+208.3+                                                                         |
+     |                                                                         |
+     |            x                                                            |
+166.7+             ff                                                          |
+     |   **          ff                                                        |
+125.0+    ************f***********                                             |
+     |                f           *****                                        |
+     |                f                *****                                   |
+ 83.3+                f                     *******                            |
+     |                 f                           ***********                 |
+     |                 f                                     *                 |
+ 41.7+                  f                                     *                |
+     |                   f                                     ********        |
+     |                                                                         |
+  0.0+                                                                         |
+     ++-----------------+-----------------+-----------------+-----------------++
+      0                60                120               180              240 
+tokens/s/gpu_cluster                tokens/s/user                               
+
+  ----------------------------------------------------------------------------
+  Deployment Details:
+    (p) stands for prefill, (d) stands for decode, bs stands for batch size, a replica stands for the smallest scalable unit xPyD of the disagg system
+    Some math: total gpus used = replicas * gpus/replica
+               gpus/replica = (p)gpus/worker * (p)workers + (d)gpus/worker * (d)workers; for Agg, gpus/replica = gpus/worker
+               gpus/worker = tp * pp * dp = etp * ep * pp for MoE models; tp * pp for dense models (underlined numbers are the actual values in math)
+
+agg Top Configurations: (Ranked by tokens/s/gpu)
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+| Rank | backend | tokens/s/gpu | tokens/s/user | req/s |  TTFT  | request_latency | concurrency | total_gpus (used) | replicas | gpus/replica | gpus/worker | parallel | bs |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+|  1   |  sglang |    137.10    |     76.80     |  4.30 | 375.86 |     3696.17     |  16 (=16x1) |     8 (8=1x8)     |    1     |      8       |   8 (=8x1)  |  tp8pp1  | 16 |
+|  2   |  trtllm |    122.28    |     86.90     |  3.84 | 397.92 |     3332.24     |  13 (=13x1) |     8 (8=1x8)     |    1     |      8       |   8 (=8x1)  |  tp8pp1  | 13 |
+|  3   |  sglang |    96.79     |     41.58     |  3.04 | 393.65 |     6525.76     |  20 (=10x2) |     8 (8=2x4)     |    2     |      4       |   1 (=1x1)  |  tp1pp1  | 10 |
+|  4   |   vllm  |    86.65     |     36.63     |  2.72 | 395.23 |     7357.36     |  20 (=10x2) |     8 (8=2x4)     |    2     |      4       |   4 (=4x1)  |  tp4pp1  | 10 |
+|  5   |  sglang |    72.17     |     38.60     |  2.26 | 384.32 |     6989.96     |  16 (=16x1) |     8 (8=1x8)     |    1     |      8       |   1 (=1x1)  |  tp1pp1  | 16 |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+-------------+----------+----+
+
+disagg Top Configurations: (Ranked by tokens/s/gpu)
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+------------+----------------+-------------+-------+------------+----------------+-------------+-------+
+| Rank | backend | tokens/s/gpu | tokens/s/user | req/s |  TTFT  | request_latency | concurrency | total_gpus (used) | replicas | gpus/replica | (p)workers | (p)gpus/worker | (p)parallel | (p)bs | (d)workers | (d)gpus/worker | (d)parallel | (d)bs |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+------------+----------------+-------------+-------+------------+----------------+-------------+-------+
+|  1   |  sglang |    169.57    |     40.31     |  5.30 | 305.73 |     6630.75     |  64 (=64x1) |     8 (8=1x8)     |    1     | 8 (=1x4+4x1) |     1      |   4 (=1x1x4)   |  tp1pp1cp4  |   1   |     4      |    1 (=1x1)    |    tp1pp1   |   16  |
++------+---------+--------------+---------------+-------+--------+-----------------+-------------+-------------------+----------+--------------+------------+----------------+-------------+-------+------------+----------------+-------------+-------+
+********************************************************************************
+15:46:52 [aiconfigurator] [I] [main.py:2262] All experiments completed in 22.38 seconds
