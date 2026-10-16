@@ -2509,40 +2509,73 @@ def _diagnostic_eligibility(
     return result
 
 
-def _run_pool_hash(runs: Sequence[Any]) -> str:
-    """证据池指纹（V4.2 E3）：覆盖**归一化指标快照**，不只是 run_id。
+def _canonical_run_snapshot(run: Any) -> dict[str, Any]:
+    """一条实测的**规范化证据快照**（生成与复核共用同一个函数）。
 
-    只对 run_id/哈希做指纹，会让"换了指标数值但 ID 没变"的情况逃过检测。
+    覆盖全部可能参与 SLA 判断的字段：签名身份、负载、指标口径声明、
+    所有标准化指标数值、样本量与时长、失败计数、质量标记与来源哈希。
+    只排除人工批注（``notes``）与逐请求明细（改为指纹），避免它们的变化
+    误伤证据复现性。
     """
     import hashlib
 
-    entries = []
-    for r in sorted(runs, key=lambda r: r.run_id):
-        pf = r.profile
-        entries.append(
-            "|".join(
-                [
-                    r.run_id,
-                    r.raw_sha256 or "-",
-                    r.data_trust,
-                    str(pf.configured_concurrency),
-                    str(r.signature.workload.input_len_target),
-                    str(r.signature.workload.output_len_target),
-                    str(r.signature.workload.arrival_mode),
-                    str(r.signature.workload.request_rate_rps),
-                    str(pf.output_throughput_tok_s),
-                    str(pf.request_throughput_rps),
-                    str(pf.ttft_p99_ms),
-                    str(pf.tpot_p99_ms),
-                    str(pf.e2e_mean_ms),
-                    str(pf.e2e_p99_ms),
-                    str(pf.error_rate),
-                    str(pf.num_requests),
-                    str(pf.duration_s),
-                ]
-            )
-        )
-    blob = "\n".join(entries)
+    sig = run.signature
+    pf = run.profile
+    request_digest = hashlib.sha256(
+        json.dumps(
+            [m.model_dump(mode="json") for m in run.request_metrics],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "run_id": run.run_id,
+        "raw_sha256": run.raw_sha256,
+        "raw_format": run.raw_format,
+        "collected_at": run.collected_at.isoformat() if run.collected_at else None,
+        "data_trust": run.data_trust,
+        "load_profile_kind": run.load_profile_kind,
+        "quality_flags": sorted(run.quality_flags),
+        "request_metrics_digest": request_digest,
+        "signature": {
+            "model_name": sig.model_name,
+            "model_revision": sig.model_revision,
+            "weight_precision": sig.weight_precision,
+            "quantization": sig.quantization,
+            "hardware_model": sig.hardware_model,
+            "hardware_sku": sig.hardware_sku,
+            "gpu_count": sig.gpu_count,
+            "node_topology": sig.node_topology,
+            "tp_size": sig.tp_size,
+            "dp_size": sig.dp_size,
+            "pp_size": sig.pp_size,
+            "ep_size": sig.ep_size,
+            "deployment_mode": sig.deployment_mode,
+            "framework": sig.framework,
+            "framework_version": sig.framework_version,
+            "backend": sig.backend,
+            "workload": sig.workload.model_dump(mode="json"),
+            "metric_definition_ids": sorted(sig.metric_definition_ids),
+            "metric_side": sig.metric_side,
+            "statistics_window": sig.statistics_window,
+            "sample_size": sig.sample_size,
+            "data_trust": sig.data_trust,
+        },
+        "profile": pf.model_dump(mode="json"),
+    }
+
+
+def _evidence_pool_hash(runs: Sequence[Any]) -> str:
+    """证据池指纹（V4.3 P1-1）：对**规范化快照**做确定性序列化后取 SHA256。
+
+    生成与复核共用本函数与 ``_canonical_run_snapshot``；
+    因此任何参与 SLA 判断的字段变化（含 ITL P99、指标口径声明等）都会改变指纹。
+    """
+    import hashlib
+
+    payload = [_canonical_run_snapshot(r) for r in sorted(runs, key=lambda r: r.run_id)]
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
@@ -2709,7 +2742,7 @@ def record_sla_evidence_for(
         policy_snapshot=pol_snapshot,
         policy_id=policy.policy_id,
         evaluated_at=datetime.now(timezone.utc),
-        run_pool_hash=_run_pool_hash(runs),
+        run_pool_hash=_evidence_pool_hash(runs),
         input_snapshot_hash=_input_snapshot_hash(
             target_identity=identity,
             requirement=sla_req.model_dump(mode="json"),
@@ -2811,7 +2844,17 @@ def _recheck_sla_evidence(
     target_identity_ok = caller_identity == dict(record.target_identity or {})
 
     # ---- E3：证据池指纹必须与记录一致 ----
-    run_pool_hash_ok = _run_pool_hash(runs) == record.run_pool_hash
+    run_pool_hash_ok = _evidence_pool_hash(runs) == record.run_pool_hash
+
+    # ---- V4.3 P1-1：规范化输入指纹必须自洽（防篡改）----
+    recomputed_input = _input_snapshot_hash(
+        target_identity=dict(record.target_identity or {}),
+        requirement=dict(record.requirement or {}),
+        match_level=record.match_level,
+        supporting_run_ids=record.supporting_run_ids,
+        policy_snapshot=dict(record.policy_snapshot or {}),
+    )
+    input_snapshot_ok = recomputed_input == record.input_snapshot_hash
 
     def _fail(reasons: list[str], **kw: Any) -> Any:
         return SlaRecheck(
@@ -2825,6 +2868,13 @@ def _recheck_sla_evidence(
     supporting = list(record.supporting_run_ids or [])
     if not supporting and record.matched_run_id:
         supporting = [record.matched_run_id]
+    if not input_snapshot_ok:
+        return _fail(
+            [
+                "evidence_snapshot_tampered: 记录内容与其输入快照指纹不一致"
+                "（记录被改动过，证据不可采信）"
+            ]
+        )
     if not supporting:
         return _fail(["evidence_has_no_run: 证据未记录任何参与实测"])
 
@@ -2902,6 +2952,8 @@ def quote_eligibility_for(
     gpu_count: int | None = None,
     server_count: int | None = None,
     scenario_id: str | None = None,
+    demand_file: str | Path | None = None,
+    billing_rule_id: str | None = None,
     region: str | None = None,
     as_of: Any = None,
     policy: Any = None,
@@ -2952,6 +3004,20 @@ def quote_eligibility_for(
         plan_id = plan.plan_id
         snapshot = tco_snapshot_hash(tco)
 
+    # ---- V4.3 P0-1：计费规则必须真实解析出来，参与门禁与审批作用域比对 ----
+    resolved_rule_id = billing_rule_id
+    if demand_file and scenario_id:
+        raw_scenario = load_demand_scenarios(demand_file).get(scenario_id)
+        if raw_scenario is None:
+            raise ServiceError(f"未知情景 {scenario_id!r}（{demand_file}）")
+        from_scenario = raw_scenario.get("billing_rule_id")
+        if resolved_rule_id and from_scenario and resolved_rule_id != from_scenario:
+            raise ServiceError(
+                f"计费规则冲突：情景 {scenario_id!r} 使用 {from_scenario!r}，"
+                f"但显式传入 {resolved_rule_id!r}"
+            )
+        resolved_rule_id = resolved_rule_id or from_scenario
+
     db, repo = open_db(db_path)
     try:
         with db.session() as session:
@@ -2962,9 +3028,18 @@ def quote_eligibility_for(
                 if confirmation_id
                 else None
             )
+            billing_rule = (
+                repo.get_billing_rule(session, resolved_rule_id)
+                if resolved_rule_id
+                else None
+            )
             rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
     finally:
         db.dispose()
+    if resolved_rule_id and billing_rule is None:
+        raise ServiceError(
+            f"计费规则不存在: {resolved_rule_id}（请先运行 import-cost-catalog 导入）"
+        )
 
     if evidence is None:
         raise ServiceError(
@@ -2976,9 +3051,6 @@ def quote_eligibility_for(
     recheck = _recheck_sla_evidence(
         db_path, record=evidence, facts=facts, policy=policy
     )
-    # 计费规则由情景决定；此处只做记录，不参与门禁判定
-    billing_rule_id = None
-
     eligibility = evaluate_quote_eligibility(
         candidate_id=candidate_id,
         requirement_id=requirement_id,
@@ -2987,10 +3059,10 @@ def quote_eligibility_for(
         sla_recheck=recheck,
         approval=approval,
         confirmation=confirmation,
+        billing_rule=billing_rule,
         cost_snapshot_hash=snapshot,
         plan_id=plan_id,
         scenario_id=scenario_id,
-        billing_rule_id=billing_rule_id,
         as_of=as_of,
     )
     return {
@@ -3007,6 +3079,7 @@ def quote_eligibility_for(
         },
         "approval_used": approval.model_dump(mode="json"),
         "confirmation_used": confirmation.model_dump(mode="json") if confirmation else None,
+        "billing_rule_used": billing_rule.model_dump(mode="json") if billing_rule else None,
         "billing_rules_available": sorted(rules),
         "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
     }

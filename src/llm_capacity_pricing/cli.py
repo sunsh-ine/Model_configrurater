@@ -1196,6 +1196,12 @@ def quote_eligibility_cmd(
     server_count: Optional[int] = typer.Option(None, "--server-count", help="服务器台数"),
     confirmation: Optional[str] = typer.Option(None, "--confirmation", help="人工商务确认记录 ID"),
     scenario: Optional[str] = typer.Option(None, "--scenario", help="需求情景 ID"),
+    demand_file: Optional[str] = typer.Option(
+        None, "--demand-file", help="业务需求情景 YAML（用于解析计费规则）"
+    ),
+    billing_rule: Optional[str] = typer.Option(
+        None, "--billing-rule", help="计费规则 ID（与情景冲突时直接报错）"
+    ),
     region: Optional[str] = typer.Option(None, "--region", help="区域"),
     as_of: Optional[str] = typer.Option(None, "--as-of", help="基准日期 YYYY-MM-DD"),
     out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
@@ -1226,6 +1232,8 @@ def quote_eligibility_cmd(
             gpu_count=gpu_count,
             server_count=server_count,
             scenario_id=scenario,
+            demand_file=demand_file,
+            billing_rule_id=billing_rule,
             region=region,
             as_of=_date.fromisoformat(as_of) if as_of else None,
         )
@@ -1254,6 +1262,7 @@ def quote_eligibility_cmd(
             "approval_status": elig["approval_status"],
             "sla_evaluation_id": elig["sla_evaluation_id"],
             "approval_id": elig["approval_id"],
+            "billing_rule_id": elig["billing_rule_id"],
             "cost_snapshot_hash": elig["cost_snapshot_hash"],
             "blockers": elig["blockers"],
         }

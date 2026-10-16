@@ -166,6 +166,10 @@ class _Phase4Mixin:
             n += 1
         return n
 
+    def get_billing_rule(self, session: Session, rule_id: str) -> BillingRule | None:
+        row = session.get(BillingRuleRow, rule_id)
+        return BillingRule.model_validate(json.loads(row.payload_json)) if row else None
+
     def list_billing_rules(self, session: Session) -> list[BillingRule]:
         rows = session.scalars(select(BillingRuleRow).order_by(BillingRuleRow.rule_id)).all()
         return [BillingRule.model_validate(json.loads(r.payload_json)) for r in rows]

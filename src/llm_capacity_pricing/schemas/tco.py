@@ -408,6 +408,8 @@ class TcoResult(BaseModel):
     gpu_count: int
     server_count: int
     horizon_years: int
+    #: 方案所在区域（价格适用性判定依据之一，也进入成本快照）
+    region: str | None = None
     currency: str | None
     #: 参与核算的成本项的币种集合（> 1 说明口径不一致，不得用于正式报价）
     currencies_seen: list[str] = Field(default_factory=list)

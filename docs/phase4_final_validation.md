@@ -14,7 +14,7 @@
 
 | 结论 | 状态 | 依据 |
 |---|---|---|
-| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`50/50` 全链路步骤通过，`607 passed` |
+| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`50/50` 全链路步骤通过，`616 passed` |
 | **商业数据是否确认** | ⛔ **未确认** | 仓库内成本/计费数据全部为 `synthetic_example` 或 `pending_business_confirmation`；币种状态为 `assumed`/`unconfirmed`。尚无任何真实合同价接入 |
 | **SLA 是否具备实测依据** | ⛔ **不具备** | 目标配置（Qwen3-32B × H100/H200）无 `exact_match` 的可信实测，第三阶段结论恒为 `not_evaluable` / `requires_benchmark`，本阶段**未做任何放宽** |
 | **正式报价是否可发布** | ⛔ **不可发布** | 四维门禁三个维度未过（成本不完整、SLA 未验证、无人工确认与审批）。报告输出**阻断说明**而非报价金额 |
@@ -27,7 +27,7 @@
 | 任务书要求 | 交付物 |
 |---|---|
 | 源码 | `schemas/tco.py`、`schemas/commercial.py`、`schemas/decision.py`、`engines/tco.py`、`engines/revenue.py`、`engines/quote_gate.py`、`decision/comparison.py`、`decision/sensitivity.py`、`reporting/tco_report.py`、`agent_api.py`、`importers/cost_catalog.py` |
-| 测试 | `tests/test_phase4_tco.py`（108 个用例） |
+| 测试 | `tests/test_phase4_tco.py`（117 个用例） |
 | TCO 手算对照案例 | 见本文 §三；用例 `test_m28_hand_computed_tco_matches_engine` |
 | 方案比较示例 | `data/exports/phase4_report.md` §2；用例 `test_m31_*` |
 | 报价阻断示例 | `data/exports/phase4_report.md` §7；用例 `test_m30_*`、`test_m33_report_blocks_quote_and_watermarks` |
@@ -153,7 +153,7 @@ bash scripts/verify_all.sh
 | 项 | 结果 |
 |---|---|
 | 全链路步骤 | **47 / 47 通过**（第四阶段 11 步，其中 4 步为**断言式**） |
-| 全量测试 | **607 passed**（第三阶段 499 → 第四阶段新增 108） |
+| 全量测试 | **616 passed**（第三阶段 499 → 第四阶段新增 117） |
 | 第一阶段回归 | 默认情景 **160**（32×5）、`pricing_result` 总数 **192**、超容差不匹配 **0** —— 不变 |
 | 敏感数据扫描 | 已跟踪文件中未发现内部定价数值；忽略规则校验通过 |
 
@@ -229,7 +229,7 @@ phase4.quote_eligibility / phase4.decision / phase3.performance_inventory
 
 ## 十、安全事项（**独立、未闭环、未授权执行**）
 
-仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 607 项测试通过而消除**，
+仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 616 项测试通过而消除**，
 也不能由本阶段的功能开发替代处理。方案与影响评估见
 `docs/security_remediation_report.md` §4。
 
@@ -398,7 +398,7 @@ USD 收入减 CNY 成本也能得出"利润 200"。
 
 * 全链路 `50/50` 通过，其中**断言式**步骤 4 个（租赁口径、缺价不完整、
   证据未核验必须阻断、不接受状态字符串）+ **反向场景**步骤 1 个；
-* 全量测试 **607 passed**，第一阶段回归 **160 / 192 / 0 超容差** 不变；
+* 全量测试 **616 passed**，第一阶段回归 **160 / 192 / 0 超容差** 不变；
 * 任务书对照：V4.0 正文未随指令提供，本节按复审列出的差异项
   （成本类别覆盖策略、审批登记与证据绑定、价格有效期、报价作用域、
   需求成功率、币种可比性、可复算输入快照）逐项落实；
@@ -551,7 +551,7 @@ evaluate_quote_eligibility(
 | 项 | 结果 |
 |---|---|
 | 全链路 | **50 / 50 通过**（断言式步骤 4 个 + 反向场景步骤 1 个，反向场景 12 项检查） |
-| 全量测试 | **607 passed**（第四阶段 88 → 108 用例） |
+| 全量测试 | **616 passed**（第四阶段 88 → 108 用例） |
 | 第一阶段回归 | 默认情景 **160**、`pricing_result` **192**、超容差不匹配 **0** —— 不变 |
 
 ## B.8 仍未闭环的事项（如实列出）
@@ -563,3 +563,123 @@ evaluate_quote_eligibility(
    但尚未与 V4.0 原文做逐条对照。
 3. **真实商务数据与目标配置实测缺失**，与前几轮一致。
 4. **仓库为 Public，历史内部定价数据风险未闭环**，未重写历史。
+
+---
+
+# 附：V4.3 局部闭合与接口冻结（三项修正）
+
+V4.2 复审确认 E1–E7 主要落实，同时指出三处「代码写了但没接上」的断点。
+本轮**只改现有函数**，不新增业务模块与 Schema 层级。
+
+## C.1 P0 计费规则作用域真正生效
+
+**问题**：`_approval_dimension()` 里加了计费规则比对，但
+`quote_eligibility_for()` 把它写死成 `billing_rule_id = None`（注释还写着
+"此处只做记录，不参与门禁判定"）—— 于是审批的是 `rule-A`、当前用 `rule-B`
+也不会被拦住。
+
+**整改**：
+
+1. `quote_eligibility_for()` 真实解析计费规则：优先用显式传入的 `billing_rule_id`，
+   否则从 `--demand-file` + `--scenario` 对应的业务情景里取；
+   两者都有且不一致时**直接报错**（不静默取其一）；
+2. 规则必须真实存在于库中，否则 `ServiceError`；
+3. 计费规则并入**商务维度**（报价必然含 Token 单价或计费条款）：
+   规则缺失 → `billing_rule_missing`；未确认 / 币种未确认 / 未生效 / 已失效
+   各有独立原因码；
+4. 作用域比对的基线**只来自实际使用的规则对象**（`billing_rule.rule_id`），
+   删除了冗余的 `billing_rule_id` 入参 —— 两个来源正是产生断点的原因。
+
+**复现**：`test_v43_billing_rule_scope_is_really_checked`（评审指定用例：
+审批 rule-A / 当前 rule-B 必须阻断；rule-A 对 rule-A 则只剩其它维度的原因）、
+`test_v43_billing_rule_resolved_from_scenario`、`test_v43_missing_or_unconfirmed_billing_rule_blocks`、
+`test_v43_service_requires_existing_billing_rule`；反向场景脚本路径 6/7（14/14）。
+
+## C.2 P1 统一证据指纹并真正用于复核
+
+**问题（两处）**：`input_snapshot_hash` 生成了却从不在复核时重算比较，
+只是审计元数据；`_run_pool_hash()` 手写字段，未覆盖 `itl_p99_ms`、
+`metric_definition_ids` 等参与 SLA 判断的字段 —— 只改这些字段且 `raw_sha256`
+不变时，指纹不会变化。
+
+**整改**：删除手写字段的做法，改为**规范化快照 + 确定性序列化**：
+
+```
+_canonical_run_snapshot(run)  →  单条实测的证据快照
+_evidence_pool_hash(runs)     →  对全部快照排序后 JSON(sort_keys) 取 SHA256
+```
+
+* 快照覆盖签名身份、负载、指标口径声明、**全部标准化指标数值**、样本量与时长、
+  失败计数、质量标记与来源哈希；逐请求明细改为取指纹（避免体积与噪声）；
+  仅排除人工批注 `notes`；
+* **生成与复核共用同一个函数**，不再有两套手写字段；
+* `_recheck_sla_evidence()` 现在**重算并比对** `input_snapshot_hash`：
+  记录内容被改动即 `evidence_snapshot_tampered`。
+
+**复现**：`test_v43_pool_hash_covers_itl_and_metric_definitions`、
+`test_v43_evidence_pool_change_invalidates_old_evidence`（只改 ITL、保留 run_id 与
+raw_sha256，旧证据失效）、`test_v43_tampered_evidence_record_is_rejected`。
+
+## C.3 P1 成本快照纳入计算依据
+
+**问题**：`tco_snapshot_hash()` 只哈希金额与成本项数值。两份**要求不同成本类别**的
+覆盖策略可能算出相同金额，此时审批指纹完全一致 ——
+"哪些成本该计入"的业务规则已经变了，旧审批却仍然匹配。
+
+**整改**：快照从"数值结果"扩展为"**数值 + 计算依据**"，新增：
+
+* 覆盖策略身份：`coverage_policy_id` / `version` / `authority`；
+* 覆盖结论与排除范围：`coverage_decisions`、`coverage_gaps`、`scope_exclusions`；
+* 完整性口径：`incomplete`、`completeness_reasons`、`unknown_items`、
+  `excluded_items`、`applicability_errors`、`unconfirmed_items`、
+  `currency_confirmed`、`contains_synthetic_prices`；
+* 逐项依据：`category` / `basis` / `unit` / `currency` / `currency_status` /
+  `status` / `origin` / `determination` / `applicability_issue` / `evidence_id`；
+* 方案区域 `region`（价格适用性依据之一，同时补进 `TcoResult`）。
+
+**复现**：`test_v43_cost_snapshot_includes_coverage_policy_identity`
+（金额相同、策略版本或排除范围不同 → 快照不同；同参数重算 → 快照相同）、
+`test_v43_coverage_change_invalidates_approval`（策略版本变化 → 旧审批失效）。
+
+## C.4 接口冻结与部署级限制
+
+**本轮之后冻结第四阶段核心接口**，不再新增业务模块、Schema 层级或验收阶段。
+
+**部署级限制（不通过引入 RBAC 解决）**：
+
+> 本系统**未接入可信审批系统**，`import-quote-approvals` 只做持久化，
+> 不校验审批人身份与权限。因此：
+> **不得用于生产环境的报价自动发布。**
+> 正式报价必须由人工在受控流程中签发。
+
+这条限制同时写进 `docs/phase4_interface_design.md`，作为接口冻结点的一部分。
+
+## C.5 本轮结果
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | **50 / 50 通过**（反向场景脚本 12 → 14 项检查） |
+| 全量测试 | **616 passed**（第四阶段 108 → 117 用例） |
+| 第一阶段回归 | 默认情景 **160**、`pricing_result` **192**、超容差不匹配 **0** —— 不变 |
+| 新增模块 | **无**（本轮只修改现有函数） |
+
+## C.6 下一阶段方向（按复审建议，尚未执行）
+
+复审建议停止"每轮审核后继续扩充报价系统"，转向架构收敛。建议的三件事：
+
+1. **统一用户评估入口** —— 目前 `services.py` 有 40+ 个 `*_for()` 函数，
+   调用方需要自己拼装链路；
+2. **收敛 `services.py` 的业务编排** —— 该文件已超过 3000 行，
+   跨阶段编排与纯查询混在一起；
+3. **建立简单稳定的数据与算法扩展边界** —— 明确"新增一个成本类别 /
+   一个指标口径 / 一个证据来源"分别要动哪些地方。
+
+**本轮未执行这三项**：它们会改动大量现有文件，属于范围变更而非局部修正。
+真实数据接入与压测验证此时仍缺输入，先做大规模重构缺乏验证手段。
+
+## C.7 未闭环事项（与前几轮一致）
+
+1. **审批人身份与权限未认证** —— 见 C.4 的部署级限制；
+2. **任务书 V4.0 正文仍未提供** —— 未做逐条对照；
+3. **真实商务数据与目标配置实测缺失**；
+4. **仓库为 Public，历史内部定价数据风险未闭环** —— 未重写历史。

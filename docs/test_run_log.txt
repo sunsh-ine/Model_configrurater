@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-16T09:23:39",
+  "generated_at": "2026-10-16T09:45:18",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-16T09:23:41",
+  "generated_at": "2026-10-16T09:45:19",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -2124,7 +2124,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "data_trust": null,
   "algorithm_validation_only": false,
   "allow_synthetic_used": false,
-  "run_pool_hash": "c52dfc3e497ac135c955e3f1626afe9c0b07dc7effd5fa00f2c9909064de559b",
+  "run_pool_hash": "b0c280fef434bf62e976a5296426f02301a6312c06507bdda68c20ccc8ee461f",
   "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
   "production_grade": false,
   "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
@@ -2154,7 +2154,9 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
 
 === 42. quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因） ===
 正式报价不可发布
-  - approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 ebaad5bfc1af…）
+  - approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 47fbb95164db…）
+  - billing_rule_currency_unconfirmed:assumed
+  - billing_rule_not_confirmed:synthetic_example（计费规则未经人工确认）
   - cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价
   - cost_coverage_policy_not_authorized:draft（覆盖策略决定「哪些成本必须算」，未授权/草稿策略不能支撑生产级完整 TCO）
   - cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）
@@ -2171,9 +2173,12 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "approval_status": "missing",
   "sla_evaluation_id": "sla::demo-owned::req-phase4",
   "approval_id": "syn-approval-demo",
-  "cost_snapshot_hash": "ebaad5bfc1af60ec7aa49ad5a09d04947be8695946fbee26c32cb8ad5105c3e6",
+  "billing_rule_id": "syn-billing-qwen3-32b",
+  "cost_snapshot_hash": "47fbb95164dbda68d5eb915daf79ca3a9a37a1e7c1c59333b626e10d5caf73ef",
   "blockers": [
-    "approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 ebaad5bfc1af…）",
+    "approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 47fbb95164db…）",
+    "billing_rule_currency_unconfirmed:assumed",
+    "billing_rule_not_confirmed:synthetic_example（计费规则未经人工确认）",
     "cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价",
     "cost_coverage_policy_not_authorized:draft（覆盖策略决定「哪些成本必须算」，未授权/草稿策略不能支撑生产级完整 TCO）",
     "cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）",
@@ -2206,8 +2211,10 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 [ok]   失配的成本快照必须阻断审批
 [ok]   算法验证口径的 observed_pass 不得进入正式报价
 [ok]   必须点名 algorithm_validation_only / synthetic 可信等级
+[ok]   计费规则与审批作用域不符必须阻断
+[ok]   没有计费规则时不得输出计费条款
 
-反向场景检查通过 12/12：伪造声明、缺证据引用、未核验证据与失配成本快照全部被阻断。
+反向场景检查通过 14/14：伪造声明、缺证据引用、未核验证据与失配成本快照全部被阻断。
 
 === 45. phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路） ===
 候选分桶: {'requires_benchmark': 2, 'excluded': 1}
@@ -2278,31 +2285,31 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 ........................................................................ [ 11%]
 ........................................................................ [ 23%]
 ........................................................................ [ 35%]
-........................................................................ [ 47%]
-........................................................................ [ 59%]
-........................................................................ [ 71%]
-........................................................................ [ 83%]
-........................................................................ [ 94%]
-...............................                                          [100%]
-607 passed in 105.71s (0:01:45)
+........................................................................ [ 46%]
+........................................................................ [ 58%]
+........................................................................ [ 70%]
+........................................................................ [ 81%]
+........................................................................ [ 93%]
+........................................                                 [100%]
+616 passed in 57.01s
 
 === 49. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1316
-drwxrwxr-x  2 ssa ssa   4096 10月 16 09:24 .
-drwxrwxr-x 11 ssa ssa   4096 10月 16 09:24 ..
--rw-rw-r--  1 ssa ssa  21022 10月 16 09:24 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 16 09:23 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 16 09:23 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 16 09:23 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 16 09:24 performance_report.md
--rw-rw-r--  1 ssa ssa 112055 10月 16 09:24 phase4_decision.json
--rw-rw-r--  1 ssa ssa  27866 10月 16 09:24 phase4_report.md
--rw-rw-r--  1 ssa ssa   7149 10月 16 09:23 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 16 09:23 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 16 09:24 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 16 09:45 .
+drwxrwxr-x 11 ssa ssa   4096 10月 16 09:45 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 16 09:45 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 16 09:45 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 16 09:45 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 16 09:45 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 16 09:45 performance_report.md
+-rw-rw-r--  1 ssa ssa 112127 10月 16 09:45 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  27866 10月 16 09:45 phase4_report.md
+-rw-rw-r--  1 ssa ssa   7149 10月 16 09:45 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 16 09:45 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 16 09:45 sizing_report.md
 
 ==== 汇总 ====
 步骤 50 项：通过 50，失败 0
-完成时间: 2026-10-16T09:26:53+08:00
+完成时间: 2026-10-16T09:46:51+08:00
 环境: Python 3.12.3
 全部步骤通过。

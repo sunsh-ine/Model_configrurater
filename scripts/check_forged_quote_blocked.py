@@ -31,6 +31,7 @@ from llm_capacity_pricing.engines.quote_gate import (  # noqa: E402
 from llm_capacity_pricing.engines.tco import compute_tco  # noqa: E402
 from llm_capacity_pricing.schemas.commercial import (  # noqa: E402
     ApprovalScope,
+    BillingRule,
     CommercialConfirmation,
     QuoteApproval,
 )
@@ -181,6 +182,7 @@ def main() -> int:
         valid_until=date(2099, 12, 31), document_ref="任意凭据编号",
         scope=ApprovalScope(
             candidate_id="forged-cand", requirement_id="r", plan_id=plan.plan_id,
+            billing_rule_id="rule-forged",
             cost_snapshot_hash="0" * 64,   # 与当前成本快照不一致
         ),
     )
@@ -190,11 +192,19 @@ def main() -> int:
         confirmed_by="某个人", confirmed_at="2026-10-15T10:00:00+08:00",
         valid_until=date(2099, 12, 31), document_ref="任意凭据",
     )
+    forged_rule = BillingRule(
+        rule_id="rule-forged", model_name="m", currency="CNY",
+        currency_status="confirmed", price_uncached_input_per_1m=Decimal("4"),
+        price_cached_input_per_1m=Decimal("1"), price_output_per_1m=Decimal("12"),
+        billable_cache_ratio=Decimal("0.3"), billable_cache_basis="contract_defined",
+        status="confirmed", evidence_id="ev-forged",
+    )
     result = evaluate_quote_eligibility(
         candidate_id="forged-cand", requirement_id="r", tco=tco,
         sla_evidence=fake_evidence,
         sla_recheck=SlaRecheck(ok=False, reasons=["matched_run_not_found"]),
         approval=stale_approval, confirmation=confirmation,
+        billing_rule=forged_rule,
         cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
     )
     check("SLA 重放失败必须阻断", not result.quote_publishable, str(result.blockers))
@@ -227,6 +237,7 @@ def main() -> int:
             }
         ),
         confirmation=confirmation,
+        billing_rule=forged_rule,
         cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
     )
     check(
@@ -245,6 +256,48 @@ def main() -> int:
             )
         ),
         str(algo_result.blockers),
+    )
+
+    # ---- 路径 6：计费规则作用域（V4.3 P0-1）----
+    # 审批绑定 rule-forged，但报价改用另一条计费规则 -> 必须阻断
+    other_rule = forged_rule.model_copy(update={"rule_id": "rule-other"})
+    rule_scope = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=fake_evidence,
+        sla_recheck=SlaRecheck(
+            ok=True, match_level="exact_match", status="observed_pass",
+            run_id="run-does-not-exist", data_trust="measured_internal",
+        ),
+        approval=stale_approval.model_copy(
+            update={
+                "scope": stale_approval.scope.model_copy(
+                    update={"cost_snapshot_hash": snapshot}
+                )
+            }
+        ),
+        confirmation=confirmation,
+        billing_rule=other_rule,
+        cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
+    )
+    check(
+        "计费规则与审批作用域不符必须阻断",
+        any("approval_scope_mismatch:billing_rule" in b for b in rule_scope.blockers),
+        str(rule_scope.blockers),
+    )
+
+    # ---- 路径 7：计费规则缺失 / 未确认（V4.3 P0-1）----
+    no_rule = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=fake_evidence,
+        sla_recheck=SlaRecheck(ok=False, reasons=["matched_run_not_found"]),
+        approval=stale_approval, confirmation=confirmation,
+        billing_rule=None,
+        cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
+    )
+    check(
+        "没有计费规则时不得输出计费条款",
+        any("billing_rule_missing" in b for b in no_rule.blockers),
+        str(no_rule.blockers),
     )
 
     print()

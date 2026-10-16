@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from llm_capacity_pricing.schemas.commercial import (
+    BillingRule,
     CommercialConfirmation,
     QuoteApproval,
     QuoteEligibility,
@@ -236,8 +237,36 @@ def _sla_dimension(
 
 
 def _commercial_dimension(
-    confirmation: CommercialConfirmation | None, as_of: date, blockers: list[str]
+    confirmation: CommercialConfirmation | None,
+    billing_rule: BillingRule | None,
+    as_of: date,
+    blockers: list[str],
 ) -> tuple[str, str | None]:
+    """商务维度 = 人工确认 + **计费规则有效**（V4.3：计费条款属于商务条件）。
+
+    正式报价必然包含 Token 单价或计费条款，因此找不到规则、规则未确认或已失效
+    一律阻断；规则身份还会与审批作用域比对。
+    """
+    if billing_rule is None:
+        blockers.append(
+            "billing_rule_missing: 正式报价必须绑定计费规则"
+            "（找不到规则时不得输出计费条款）"
+        )
+    else:
+        if billing_rule.status != "confirmed":
+            blockers.append(
+                f"billing_rule_not_confirmed:{billing_rule.status}"
+                "（计费规则未经人工确认）"
+            )
+        if billing_rule.currency_status != "confirmed":
+            blockers.append(
+                f"billing_rule_currency_unconfirmed:{billing_rule.currency_status}"
+            )
+        if billing_rule.valid_from is not None and billing_rule.valid_from > as_of:
+            blockers.append(f"billing_rule_not_yet_effective:{billing_rule.valid_from}")
+        if billing_rule.valid_to is not None and billing_rule.valid_to < as_of:
+            blockers.append(f"billing_rule_expired:{billing_rule.valid_to}")
+
     if confirmation is None:
         blockers.append("commercial_confirmation_missing: 没有人工商务确认记录")
         return "missing", None
@@ -334,10 +363,10 @@ def evaluate_quote_eligibility(
     sla_recheck: SlaRecheck | None,
     approval: QuoteApproval | None,
     confirmation: CommercialConfirmation | None,
+    billing_rule: BillingRule | None,
     cost_snapshot_hash: str | None,
     plan_id: str | None = None,
     scenario_id: str | None = None,
-    billing_rule_id: str | None = None,
     as_of: date | None = None,
 ) -> QuoteEligibility:
     """判定该候选是否可以发布**正式报价**。
@@ -358,7 +387,7 @@ def evaluate_quote_eligibility(
         cautions=cautions,
     )
     commercial_status, confirmation_id = _commercial_dimension(
-        confirmation, today, blockers
+        confirmation, billing_rule, today, blockers
     )
     approval_status, approval_id, approval_ref = _approval_dimension(
         approval=approval,
@@ -366,7 +395,8 @@ def evaluate_quote_eligibility(
         requirement_id=requirement_id,
         plan_id=plan_id,
         scenario_id=scenario_id,
-        billing_rule_id=billing_rule_id,
+        # 作用域基线**只**来自实际使用的计费规则对象，避免"传了规则但没传 ID"的断点
+        billing_rule_id=billing_rule.rule_id if billing_rule else None,
         cost_snapshot_hash=cost_snapshot_hash,
         as_of=today,
         blockers=blockers,
@@ -389,7 +419,6 @@ def evaluate_quote_eligibility(
         candidate_id=candidate_id,
         plan_id=plan_id,
         scenario_id=scenario_id,
-        billing_rule_id=billing_rule_id,
         cost_estimate_status=cost_status,  # type: ignore[arg-type]
         sla_verification_status=sla_status,  # type: ignore[arg-type]
         commercial_confirmation_status=commercial_status,  # type: ignore[arg-type]
@@ -397,6 +426,7 @@ def evaluate_quote_eligibility(
         sla_evaluation_id=sla_evidence_id,
         approval_id=approval_id,
         confirmation_id=confirmation_id,
+        billing_rule_id=billing_rule.rule_id if billing_rule else None,
         cost_snapshot_hash=cost_snapshot_hash,
         approval_ref=approval_ref,
         quote_publishable=publishable,

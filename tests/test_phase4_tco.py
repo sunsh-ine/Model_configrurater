@@ -720,6 +720,7 @@ def _approval(**overrides) -> QuoteApproval:
         candidate_id="cand-mech",
         requirement_id="req-1",
         plan_id="p-mech",
+        billing_rule_id=overrides.pop("billing_rule_id", "rule-A"),
         cost_snapshot_hash=overrides.pop("cost_snapshot_hash", "SNAP"),
     )
     base = dict(
@@ -761,6 +762,7 @@ def _gate(tco, **overrides):
         sla_recheck=_recheck(),
         approval=_approval(),
         confirmation=_confirmation(),
+        billing_rule=_rule(rule_id="rule-A"),
         cost_snapshot_hash="SNAP",
         plan_id="p-mech",
     )
@@ -844,6 +846,7 @@ def test_f41_random_approval_string_is_not_authorization(confirmed_items):
         sla_recheck=_recheck(),
         approval=None,  # 只有字符串没有记录
         confirmation=_confirmation(),
+        billing_rule=_rule(rule_id="rule-A"),
         cost_snapshot_hash="SNAP",
     )
     assert result.quote_publishable is False
@@ -2123,6 +2126,7 @@ def test_e1_synthetic_evidence_never_reaches_formal_quote(tmp_path, root):
         ),
         approval=_approval(),
         confirmation=_confirmation(),
+        billing_rule=_rule(rule_id="rule-A"),
         cost_snapshot_hash="SNAP",
         plan_id="p-mech",
     )
@@ -2389,18 +2393,18 @@ def test_e3_policy_change_is_detected(tmp_path, root):
 
 
 def test_e3_run_pool_hash_covers_metric_values(root):
-    """指纹必须覆盖归一化指标：只改数值不改 ID 也要被检测到。"""
-    from llm_capacity_pricing.services import _run_pool_hash
+    """指纹必须覆盖规范化指标快照：只改数值不改 ID 也要被检测到。"""
+    from llm_capacity_pricing.services import _evidence_pool_hash
 
     runs = _measured_runs(root)
-    base = _run_pool_hash(runs)
+    base = _evidence_pool_hash(runs)
     tampered = [
         r.model_copy(
             update={"profile": r.profile.model_copy(update={"ttft_p99_ms": Decimal("1")})}
         )
         for r in runs
     ]
-    assert _run_pool_hash(tampered) != base
+    assert _evidence_pool_hash(tampered) != base
 
 
 def test_e3_approval_scope_covers_scenario_and_billing_rule(confirmed_items):
@@ -2414,19 +2418,20 @@ def test_e3_approval_scope_covers_scenario_and_billing_rule(confirmed_items):
         approved_at="2026-10-15T10:00:00+08:00", valid_until="2099-12-31",
         document_ref="APR-1", scope=scope,
     )
+    rule = _rule(rule_id="rule-A")
     ok = evaluate_quote_eligibility(
         candidate_id="cand-mech", requirement_id="req-1", tco=tco,
         sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
-        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
-        scenario_id="scenario-A", billing_rule_id="rule-A",
+        confirmation=_confirmation(), billing_rule=rule, cost_snapshot_hash="SNAP",
+        plan_id="p-mech", scenario_id="scenario-A",
     )
     assert ok.quote_publishable is True
 
     other_scenario = evaluate_quote_eligibility(
         candidate_id="cand-mech", requirement_id="req-1", tco=tco,
         sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
-        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
-        scenario_id="scenario-B", billing_rule_id="rule-A",
+        confirmation=_confirmation(), billing_rule=rule, cost_snapshot_hash="SNAP",
+        plan_id="p-mech", scenario_id="scenario-B",
     )
     assert other_scenario.quote_publishable is False
     assert any("approval_scope_mismatch:scenario" in b for b in other_scenario.blockers)
@@ -2434,8 +2439,9 @@ def test_e3_approval_scope_covers_scenario_and_billing_rule(confirmed_items):
     other_rule = evaluate_quote_eligibility(
         candidate_id="cand-mech", requirement_id="req-1", tco=tco,
         sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
-        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
-        scenario_id="scenario-A", billing_rule_id="rule-B",
+        confirmation=_confirmation(), billing_rule=_rule(rule_id="rule-B"),
+        cost_snapshot_hash="SNAP", plan_id="p-mech",
+        scenario_id="scenario-A",
     )
     assert other_rule.quote_publishable is False
     assert any("approval_scope_mismatch:billing_rule" in b for b in other_rule.blockers)
@@ -2551,3 +2557,388 @@ def test_e6_example_policy_is_draft_not_claimed_confirmed(tmp_path):
     assert policy is not None
     assert policy.authority == "draft"
     assert policy.approved_by is None
+
+
+# ==========================================================================
+# V4.3：三处局部闭合（计费规则作用域 / 统一证据指纹 / 完整成本快照）
+# ==========================================================================
+
+
+def _billing_rule_rule(**overrides):
+    from llm_capacity_pricing.schemas.commercial import BillingRule
+
+    base = dict(
+        rule_id="rule-A",
+        model_name="qwen3-32b",
+        currency="CNY",
+        currency_status="confirmed",
+        price_uncached_input_per_1m=Decimal("4"),
+        price_cached_input_per_1m=Decimal("1"),
+        price_output_per_1m=Decimal("12"),
+        billable_cache_ratio=Decimal("0.3"),
+        billable_cache_basis="contract_defined",
+        status="confirmed",
+        evidence_id="ev_rule",
+    )
+    base.update(overrides)
+    return BillingRule(**base)
+
+
+def _p43_db(tmp_path: Path, root: Path) -> str:
+    """含成本目录 + 两条计费规则 + 人工确认 + 审批的库。"""
+    from llm_capacity_pricing.services import import_hardware, import_models, open_db
+
+    db = str(tmp_path / "p43.db")
+    init_db(db)
+    import_models(root / "data/models/model_manifest.yaml", db, root=root)
+    import_hardware(root / "data/hardware/hardware_catalog.yaml", db)
+    import_cost_catalog(CATALOG_EXAMPLE, db)
+    runs = _measured_runs(root)
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            repo.upsert_benchmark_runs(session, runs)
+            repo.upsert_billing_rules(
+                session,
+                [
+                    _billing_rule_rule(rule_id="rule-A"),
+                    _billing_rule_rule(rule_id="rule-B", price_output_per_1m=Decimal("20")),
+                ],
+            )
+            session.commit()
+    finally:
+        d.dispose()
+    import_commercial_confirmations(
+        "data/examples/phase4_commercial_confirmation.example.yaml", db
+    )
+    return db
+
+
+def _p43_approval(tmp_path: Path, db: str, *, billing_rule_id: str, snapshot: str = None):
+    from llm_capacity_pricing.services import open_db as _open
+
+    if snapshot is None:
+        snapshot = "f" * 64
+    path = tmp_path / "apr43.yaml"
+    path.write_text(
+        f"""
+approvals:
+  - approval_id: apr43
+    decision: approved
+    approved_by: "示例审批人"
+    approved_at: "2026-10-15T10:00:00+08:00"
+    valid_until: "2099-12-31"
+    document_ref: "APR-43"
+    scope:
+      candidate_id: demo-owned
+      requirement_id: req-43
+      plan_id: "syn-owned-3y::demo-owned"
+      billing_rule_id: {billing_rule_id}
+      cost_snapshot_hash: "{snapshot}"
+""",
+        encoding="utf-8",
+    )
+    import_quote_approvals(str(path), db)
+    return snapshot
+
+
+def test_v43_billing_rule_scope_is_really_checked(tmp_path, root):
+    """**评审指定用例**：审批 rule-A、当前 rule-B -> 必须阻断。"""
+    db = _p43_db(tmp_path, root)
+    facts = _facts_from_run(
+        next(r for r in _measured_runs(root) if r.profile.configured_concurrency == 8)
+    )
+    record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=facts,
+    )
+    _p43_approval(tmp_path, db, billing_rule_id="rule-A")
+
+    # 报价实际使用 rule-A -> 作用域一致（其余维度仍未过，但不该报 billing 作用域错误）
+    same = quote_eligibility_for(
+        db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+        sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+        confirmation_id="syn-confirmation-demo",
+        plan_file=PLAN_EXAMPLE, template_id="syn-owned-3y",
+        hardware_id="nvidia-h100-sxm-80gb", gpu_count=8, server_count=1,
+        billing_rule_id="rule-A",
+    )
+    joined = " ".join(same["eligibility"]["blockers"])
+    assert "approval_scope_mismatch:billing_rule" not in joined
+    assert same["billing_rule_used"]["rule_id"] == "rule-A"
+
+    # 报价改用 rule-B -> 审批作用域不符，必须阻断
+    other = quote_eligibility_for(
+        db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+        sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+        confirmation_id="syn-confirmation-demo",
+        plan_file=PLAN_EXAMPLE, template_id="syn-owned-3y",
+        hardware_id="nvidia-h100-sxm-80gb", gpu_count=8, server_count=1,
+        billing_rule_id="rule-B",
+    )
+    assert other["eligibility"]["quote_publishable"] is False
+    assert any(
+        "approval_scope_mismatch:billing_rule" in b
+        for b in other["eligibility"]["blockers"]
+    ), other["eligibility"]["blockers"]
+
+
+def test_v43_billing_rule_resolved_from_scenario(tmp_path, root):
+    """计费规则能从业务情景解析出来，并与显式传入值交叉校验。"""
+    db = _p43_db(tmp_path, root)
+    facts = _facts_from_run(
+        next(r for r in _measured_runs(root) if r.profile.configured_concurrency == 8)
+    )
+    record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=facts,
+    )
+    _p43_approval(tmp_path, db, billing_rule_id="rule-A")
+    # 情景 syn-demand-base 绑定 syn-billing-qwen3-32b；显式传 rule-A -> 冲突
+    with pytest.raises(ServiceError, match="计费规则冲突"):
+        quote_eligibility_for(
+            db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+            sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+            confirmation_id="syn-confirmation-demo",
+            plan_file=PLAN_EXAMPLE, template_id="syn-owned-3y",
+            hardware_id="nvidia-h100-sxm-80gb", gpu_count=8, server_count=1,
+            scenario_id="syn-demand-base", demand_file=DEMAND_EXAMPLE,
+            billing_rule_id="rule-A",
+        )
+    # 不传 billing_rule_id 时，从情景解析
+    resolved = quote_eligibility_for(
+        db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+        sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+        confirmation_id="syn-confirmation-demo",
+        plan_file=PLAN_EXAMPLE, template_id="syn-owned-3y",
+        hardware_id="nvidia-h100-sxm-80gb", gpu_count=8, server_count=1,
+        scenario_id="syn-demand-base", demand_file=DEMAND_EXAMPLE,
+    )
+    assert resolved["billing_rule_used"]["rule_id"] == "syn-billing-qwen3-32b"
+
+
+def test_v43_missing_or_unconfirmed_billing_rule_blocks(confirmed_items):
+    """找不到规则 / 规则未确认 / 已失效 -> 必须阻断。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+
+    missing = _gate(tco, billing_rule=None)
+    assert missing.quote_publishable is False
+    assert any("billing_rule_missing" in b for b in missing.blockers)
+
+    unconfirmed = _gate(tco, billing_rule=_billing_rule_rule(status="pending_business_confirmation"))
+    assert unconfirmed.quote_publishable is False
+    assert any("billing_rule_not_confirmed" in b for b in unconfirmed.blockers)
+
+    expired = _gate(
+        tco,
+        billing_rule=_billing_rule_rule(valid_to="2020-01-01"),
+        as_of=None,
+    )
+    assert expired.quote_publishable is False
+    assert any("billing_rule_expired" in b for b in expired.blockers)
+
+    bad_currency = _gate(
+        tco,
+        billing_rule=_billing_rule_rule(
+            status="pending_business_confirmation", currency_status="unconfirmed"
+        ),
+    )
+    assert bad_currency.quote_publishable is False
+    assert any("billing_rule_currency_unconfirmed" in b for b in bad_currency.blockers)
+
+
+def test_v43_service_requires_existing_billing_rule(tmp_path, root):
+    db = _p43_db(tmp_path, root)
+    facts = _facts_from_run(
+        next(r for r in _measured_runs(root) if r.profile.configured_concurrency == 8)
+    )
+    record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=facts,
+    )
+    _p43_approval(tmp_path, db, billing_rule_id="rule-A")
+    with pytest.raises(ServiceError, match="计费规则不存在"):
+        quote_eligibility_for(
+            db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+            sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+            billing_rule_id="rule-does-not-exist",
+        )
+
+
+# ---- 统一证据指纹 ----------------------------------------------------------
+
+
+def test_v43_pool_hash_covers_itl_and_metric_definitions(root):
+    """ITL P99 与指标口径声明变化也必须改变指纹（此前未覆盖）。"""
+    from llm_capacity_pricing.services import _evidence_pool_hash
+
+    runs = _measured_runs(root)
+    base = _evidence_pool_hash(runs)
+
+    itl_changed = [
+        r.model_copy(
+            update={"profile": r.profile.model_copy(update={"itl_p99_ms": Decimal("42")})}
+        )
+        for r in runs
+    ]
+    assert _evidence_pool_hash(itl_changed) != base
+
+    defs_changed = [
+        r.model_copy(
+            update={
+                "signature": r.signature.model_copy(
+                    update={
+                        "metric_definition_ids": list(r.signature.metric_definition_ids)
+                        + ["m.latency.itl.p99"]
+                    }
+                )
+            }
+        )
+        for r in runs
+    ]
+    assert _evidence_pool_hash(defs_changed) != base
+
+    # 规范化序列化必须稳定：同一批数据两次计算一致
+    assert _evidence_pool_hash(runs) == base
+
+
+def test_v43_evidence_pool_change_invalidates_old_evidence(tmp_path, root):
+    """只改 ITL P99（raw_sha256 不变）-> 旧证据必须失效。"""
+    from llm_capacity_pricing.services import _recheck_sla_evidence, open_db as _open
+
+    base_run = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    db = _evidence_db(tmp_path, root, [base_run], "v43.db")
+    info = record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=_facts_from_run(base_run),
+    )
+    stored = None
+    d, repo = _open(db)
+    try:
+        with d.session() as session:
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    assert _recheck_sla_evidence(db, record=stored, facts=_facts_from_run(base_run)).ok
+
+    # 篡改指标数值但保留 run_id 与 raw_sha256
+    tampered = base_run.model_copy(
+        update={"profile": base_run.profile.model_copy(update={"itl_p99_ms": Decimal("7")})}
+    )
+    d, repo = _open(db)
+    try:
+        with d.session() as session:
+            repo.upsert_benchmark_runs(session, [tampered])
+            session.commit()
+            stored2 = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    after = _recheck_sla_evidence(db, record=stored2, facts=_facts_from_run(base_run))
+    assert after.run_pool_hash_ok is False
+
+
+def test_v43_tampered_evidence_record_is_rejected(tmp_path, root):
+    """记录内容与其输入快照指纹不符 -> 直接判定不可采信。"""
+    from llm_capacity_pricing.services import _recheck_sla_evidence
+
+    base_run = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    db = _evidence_db(tmp_path, root, [base_run], "v43b.db")
+    info = record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=_facts_from_run(base_run),
+    )
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    tampered_record = stored.model_copy(
+        update={"requirement": {"requirement_id": "req-43", "ttft_p99_ms_max": 1}}
+    )
+    result = _recheck_sla_evidence(db, record=tampered_record, facts=_facts_from_run(base_run))
+    assert result.ok is False
+    assert any("evidence_snapshot_tampered" in r for r in result.reasons)
+
+
+# ---- 完整成本快照 ----------------------------------------------------------
+
+
+def test_v43_cost_snapshot_includes_coverage_policy_identity(confirmed_items):
+    """覆盖策略版本或排除范围变化 -> 成本快照必须变化（即使金额相同）。"""
+    items = confirmed_items
+    plan = _plan(items)
+    policy_v1 = _coverage(policy_id="cov", authority="confirmed")
+    same_amounts_v2 = _coverage(policy_id="cov", authority="confirmed")
+    # 版本不同、金额相同
+    manually_versioned = CostCoveragePolicy(
+        policy_id="cov", version="2.0", authority="confirmed",
+        approved_by="示例批准人", approved_at="2026-10-15",
+        document_ref="COV-002",
+        requirements=[CostCoverageRequirement(category=c) for c in COVERAGE_CATEGORIES],
+    )
+    tco_v1 = _tco(plan, items, policy_v1)
+    tco_v2 = _tco(plan, items, manually_versioned)
+    assert tco_v1.capex_one_time == tco_v2.capex_one_time           # 金额相同
+    assert tco_snapshot_hash(tco_v1) != tco_snapshot_hash(tco_v2)   # 快照不同
+    assert tco_v1.coverage_policy_version != tco_v2.coverage_policy_version
+
+    # 排除范围变化（同样金额路径）：新增 scope_exclusion
+    from llm_capacity_pricing.schemas.tco import ScopeExclusion
+
+    plan_excluded = plan.model_copy(
+        update={"scope_exclusions": [ScopeExclusion(category="cooling", reason="示例：不适用")]}
+    )
+    tco_v3 = _tco(plan_excluded, items, policy_v1)
+    assert tco_snapshot_hash(tco_v3) != tco_snapshot_hash(tco_v1)
+    # 同参数重算必须得到同一个快照（确定性）
+    assert tco_snapshot_hash(_tco(plan, items, same_amounts_v2)) == tco_snapshot_hash(tco_v1)
+
+
+def test_v43_coverage_change_invalidates_approval(confirmed_items):
+    """覆盖策略版本变化后，绑定旧快照的审批必须失效。"""
+    items = confirmed_items
+    plan = _plan(items)
+    tco_old = _tco(plan, items, _coverage(policy_id="cov", authority="confirmed"))
+    tco_new = _tco(
+        plan,
+        items,
+        CostCoveragePolicy(
+            policy_id="cov", version="2.0", authority="confirmed",
+            approved_by="示例批准人", approved_at="2026-10-15",
+            document_ref="COV-002",
+            requirements=[CostCoverageRequirement(category=c) for c in COVERAGE_CATEGORIES],
+        ),
+    )
+    old_snapshot = tco_snapshot_hash(tco_old)
+    new_snapshot = tco_snapshot_hash(tco_new)
+    assert old_snapshot != new_snapshot
+
+    approval = _approval(cost_snapshot_hash=old_snapshot)
+    result = evaluate_quote_eligibility(
+        candidate_id="cand-mech", requirement_id="req-1", tco=tco_new,
+        sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
+        confirmation=_confirmation(), billing_rule=_billing_rule_rule(),
+        cost_snapshot_hash=new_snapshot, plan_id="p-mech",
+    )
+    assert result.quote_publishable is False
+    assert any("approval_cost_snapshot_stale" in b for b in result.blockers)
+
+    # 对照：绑定当前快照则通过成本/审批两维
+    ok = evaluate_quote_eligibility(
+        candidate_id="cand-mech", requirement_id="req-1", tco=tco_new,
+        sla_evidence=_sla_evidence(), sla_recheck=_recheck(),
+        approval=_approval(cost_snapshot_hash=new_snapshot),
+        confirmation=_confirmation(), billing_rule=_billing_rule_rule(),
+        cost_snapshot_hash=new_snapshot, plan_id="p-mech",
+    )
+    assert ok.quote_publishable is True

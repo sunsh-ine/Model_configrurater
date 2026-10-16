@@ -207,3 +207,46 @@ def call_agent_op(op: str, **kwargs) -> dict: ...
 7. 不得让报价门禁被任何参数放宽；
 8. 不得改变第一阶段的历史计算口径；
 9. 本阶段不开发 Web 前端与自治商务 Agent。
+
+
+---
+
+## 五、接口冻结与部署级限制（V4.3）
+
+第四阶段核心接口自 V4.3 起**冻结**：不再新增业务模块、Schema 层级或验收阶段，
+后续只做修正与收敛。
+
+### 5.1 冻结的调用契约
+
+```python
+# 报价资格：只接受引用，服务端重放核验
+quote_eligibility_for(
+    db, *, candidate_id, requirement_id, facts,
+    sla_evaluation_id, approval_id, confirmation_id=None,
+    plan_file=None, template_id=None, hardware_id=None,
+    gpu_count=None, server_count=None,
+    scenario_id=None, demand_file=None, billing_rule_id=None,
+    region=None, as_of=None, policy=None,
+) -> dict
+```
+
+* **计费规则必填且必须有效**：报价必然含计费条款，规则缺失/未确认/失效一律阻断；
+  作用域比对基线只来自实际使用的规则对象。
+* **四维门禁不可放宽**：成本完整+已授权覆盖策略 / SLA 生产级实测 /
+  人工商务确认+有效计费规则 / 人工审批+成本快照绑定。
+* **回退路径恒不可发布**：`quote_eligibility_from_claims()` 仅供诊断。
+
+### 5.2 部署级限制（**不通过 RBAC 解决**）
+
+> 本系统**未接入可信审批系统**：`import-quote-approvals` 只做持久化，
+> 不校验审批人身份与权限。
+>
+> **因此本系统不得用于生产环境的报价自动发布。**
+> 正式报价必须由人工在受控流程中签发。
+
+改为引入完整 RBAC 属于部署侧能力，超出本仓库范围；
+在审批基础设施到位前，这条限制是**唯一**的合规边界。
+
+### 5.3 已知的收敛方向（下一阶段，尚未执行）
+
+统一用户评估入口 · 收敛 `services.py` 编排 · 明确数据与算法扩展边界。

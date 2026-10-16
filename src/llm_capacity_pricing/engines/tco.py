@@ -504,6 +504,7 @@ def compute_tco(
         gpu_count=plan.gpu_count,
         server_count=plan.server_count,
         horizon_years=horizon,
+        region=plan.region,
         currency=currency,
         currencies_seen=currencies_seen,
         discount_rate_per_year=plan.assumptions.discount_rate_per_year,
@@ -546,10 +547,12 @@ def tco_snapshot_hash(tco: TcoResult) -> str:
     import json
 
     payload = {
+        # ---- 方案与金额 ----
         "plan_id": tco.plan_id,
         "candidate_id": tco.candidate_id,
         "hardware_id": tco.hardware_id,
         "cost_basis": tco.cost_basis,
+        "region": tco.region,
         "gpu_count": tco.gpu_count,
         "server_count": tco.server_count,
         "horizon_years": tco.horizon_years,
@@ -557,15 +560,41 @@ def tco_snapshot_hash(tco: TcoResult) -> str:
         "capex": str(tco.capex_one_time),
         "opex": str(tco.annual_cash_opex),
         "depreciation": str(tco.annual_depreciation),
+        # ---- 计算依据（V4.3 P1-2）----
+        # 只对金额取哈希是不够的：两份"要求不同成本类别"的覆盖策略
+        # 可能算出同样的金额，但"哪些成本该计入"的业务规则已经变了。
+        "coverage_policy_id": tco.coverage_policy_id,
+        "coverage_policy_version": tco.coverage_policy_version,
+        "coverage_policy_authority": tco.coverage_policy_authority,
+        "coverage_decisions": dict(sorted(tco.coverage_decisions.items())),
+        "coverage_gaps": sorted(tco.coverage_gaps),
+        "scope_exclusions": dict(sorted(tco.scope_exclusions.items())),
+        "incomplete": tco.incomplete,
+        "completeness_reasons": sorted(tco.completeness_reasons),
+        "unknown_items": sorted(tco.unknown_items),
+        "excluded_items": sorted(tco.excluded_items),
+        "applicability_errors": sorted(tco.applicability_errors),
+        "currency_confirmed": tco.currency_confirmed,
+        "contains_synthetic_prices": tco.contains_synthetic_prices,
+        "unconfirmed_items": sorted(tco.unconfirmed_items),
         "components": [
             {
                 "item_id": c.item_id,
+                "category": c.category,
+                "basis": c.basis,
                 "price_basis": c.price_basis,
                 "unit_price": str(c.unit_price),
+                "unit": c.unit,
+                "currency": c.currency,
+                "currency_status": c.currency_status,
+                "status": c.status,
+                "origin": c.origin,
                 "quantity": str(c.quantity),
                 "annual": str(c.annual_cost),
                 "one_time": str(c.one_time_cost),
                 "determination": c.determination,
+                "applicability_issue": c.applicability_issue,
+                "evidence_id": c.evidence_id,
             }
             for c in sorted(tco.components, key=lambda c: c.item_id)
         ],

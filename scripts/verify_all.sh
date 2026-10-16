@@ -374,6 +374,7 @@ step_quote_blocked_by_evidence() { # 引用真实证据仍必须阻断（断言�
       --framework vllm --framework-version synthetic-fw-1.0 \
       --concurrency 8 --input-len 1024 --output-len 256 --dataset random \
       --arrival-mode unbounded --confirmation syn-confirmation-demo \
+      --billing-rule syn-billing-qwen3-32b \
       --plan-file "$P4_PLAN" --template syn-owned-3y \
       --hardware-id nvidia-h100-sxm-80gb --server-count 1 --db "$DB" 2>&1); then
     printf '%s\n' "$out"; return 1
@@ -390,6 +391,10 @@ step_quote_blocked_by_evidence() { # 引用真实证据仍必须阻断（断言�
   fi
   if ! printf '%s' "$out" | grep -q 'approval_cost_snapshot_stale'; then
     printf '断言失败：审批绑定的成本快照不符必须被指出\n'; return 1
+  fi
+  # V4.3 P0-1：计费规则必须真的被解析并参与判定
+  if ! printf '%s' "$out" | grep -q '"billing_rule_id": "syn-billing-qwen3-32b"'; then
+    printf '断言失败：计费规则必须被解析并绑定到报价判定\n'; return 1
   fi
 }
 
