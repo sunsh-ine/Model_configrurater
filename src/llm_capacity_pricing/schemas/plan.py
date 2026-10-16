@@ -244,6 +244,50 @@ class PlanCandidate(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class PlanExternalReference(BaseModel):
+    """**外部公开实测参考**（Demo：公开数据驱动）。
+
+    这类数据来自官方/第三方公开发布，可以用来展示"业界在这类配置上大概什么水平"，
+    但**不是**本需求的实测依据。它与候选性能结论**分开列示**，并写明为什么不能用：
+
+    * 身份不匹配（不同模型 / 不同硬件 / 不同并行配置）；
+    * 记录侧身份不完整（缺模型版本、精度、并发等）→ 只能作参考；
+    * 这些数值**不参与** SLA 判定，也不进入报价门禁。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    publisher: str | None = None
+    source_url: str | None = None
+    source_file: str | None = None
+    source_sha256: str | None = None
+    data_trust: str
+    #: 部署身份
+    model_name: str | None = None
+    model_revision: str | None = None
+    weight_precision: str | None = None
+    hardware_model: str | None = None
+    gpu_count: int | None = None
+    tp_size: int | None = None
+    dp_size: int | None = None
+    framework: str | None = None
+    framework_version: str | None = None
+    #: 负载条件
+    dataset_name: str | None = None
+    input_len_target: int | None = None
+    output_len_target: int | None = None
+    configured_concurrency: int | None = None
+    #: 公开指标（缺失保持 None，不补造）
+    ttft_p99_ms: Decimal | None = None
+    tpot_p99_ms: Decimal | None = None
+    output_throughput_tok_s: Decimal | None = None
+    #: 与本需求的匹配结论与**不能用它的原因**
+    match_level: str | None = None
+    not_usable_reasons: list[str] = Field(default_factory=list)
+    quality_flags: list[str] = Field(default_factory=list)
+
+
 class PlanBlocker(BaseModel):
     """结构化阻断/错误原因：领域 + 原因码 + 可读说明。"""
 
@@ -272,6 +316,8 @@ class PlanResult(BaseModel):
 
     request_echo: dict[str, Any] = Field(default_factory=dict)
     candidates: list[PlanCandidate] = Field(default_factory=list)
+    #: 外部公开实测参考（**不参与**候选评价与 SLA 判定）
+    external_references: list[PlanExternalReference] = Field(default_factory=list)
 
     blockers: list[PlanBlocker] = Field(default_factory=list)
     #: 还缺哪些输入才能让更多领域出结论

@@ -199,6 +199,39 @@ def build_plan_report(result: PlanResult) -> str:
                 add(f"- `{c.candidate_id}`：" + " / ".join(detail))
         add("")
 
+    # ---- 公开数据参考 ----
+    refs = result.external_references
+    if refs:
+        add("## 2.1 公开数据参考（**不参与**本需求的性能判定）")
+        add("")
+        add(
+            "以下数值来自官方/第三方**公开发布**的实测，用于了解同类配置的业界水平。"
+            "它们**不是**你要部署的配置的实测依据，因此不参与 SLA 判定，也不进报价门禁。"
+        )
+        add("")
+        add("| 来源 | 模型 | 硬件 | 卡数 | TP/DP | 框架 | ISL/OSL | 并发 | TTFT P99 | TPOT P99 | 输出吞吐 |")
+        add("|---|---|---|---|---|---|---|---|---|---|---|")
+        for r in refs:
+            add(
+                f"| `{r.run_id}` | {_fmt(r.model_name)} | {_fmt(r.hardware_model)} "
+                f"| {_fmt(r.gpu_count)} | {_fmt(r.tp_size)}/{_fmt(r.dp_size)} "
+                f"| {_fmt(r.framework)} {_fmt(r.framework_version)} "
+                f"| {_fmt(r.input_len_target)}/{_fmt(r.output_len_target)} "
+                f"| {_fmt(r.configured_concurrency)} "
+                f"| {_fmt(r.ttft_p99_ms)} | {_fmt(r.tpot_p99_ms)} "
+                f"| {_fmt(r.output_throughput_tok_s)} |"
+            )
+        add("")
+        for r in refs:
+            add(f"**`{r.run_id}` 为什么不能直接用于你的需求：**")
+            add("")
+            for reason in r.not_usable_reasons:
+                add(f"- {reason}")
+            add("")
+            add(f"> 来源文件：`{_fmt(r.source_file)}`（sha256 `{_fmt(r.source_sha256)}`）")
+            add(f"> 数据可信等级：`{r.data_trust}`；质量标记：{r.quality_flags}")
+            add("")
+
     # ---- 推荐依据 ----
     add("## 3. 推荐依据")
     add("")

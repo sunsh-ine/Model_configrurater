@@ -42,7 +42,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import yaml
 
@@ -605,6 +605,7 @@ def evaluate_plan(
                 )
             )
 
+    external_references = _external_references(runs, ranked, target_hint=request)
     recommendations = _recommendations(candidates, domains)
     blockers = _dedupe_blockers(blockers)
     status = _overall_status(domains, blockers)
@@ -630,6 +631,7 @@ def evaluate_plan(
             "billing_rules_in_db": sorted(billing_rules),
         },
         candidates=candidates,
+        external_references=external_references,
         blockers=blockers,
         missing_inputs=missing,
         next_data_needed=list(dict.fromkeys(next_data)),
@@ -733,6 +735,73 @@ def _recommendations(
         "本结果**不包含**跨维度综合评分：成本、性能与报价资格三者独立"
     )
     return out
+
+
+def _external_references(
+    runs: Sequence[Any], ranked: Mapping[str, Any], *, target_hint: Any
+) -> list[Any]:
+    """列出库里的**外部公开实测**，并说明它们为什么不能用于本需求（Demo）。
+
+    与候选性能结论严格分开：这些数据不参与 SLA 判定，也不进报价门禁。
+    只有公开来源（厂商/项目发布）才进入本列表 —— 内部实测归属候选链路。
+    """
+    from llm_capacity_pricing.schemas.plan import PlanExternalReference
+
+    # ranked 的值是 RankedDeployment：它携带**全部**支撑 run（聚合时不止一条）
+    matched_run_ids = {rid for r in ranked.values() for rid in (r.evidence_run_ids or [])}
+    out: list[PlanExternalReference] = []
+    for run in runs:
+        if run.run_id in matched_run_ids:
+            continue  # 已被候选采用，不重复列
+        if run.data_trust not in (
+            "measured_vendor_published",
+            "measured_third_party",
+        ):
+            continue
+        sig = run.signature
+        profile = run.profile
+        reasons: list[str] = []
+        if not sig.model_revision:
+            reasons.append("公开来源未给出模型版本（revision）：无法确认与你的模型版本一致")
+        if not sig.weight_precision:
+            reasons.append("公开来源未给出权重精度：无法确认与你的部署精度一致")
+        if not profile.configured_concurrency:
+            reasons.append("公开来源未给出配置并发：无法与你的负载并发对齐")
+        if sig.model_name and target_hint.model_id and sig.model_name != target_hint.model_id:
+            reasons.append(
+                f"模型不同（公开数据为 {sig.model_name}）：不能代表你要部署的模型"
+            )
+        out.append(
+            PlanExternalReference(
+                run_id=run.run_id,
+                publisher=(run.notes or None),
+                source_url=None,
+                source_file=run.raw_file,
+                source_sha256=run.raw_sha256,
+                data_trust=run.data_trust,
+                model_name=sig.model_name,
+                model_revision=sig.model_revision,
+                weight_precision=sig.weight_precision,
+                hardware_model=sig.hardware_model,
+                gpu_count=sig.gpu_count,
+                tp_size=sig.tp_size,
+                dp_size=sig.dp_size,
+                framework=sig.framework,
+                framework_version=sig.framework_version,
+                dataset_name=sig.workload.dataset_name,
+                input_len_target=sig.workload.input_len_target,
+                output_len_target=sig.workload.output_len_target,
+                configured_concurrency=sig.workload.configured_concurrency,
+                ttft_p99_ms=profile.ttft_p99_ms,
+                tpot_p99_ms=profile.tpot_p99_ms,
+                output_throughput_tok_s=profile.output_throughput_tok_s,
+                match_level=None,
+                not_usable_reasons=reasons
+                or ["该数据未被本需求的候选采用（见匹配说明）"],
+                quality_flags=list(run.quality_flags),
+            )
+        )
+    return sorted(out, key=lambda r: r.run_id)
 
 
 def _cost_profile(candidate: PlanCandidate) -> Any:

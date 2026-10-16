@@ -659,13 +659,16 @@ run_step 55 "attest-run（P0-2：未核验模板不得自动获得生产级可�
   $PY scripts/check_attest_flow.py --db "$DB" \
     --metadata "$(ls "$OUT_DIR"/metadata/*.yaml | head -1)"
 
-run_step 56 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 56 "Demo（公开数据驱动：一键脚本 + 报告 + 结果）" 1 '^(报告:|== 6/6)|公开数据只作' \
+  bash scripts/run_demo.sh "$OUT_DIR/demo"
+
+run_step 57 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 57 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 58 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 58 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 59 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

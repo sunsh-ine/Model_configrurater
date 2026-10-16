@@ -221,6 +221,19 @@ python -m llm_capacity_pricing.cli phase4-report \
 > 草稿或未授权策略算得出数字，但会被标为不完整并阻断报价。
 > **价格必须适用**：GPU SKU、区域、有效期在算金额之前校验，不通过则剔除并报明原因。
 
+### 公开数据驱动的 Demo（无需 GPU，一条命令）
+
+```bash
+bash scripts/run_demo.sh              # 默认输出到 data/exports/
+```
+
+用**官方公开发布的 Benchmark**（SGLang Qwen3 Cookbook，来源 sha256 逐个校验）
+演示完整链路：需求 → 部署候选 → 公开实测参考 → SLA 可信度 → 成本估算 → 报告。
+公开数据只作**参考**（报告第 2.1 节，明确说明为什么不能直接用于你的需求），
+成本为假设值，报价资格与生产发布授权一律不放行。
+
+详见 [`docs/public_data_demo.md`](docs/public_data_demo.md)。
+
 ### 统一评估入口（S1：一份配置 + 一条命令 + 一份报告）
 
 前面各阶段的命令都是**专业入口**；日常使用只需要这一条：
@@ -256,7 +269,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **59 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
+> 完整链路由 **60 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）。
 
 ---
@@ -551,6 +564,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/plan_config_reference.md`](docs/plan_config_reference.md) | **S1/S5** `plan` 配置字段说明与报告导读 |
 | [`docs/extension_guide.md`](docs/extension_guide.md) | **S4** 三个扩展方向的开发指南（数据 / Benchmark 适配 / 计算规则） |
 | [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35–M38** 核心数据契约冻结 + 真实数据准备规范、质量分级与压测清单 |
+| [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D5，含数据来源取舍记录） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
