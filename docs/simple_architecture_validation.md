@@ -171,27 +171,104 @@ python -m llm_capacity_pricing.cli plan \
 
 ---
 
-## 六、S4–S6：待执行
+## 六、S4：最小可扩展边界 ✅
 
-| 里程碑 | 目标 | 状态 |
-|---|---|---|
-| S3 | 统一公共规则与错误表达：匹配/SLA 可信度、synthetic 区分、成本完整性、报价门禁、证据追溯各只有一处权威实现 | ⬜ 未开始 |
-| S4 | 最小可扩展边界：数据 / Benchmark 适配 / 计算规则三个方向 + 开发指南与契约测试 | ⬜ 未开始 |
-| S5 | 简化配置、CLI 与报告：`plan` 为普通入口、历史命令作为高级入口；报告区分实测/估算/假设/缺失 | ⬜ 未开始 |
-| S6 | 四场景端到端验证、新旧结果对照、文档与封板 | ⬜ 未开始 |
+只保留三个扩展方向，每个都给了固定入口、验收方式，以及**不需要改什么**。
+详见 `docs/extension_guide.md`。
 
-### S6 四个端到端场景（待建立）
+| 方向 | 入口 | 需要改的地方 | 明确不需要改 |
+|---|---|---|---|
+| 数据（模型/GPU/成本/计费规则） | 目录 YAML + `import-*` | 数据文件；新 GPU 若参与签名匹配再补 `SIGNATURE_PRODUCT_NAMES` **一行** | `workflow.py`、CLI、匹配/SLA/TCO 引擎 |
+| Benchmark 适配 | `PERFORMANCE_ADAPTERS` 注册表加一行 | 新适配器模块（`parse(file, metadata) -> (records, evidences)`） | `perf/benchmark_matcher.py`、`perf/sla_evaluator.py`、`engines/tco.py` |
+| 计算规则 | 所属领域内新增**版本化**实现 | 该领域文件 | 编排层与其它领域 |
 
-| 场景 | 输入 | 期望 |
-|---|---|---|
-| A | 只有模型与 GPU 信息 | 正常输出静态规划，性能与经济性保留缺口 |
-| B | 有匹配性能实测但无已确认价格 | 能评价性能，**不得**生成正式报价 |
-| C | 有完整合成样本 | 四领域贯通，但 synthetic **绝不**升级为生产 SLA |
-| D | 输入错误或证据不匹配 | 返回清楚的错误/阻断原因，无静默降级 |
+`_perf_importer` 由 if/elif 改为**普通查找表**（`{kind: (模块, 函数名)}`）——
+不是插件框架：没有抽象基类、没有注册装饰器、没有动态发现。
+
+| 计划 §6 验收 | 结果 |
+|---|---|
+| 新增 GPU SKU 不必修改主工作流 | ✅ `test_s4_new_gpu_sku_needs_data_plus_one_mapping` |
+| 新增 Benchmark 格式只需局部适配 | ✅ `test_s4_new_benchmark_adapter_plugs_in_without_touching_domains`（现场写一个假想格式适配器 → 导入 → `exact_match` → `observed_pass`，未改领域代码） |
+| 新增同结构计费规则以数据配置完成 | ✅ `test_s4_new_billing_rule_is_data_only`、`test_s4_new_cost_category_is_data_only` |
+| 不产生空接口/抽象基类/动态注册 | ✅ `test_s4_extension_did_not_add_abstractions` |
 
 ---
 
-## 五、每轮回归结果记录
+## 七、S5：简化配置、CLI 与报告 ✅
+
+**配置**：`docs/plan_config_reference.md` 给出必需字段（三样）、按场景选填的
+五个段落、`advanced` 专业字段与报告导读，并明确"**只维护一份配置**"
+（成本规则与需求情景各自留在一个文件里，`plan` 配置只引用其路径与 ID）。
+契约测试保证两份示例是**超集关系**，不会出现两份表达同一事实却互相矛盾的配置。
+
+**CLI**：`plan` 移到命令区首位，帮助按用途分为 6 组
+（① 主入口 / ② 数据导入 / ③ 校验与库存 / ④ 计算与诊断 / ⑤ 报告 / ⑥ 治理与报价）；
+顶层帮助写明"日常只需一条命令"；**历史命令全部保留**。
+
+**报告**：正文（1–5 节）面向使用者，不暴露内部枚举；附录保留可复核细节。
+
+| 内部取值 | 正文说法 |
+|---|---|
+| `observed_pass` / `observed_fail` | 实测达标 / 实测未达标 |
+| `estimated_only` | 仅估算（不算达标） |
+| `not_evaluable` | 证据不足 |
+| `conditional_feasible` | 条件可行（需按假设复核） |
+| `requires_benchmark` | 需要补测 |
+| 可信等级（`measured_internal` 等） | 只在附录出现 |
+
+| 计划 §7 验收 | 结果 |
+|---|---|
+| 普通用户无需理解表结构/Run ID/匹配级别 | ✅ `test_s5_report_body_hides_internal_vocabulary` |
+| 专业用户仍可追踪来源、复现计算 | ✅ 附录保留 Run ID、匹配等级与逐项成本分解 |
+| 报告区分实测/估算/假设/缺失 | ✅ `test_s5_report_distinguishes_measured_estimated_assumed_missing` |
+| 有明确的下一步建议 | ✅ `test_s5_report_has_next_steps_section` |
+
+---
+
+## 八、S6：四场景端到端验收与封板 ✅
+
+### 8.1 四个端到端验收场景
+
+| 场景 | 断言 | 用例 |
+|---|---|---|
+| **A** 只有模型与 GPU | `partial` 而非 `blocked`；无错误阻断；资源领域出结论；性能与经济性明确留缺口且**不给假值** | `test_s6_scenario_a_model_and_gpu_only` |
+| **B** 有匹配实测但无已确认价格 | 性能领域出结论且达到 `observed_pass`；价格是合成示例 → 成本不完整；**任何候选都不可发布** | `test_s6_scenario_b_measured_performance_without_confirmed_price`、`..._governance_reference_does_not_bypass_price_gap` |
+| **C** 完整合成样本 | 四领域贯通；但 synthetic **绝不**升级为生产 SLA（`observed_pass` 为零）；收入只作情景分析 | `test_s6_scenario_c_synthetic_never_becomes_production_sla`、`..._algorithm_validation_cannot_reach_publishing` |
+| **D** 输入错误 / 证据不匹配 | 未知模型、未知成本模板、非法配置、证据身份不符各自给出**明确原因**，无静默降级、无误放行 | `test_s6_scenario_d_*`（4 个用例） |
+
+验收入口（全链路第 49 步）：
+
+```bash
+.venv/bin/python -m pytest tests/test_s_phase_end_to_end.py -q
+```
+
+### 8.2 新旧入口对照
+
+| 对照 | 结果 |
+|---|---|
+| `plan` vs `rank-deployments` | 静态状态、性能分桶、SLA 状态、匹配等级逐候选一致 |
+| `plan` vs `tco` | 一次性投入与年现金支出逐项一致 |
+| `plan` CLI vs Agent `plan.evaluate_config` | 同一数据库快照下状态、领域、汇总裁荷、候选顺序与可发布性完全一致 |
+
+用例：`test_s6_new_and_old_entries_agree_on_core_results`、
+`test_s6_cli_plan_and_agent_agree_end_to_end`。
+
+### 8.3 硬性要求核对
+
+| 要求 | 结果 |
+|---|---|
+| 原有测试全部通过 | ✅ **683 passed**（S0 基线 620 → 683） |
+| 原 52 步全链路全部通过 | ✅ **53 / 53**（新增第 49 步：四场景验收） |
+| 第一阶段维持 160 / 192 / 0 | ✅ 不变 |
+| 新增 CLI 与工作流契约测试通过 | ✅ `tests/test_s_phase_plan.py`（33）、`test_s_phase_rules.py`（13）、`test_s_phase_extension.py`（6）、`test_s_phase_end_to_end.py`（11） |
+| 原有公开函数与字段兼容 | ✅ `services.phase4_decision_for` 等保留为兼容入口；数据库只追加过可空列 |
+| 新旧入口核心业务结果一致 | ✅ 见 8.2 |
+| 未修改权重/KV/性能/TCO 计算口径 | ✅ 仅收敛调用与常量来源，公式未改；第一阶段回归不变 |
+| 生产自动报价维持禁用 | ✅ 见第十节 |
+
+---
+
+## 九、每轮回归结果记录
 
 | 轮次 | 全量测试 | 全链路步骤 | 第一阶段回归 | 反向场景 |
 |---|---|---|---|---|
@@ -202,21 +279,35 @@ python -m llm_capacity_pricing.cli plan \
 
 ---
 
-## 六、封板检查清单（人工验收用，当前 3/7）
+## 十、封板检查清单（人工验收用，当前 7/7）
 
 - [x] 一份 YAML、一条 `plan` 命令能完成主评估流程
 - [x] CLI、Agent 和报告复用相同的核心业务判断（S2；业务规则单一权威在 S3 收口）
-- [x] 原有测试与全链路验证没有回退（641 passed / 52 步）
+- [x] 原有测试与全链路验证没有回退（683 passed / 53 步）
 - [x] 160 / 192 / 0 历史基线保持不变
 - [ ] 新模型/GPU/Benchmark 的扩展路径已通过契约测试（S4）
-- [ ] 缺失数据、Synthetic 和未授权报价不会被错误放行（S6 全场景覆盖；S3 已收敛规则来源）
-- [ ] 新旧入口结果一致，Simple 架构文档完成（S6）
+- [x] 缺失数据、Synthetic 和未授权报价不会被错误放行（S6 四场景覆盖）
+- [x] 新旧入口结果一致，Simple 架构文档完成（S6 §8.2）
 
 **S6 未通过之前不进入第五阶段的新功能开发。**
 
 ---
 
-## 七、独立跟踪的安全事项
+## 十一、独立跟踪的安全事项
 
 仓库为 Public，历史提交中的内部定价数据风险**未闭环**。
 S 阶段不重写 Git 历史，该事项单独跟踪，需用户明确授权后另行处理。
+
+---
+
+## 十二、封板结论
+
+S 阶段全部里程碑（S0–S6）完成，七项封板检查全部通过（见第十节）。
+
+**本阶段的目标是降低复杂度，不是增加功能**：本轮没有新增业务能力，
+只做入口统一、编排收敛、规则单一权威、扩展边界明确与报告简化。
+判断依据是"下一次加一张 GPU 卡只需改数据 + 一行映射"——
+这一点已由 `test_s4_new_gpu_sku_needs_data_plus_one_mapping` 证明。
+
+**生产自动报价仍为禁用状态**（未接入可信审批系统），
+真实商务数据与目标配置实测仍缺失 —— 这三项与 S 阶段无关，需单独推进。

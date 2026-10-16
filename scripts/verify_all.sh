@@ -622,13 +622,16 @@ run_step 48 "plan（S1 完整配置：四领域贯通，报价仍不可发布）
   $CLI plan --config "$S1_FULL" --out "$OUT_DIR/plan_full.md" \
     --json-out "$OUT_DIR/plan_full.json" --db "$DB"
 
-run_step 49 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 49 "S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误）" 1 '^[0-9]+ passed' \
+  $PY -m pytest tests/test_s_phase_end_to_end.py -q
+
+run_step 50 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 50 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 51 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 51 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 52 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish
