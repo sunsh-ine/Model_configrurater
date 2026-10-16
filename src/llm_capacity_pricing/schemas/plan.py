@@ -282,8 +282,11 @@ class PlanExternalReference(BaseModel):
     ttft_p99_ms: Decimal | None = None
     tpot_p99_ms: Decimal | None = None
     output_throughput_tok_s: Decimal | None = None
-    #: 与本需求的匹配结论与**不能用它的原因**
+    #: 匹配结论与本需求的口径（均由 Benchmark Matcher 给出，Demo 不另立一套规则）
     match_level: str | None = None
+    #: 与目标配置**相同**、可以直接对照的条件
+    same_conditions: list[str] = Field(default_factory=list)
+    #: **不能**直接比较的原因（身份差异 / 记录侧缺失 / 目标侧缺失）
     not_usable_reasons: list[str] = Field(default_factory=list)
     quality_flags: list[str] = Field(default_factory=list)
 

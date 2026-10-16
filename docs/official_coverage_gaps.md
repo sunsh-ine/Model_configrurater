@@ -4,7 +4,7 @@
 - 采集方式：人工触发的 HTTP 抓取（**无自动爬取、不绕过访问限制**）。线索检索借助
   codex CLI 的联网检索能力定位候选页面，**每个 URL 都由本机 curl 独立复核 HTTP 状态后**
   才抓取存档，未直接采信检索结果中的任何数值。
-- 清单文件：`data/sources/official_manifest.yaml`（**16 条**）
+- 清单文件：`data/sources/official_manifest.yaml`（**18 条**；M7 数值型 2 条 + D7 公开参考 2 条）
 - 存档证据：`data/raw/official/`（12 个 HTML + **2 个 .mdx**，每个都记录 sha256）
 - 入库命令：`import-official`（页面级候选）与 `import-sglang-candidates`（M7 数值型候选）
   → 同一张表 `official_benchmark_candidate`，用 `candidate_family` 区分
@@ -119,6 +119,46 @@ Qwen3-Coder 原文的 `5.1.2.1`（FP8）与 `5.1.2.2`（NVFP4）两节还有 **6
 
 ---
 
+## 0bis. D7 批次：两条更贴近目标的**公开参考**来源
+
+Demo V1.1 补入两条公开来源（manifest 因此从 16 条增至 18 条）。
+它们**不是**官方候选证据，也**不是**目标配置的实测 —— 状态记为
+`public_reference_partial_environment`，由
+`scripts/import_public_benchmarks.py` 接入为"公开参考"，仅供对照。
+
+| 条目 ID | 发布方 | 模型 / 硬件 | 规模与负载 | 可信等级 | 为什么仍不能当本配置实测 |
+|---|---|---|---|---|---|
+| `gpustack_perf_lab_qwen3_32b_h100` | GPUStack 性能实验室 | Qwen3-32B / 单张 H100 SXM | 1 卡，ShareGPT，vLLM 0.11.0 | `measured_vendor_published` | 只有 1 卡；负载是 ShareGPT（长度可变）；TP/DP 与权重精度未声明 → 匹配等级 `modeling_candidate`，只能建模/校准 |
+| `community_qwen3_32b_h100_4gpu_report` | MG-Cafe（社区报告） | Qwen3-32B bf16 / 4×H100 80GB HBM3 | 4 卡 TP4，random 31400/128，vLLM 0.17.0 | `measured_third_party` | 原文 GPU 型号写的是「NVIDIA H100 80GB HBM3」而非 SXM，本工具**不做产品别名推断**，故与目录中的「NVIDIA H100 SXM」按不同型号处理；且非厂商实测，报告自述存在版本差异与 CUDA Graphs 不可比因素 |
+
+### 接入方式：逐字段字面量核对（claims）
+
+这两条的原文不是 SGLang 的控制台输出块，没有章节锚点可依，因此改用
+**逐字段字面量核对**：`data/incoming/public_benchmark_references_20261015.json`
+为每个入库取值声明一段词序列（token），导入时必须能在归档原文里**按顺序**找到
+（token 之间只允许空白）。规则与对应的反例测试：
+
+- 有值却既无 claim 也无 derived 说明的字段 → **拒绝整批入库**（不得静默采信）；
+- 任一声明在原文里找不到 → **拒绝整批入库**，不产出"部分可信"的记录；
+- 归档文件 sha256 与声明不一致 → 拒绝；
+- 无法用字面量核对的取值（例如由 `Request Rate ∞` 推出的 `arrival_mode=unbounded`、
+  由 `Failed Requests 0` 推出的失败率）必须写进 `derived_fields` 并给出理由，
+  导入后会带上 `derived:<字段>:<理由>` 质量标记。
+
+**已知限制（不假装更强）**：核对的是"该取值与标签确实在原文中出现且相邻"，
+并不证明它出现在表格里的正确位置。因此所有 claims 都连标签一起声明
+（例如 `["P99","TTFT","(ms):","153161.51"]`）。导入输出说的是"与归档原文核对通过"，
+**不是**"该数字是目标配置的性能"。
+
+### 两条来源都没能填上的字段
+
+原文明说的缺口一律留空，不做推算：`model_revision`、GPUStack 的 `tp_size`/`dp_size`、
+两条的 `configured_max_concurrency`。GPUStack 页面的「Peak concurrent requests 1000.00」
+按 `observed_concurrency` 存，**不**写进 `configured_concurrency` ——
+观测值不能冒充配置值。
+
+---
+
 ## 1. M5 批次的结论（保留）
 
 - 6 条候选全部标记 `verification_status = "partial_evidence"`，**不进**
@@ -133,7 +173,7 @@ Qwen3-Coder 原文的 `5.1.2.1`（FP8）与 `5.1.2.2`（NVFP4）两节还有 **6
 
 按照任务书 §8 M5："若无法获得 2 条完整来源，**不得捏造**"，此缺口以本文件如实记录。
 
-## 2. 逐来源核查记录（M5 批次的 14 条；manifest 现共 16 条，M7 新增 2 条见 §0）
+## 2. 逐来源核查记录（M5 批次的 14 条；manifest 现共 18 条：M7 新增 2 条见 §0，D7 新增 2 条见 §0bis）
 
 | # | 条目 ID | 发布方 | status | 请求 URL | HTTP | 含实测数值 | 判定 |
 |---|---|---|---|---|---|---|---|

@@ -253,6 +253,12 @@ SKIP_REASON: dict[str, str] = {
         "数值型来源：由 import-sglang-candidates 按 record_id 接入候选表，"
         "不由 import-official 处理"
     ),
+    #: D7：厂商性能实验室 / 第三方社区报告这类**公开参考**来源。
+    #: 它们既不是官方候选证据，也不是目标配置的实测，只作参考。
+    "public_reference_partial_environment": (
+        "公开参考来源：由 scripts/import_public_benchmarks.py 逐字段与归档原文核对后"
+        "作为公开参考接入，不由 import-official 处理，也不参与目标配置的 SLA 判定"
+    ),
     "verified": "已核实来源：应由 official_benchmark 导入路径处理",
 }
 

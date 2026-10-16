@@ -224,12 +224,20 @@ python -m llm_capacity_pricing.cli phase4-report \
 ### 公开数据驱动的 Demo（无需 GPU，一条命令）
 
 ```bash
-bash scripts/run_demo.sh              # 默认输出到 data/exports/
+bash scripts/run_demo.sh                    # 默认输出到 data/exports/
+DEMO_DB=/tmp/my.db bash scripts/run_demo.sh # 指定数据库（已存在则拒绝覆盖）
 ```
 
-用**官方公开发布的 Benchmark**（SGLang Qwen3 Cookbook，来源 sha256 逐个校验）
-演示完整链路：需求 → 部署候选 → 公开实测参考 → SLA 可信度 → 成本估算 → 报告。
-公开数据只作**参考**（报告第 2.1 节，明确说明为什么不能直接用于你的需求），
+用**公开发布的 Benchmark** 演示完整链路：需求 → 部署候选 → 公开实测参考 → SLA 可信度
+→ 成本估算 → 报告。共 14 条公开数据（来源逐个与归档原文核对）：
+
+* SGLang 官方 Cookbook 12 条（`measured_vendor_published`，按章节锚点逐字段核对）；
+* GPUStack 性能实验室的 Qwen3-32B / 单张 H100 1 条（同模型同 GPU 型号 → 只能作**建模参考**）；
+* 第三方社区 4×H100 报告 1 条（`measured_third_party`；卡数/TP/精度一致，但原文硬件型号写法
+  与目录不同 → 按**不同型号**处理，理由如实展示，不做别名推断）。
+
+公开数据只作**参考**：报告第 2.1 节展开最相关的 3 条，逐条给出「与目标相同的条件」与
+「不能直接比较的条件」+ 来源链接 + 存档 sha256；其余见第 7 节附录与 JSON 结果。
 成本为假设值，报价资格与生产发布授权一律不放行。
 
 详见 [`docs/public_data_demo.md`](docs/public_data_demo.md)。
@@ -269,8 +277,9 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **60 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
-> （仅资源 / 有实测无价格 / 完整合成 / 输入错误）。
+> 完整链路由 **63 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
+> （仅资源 / 有实测无价格 / 完整合成 / 输入错误）、**Demo（D1–D9）**
+> 与两条反例断言（篡改公开参考声明必须整批拒绝、`DEMO_DB` 指向已有库必须拒绝覆盖）。
 
 ---
 
@@ -381,8 +390,8 @@ llm-capacity-pricing/
 │   │   ├── estimator.py                   # M22 受限估算与留出验证
 │   │   ├── sla_evaluator.py               # M23 SLA 判定
 │   │   └── ranker.py                      # M24 候选比较
-├── tests/                                 # 460 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（36 步，含第三阶段与敏感扫描）
+├── tests/                                 # 780 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（63 步，含门禁断言、Demo 与敏感扫描）
 ├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
@@ -401,7 +410,7 @@ llm-capacity-pricing/
 | 类别 | 路径 | 是否入库 | 说明 |
 |---|---|---|---|
 | 代码 / 测试 / 口径文档 | `src/` `tests/` `docs/` | ✅ | 公开 |
-| 官方来源存档证据 | `data/raw/official/`（12 HTML + 2 MDX，含 sha256） | ✅ | 公开文档的存档，版权见 `NOTICE.md` |
+| 官方来源存档证据 | `data/raw/official/`（13 HTML + 2 MDX + 1 MD，含 sha256） | ✅ | 公开文档的存档，版权见 `NOTICE.md` |
 | 合成 fixture | `data/fixtures/` | ✅ | 明确标注 `synthetic`，不参与默认业务计算 |
 | **脱敏示例样本** | `data/examples/`（含合成工作簿与手算期望值） | ✅ | 由 `scripts/make_public_sample.py` 生成，可公开 |
 | **内部业务产物** | `data/exports/`、`data/private/` | ❌ | 真实金额与派生结果，不入版本库 |
@@ -564,7 +573,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/plan_config_reference.md`](docs/plan_config_reference.md) | **S1/S5** `plan` 配置字段说明与报告导读 |
 | [`docs/extension_guide.md`](docs/extension_guide.md) | **S4** 三个扩展方向的开发指南（数据 / Benchmark 适配 / 计算规则） |
 | [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35–M38** 核心数据契约冻结 + 真实数据准备规范、质量分级与压测清单 |
-| [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D5，含数据来源取舍记录） |
+| [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D9，含数据来源取舍、匹配口径与报告导读） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |

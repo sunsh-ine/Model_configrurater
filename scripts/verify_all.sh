@@ -662,13 +662,22 @@ run_step 55 "attest-run（P0-2：未核验模板不得自动获得生产级可�
 run_step 56 "Demo（公开数据驱动：一键脚本 + 报告 + 结果）" 1 '^(报告:|== 6/6)|公开数据只作' \
   bash scripts/run_demo.sh "$OUT_DIR/demo"
 
-run_step 57 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 57 "公开参考来源核对（D7：逐字段字面量必须出自归档原文）" 1 '字面量逐字段核对通过' \
+  $PY scripts/import_public_benchmarks.py --db "$OUT_DIR/demo/verify_import.db" --root .
+
+run_step 58 "反例：篡改一个公开参考数值声明 -> 整批拒绝入库（D7）" 1 '核对失败' \
+  bash scripts/check_reference_tamper_blocked.sh "$OUT_DIR/demo/tamper"
+
+run_step 59 "反例：DEMO_DB 指向已有数据库 -> 拒绝运行且不删除（D6）" 1 '拒绝覆盖' \
+  bash scripts/check_demo_db_protected.sh "$OUT_DIR/demo/guard"
+
+run_step 60 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 58 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 61 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 59 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 62 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

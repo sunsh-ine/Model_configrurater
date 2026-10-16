@@ -490,3 +490,72 @@
     （5.1.1.1~5.1.1.3）；原文 5.1.2.1 / 5.1.2.2（NVIDIA B200/GB200 的 FP8、NVFP4）
     另有 6 个结果块**未被本批次输入列出**，故不生成候选，仅在
     `import-sglang-candidates` 输出中登记为 unlisted_sections_with_results。
+
+# ---------------------------------------------------------------------------
+# D7：第二批公开参考来源（Demo V1.1）
+#
+# 与上面两条 Cookbook 不同的是：这两条的**原始页面不是 SGLang 的控制台输出块**，
+# 因此接入方式改为「逐字段字面量核对」（claims）：
+# 每个入库取值都声明一段词序列，导入时必须能在归档原文里按顺序找到。
+# 二者都**不**升级为 official_benchmark，也**不**参与目标配置的 SLA 判定。
+# ---------------------------------------------------------------------------
+
+- id: gpustack_perf_lab_qwen3_32b_h100
+  status: public_reference_partial_environment
+  publisher: GPUStack (gpustack.ai)
+  source_url: https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/
+  requested_url: https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/
+  accessed_at: "2026-10-15T14:40:00+08:00"
+  http_status: 200
+  evidence_file: data/raw/official/gpustack_perf_lab_qwen3_32b_h100_2026-10-15.html
+  evidence_sha256: 7abb84172e27dc90f1b2e668c495292909c15e991fcec1167b87e534037ae008
+  contains_measured_values: true
+  candidate_family: public_benchmark_reference
+  record_count: 1
+  framework: vllm
+  framework_version: "0.11.0"
+  model_name: Qwen/Qwen3-32B
+  model_revision: null
+  hardware_model: NVIDIA H100 SXM
+  deployment_gpu_count: 1
+  tp_size: null
+  notes: >-
+    厂商性能实验室 2.0 版页面，比较 vLLM / SGLang / TensorRT-LLM 在**单张**
+    NVIDIA H100 SXM 上的 ShareGPT 基准（"A single NVIDIA H100 SXM GPU."）。
+    本批次只接入 vLLM 那一条（--model Qwen/Qwen3-32B、Engine Version vLLM v0.11.0、
+    --dataset-name sharegpt、--num-prompts 1000）。TP/DP 与权重精度页面未声明，
+    长度因 ShareGPT 可变而未声明 —— 全部保持为空。「Peak concurrent requests 1000.00」
+    是**观测峰值**，按 observed_concurrency 存，不当作配置并发。
+    该条与 Demo 目标同模型同 GPU 型号、但只有 1 卡，因此匹配等级为
+    modeling_candidate（可建模/校准，禁止 SLA 证明）。
+
+- id: community_qwen3_32b_h100_4gpu_report
+  status: public_reference_partial_environment
+  publisher: MG-Cafe（GitHub 社区实验报告，非厂商官方）
+  source_url: https://github.com/MG-Cafe/TPU_V6e_H100_Benchmarking_Qwen/blob/main/results/GPU_BENCHMARK_REPORT.md
+  source_path: results/GPU_BENCHMARK_REPORT.md
+  requested_url: https://raw.githubusercontent.com/MG-Cafe/TPU_V6e_H100_Benchmarking_Qwen/main/results/GPU_BENCHMARK_REPORT.md
+  accessed_at: "2026-10-15T14:41:00+08:00"
+  http_status: 200
+  source_git_blob_sha: 7a270d67bcae6c1dd869f5b89d09a137b64e0543
+  evidence_file: data/raw/official/community_qwen3_32b_h100_4gpu_report_2026-10-15.md
+  evidence_sha256: 422eec419cd8fd542aa8b969519b4bf86a67e56b8a28bc3333ab61a844eb96f6
+  contains_measured_values: true
+  candidate_family: public_benchmark_reference
+  record_count: 1
+  framework: vllm
+  framework_version: "0.17.0"
+  model_name: Qwen/Qwen3-32B
+  model_revision: null
+  hardware_model: NVIDIA H100 80GB HBM3
+  deployment_gpu_count: 4
+  tp_size: 4
+  notes: >-
+    第三方社区报告（TPU v6e-8 与 4×H100 的对照），**不是**厂商官方实测，也未经过
+    第三方复核；报告自己列出了 vLLM 版本不同、H100 侧禁用 CUDA Graphs 等不可比因素。
+    数据可信等级因此是 measured_third_party，低于厂商发布。只接入 H100×4 一列
+    （Machine Type a3-highgpu-4g、TP 4、bfloat16、vLLM 0.17.0、random 31400/128、
+    200 prompts、Request Rate ∞）。
+    注意：原文的 GPU 型号写的是「NVIDIA H100 80GB HBM3」而未写 SXM，
+    本工具**不做产品别名推断**，因此与目录中的「NVIDIA H100 SXM」按不同型号处理
+    （宁可阻断，不猜等价）。配置并发未声明，保持为空。

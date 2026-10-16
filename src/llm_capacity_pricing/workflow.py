@@ -601,11 +601,16 @@ def evaluate_plan(
                         eligibility and eligibility["quote_publishable"]
                     ),
                     quote_blockers=list(eligibility["blockers"]) if eligibility else [],
-                    notes=[candidate.summary] if candidate.summary else [],
+                    notes=[
+                        *([candidate.summary] if candidate.summary else []),
+                        *_performance_provenance(entry, runs),
+                    ],
                 )
             )
 
-    external_references = _external_references(runs, ranked, target_hint=request)
+    external_references = _external_references(
+        runs, ranked, targets=_match_targets(request, model_repo_id, plans)
+    )
     recommendations = _recommendations(candidates, domains)
     blockers = _dedupe_blockers(blockers)
     status = _overall_status(domains, blockers)
@@ -737,19 +742,356 @@ def _recommendations(
     return out
 
 
+#: 匹配差异字段 -> 面向用户的中文名（报告里不出现内部字段名）
+_MATCH_FIELD_LABELS: dict[str, str] = {
+    "model_name": "模型",
+    "model_revision": "模型版本",
+    "weight_precision": "权重精度",
+    "quantization": "量化方式",
+    "hardware_model": "GPU 型号",
+    "hardware_sku": "GPU SKU",
+    "gpu_count": "卡数",
+    "tp_size": "TP（张量并行）",
+    "dp_size": "DP（数据并行）",
+    "framework": "推理框架",
+    "framework_version": "框架版本",
+    "dataset_name": "数据集",
+    "arrival_mode": "请求到达方式",
+    "configured_concurrency": "配置并发",
+    "request_rate_rps": "请求速率",
+    "load_profile_kind": "负载类型",
+    "streaming": "流式设置",
+    "prefix_reuse": "前缀复用",
+    "warmup": "预热策略",
+    "eos_policy": "EOS 策略",
+}
+#: 这些字段两边都有值且相等 -> 可以写进"与目标相同的条件"
+_MATCH_COMPARABLE_FIELDS: tuple[str, ...] = (
+    "model_name",
+    "model_revision",
+    "weight_precision",
+    "quantization",
+    "hardware_model",
+    "hardware_sku",
+    "gpu_count",
+    "tp_size",
+    "dp_size",
+    "framework",
+    "framework_version",
+)
+#: 完整性清单里的字段 -> 能读成一句话的中文说法（与上面的"差异词"分开）
+_MATCH_FIELD_PHRASES: dict[str, str] = {
+    "model_name": "模型名",
+    "model_revision": "模型版本（revision）",
+    "weight_precision": "权重精度",
+    "hardware_model": "GPU 型号",
+    "gpu_count": "卡数",
+    "tp_size": "TP（张量并行）",
+    "dp_size": "DP（数据并行）",
+    "framework": "推理框架",
+    "framework_version": "框架版本",
+    "dataset_name": "数据集",
+    "input_len_target": "输入长度",
+    "output_len_target": "输出长度",
+    "arrival_mode": "请求到达方式",
+    "configured_concurrency": "配置并发",
+}
+
+
+def _field_phrase(field: str) -> str:
+    """把 ``workload.configured_concurrency`` 这类路径说成一句人话。"""
+    key = field.split(".")[-1]
+    return _MATCH_FIELD_PHRASES.get(key, _MATCH_FIELD_LABELS.get(key, key))
+
+
+def _source_attribution(run: Any) -> tuple[str | None, str | None]:
+    """从 run 上取出（发布方, 原始来源 URL）。
+
+    结构化标记优先（导入器写入 ``publisher:`` / ``source_url:`` 质量标记），
+    回退到历史 ``notes``（形如 ``发布方 / URL``）—— 兼容已归档的库，不要求重建。
+    """
+    flags = list(run.quality_flags or [])
+    publisher = next(
+        (f[len("publisher:") :] for f in flags if f.startswith("publisher:")), None
+    )
+    url = next(
+        (f[len("source_url:") :] for f in flags if f.startswith("source_url:")), None
+    )
+    notes = (run.notes or "").strip()
+    if notes and (not publisher or not url):
+        head, _, tail = notes.partition(" / ")
+        if tail:
+            publisher = publisher or head.strip() or None
+            url = url or tail.strip() or None
+        else:
+            publisher = publisher or notes
+    return publisher, url
+
+
+def _explain_match(result: Any, target: Any, sig: Any) -> tuple[list[str], list[str]]:
+    """把 Matcher 的结论翻译成「哪些条件相同 / 为什么不能直接比较」。
+
+    **不重新判定匹配**：一致性与差异全部取自 Matcher 的 ``differences`` 与
+    ``reasons``，Demo 只负责措辞，避免出现第二套匹配规则。
+    """
+    from llm_capacity_pricing.perf.benchmark_matcher import is_absent
+
+    differences = dict(result.differences or {})
+    same: list[str] = []
+    for field in _MATCH_COMPARABLE_FIELDS:
+        want = getattr(target, field, None)
+        got = getattr(sig, field, None)
+        # 两边都有值、且 Matcher 没记差异 -> 才是"相同"。
+        # 相等判定交给 Matcher（它知道 bf16 与 bfloat16 是一回事），这里只排除缺失。
+        if is_absent(want) or is_absent(got) or field in differences:
+            continue
+        same.append(f"{_MATCH_FIELD_LABELS[field]}={want}")
+
+    tw, sw = target.workload, sig.workload
+    # 负载侧同理：**必须两边都有值**才算"相同"。只检查目标侧会把
+    # "公开数据没给并发/数据集"误报成"与目标一致"。
+    if (
+        tw.input_len_target is not None
+        and sw.input_len_target is not None
+        and "input_output_len" not in differences
+    ):
+        same.append(f"输入/输出长度={tw.input_len_target}/{tw.output_len_target}")
+    if (
+        tw.configured_concurrency is not None
+        and sw.configured_concurrency is not None
+        and "configured_concurrency" not in differences
+    ):
+        same.append(f"配置并发={tw.configured_concurrency}")
+    if tw.dataset_name and sw.dataset_name and "dataset_name" not in differences:
+        same.append(f"数据集={tw.dataset_name}")
+    if (
+        tw.arrival_mode not in (None, "unknown")
+        and sw.arrival_mode not in (None, "unknown")
+        and "arrival_mode" not in differences
+    ):
+        same.append(f"请求到达方式={tw.arrival_mode}")
+
+    reasons: list[str] = []
+    for field, pair in differences.items():
+        if field == "input_output_len":
+            reasons.append(
+                f"负载长度不同：你的目标是 {pair[0][0]}/{pair[0][1]}，"
+                f"公开数据是 {pair[1][0]}/{pair[1][1]}"
+                "（时延与吞吐随长度变化，不能直接套用）"
+            )
+            continue
+        want = pair[0] if isinstance(pair, (list, tuple)) and pair else pair
+        got = pair[1] if isinstance(pair, (list, tuple)) and len(pair) > 1 else None
+        reasons.append(
+            f"{_MATCH_FIELD_LABELS.get(field, field)}不同："
+            f"你的目标是 {want}，公开数据是 {got}"
+        )
+
+    for code in result.reasons:
+        if "_mismatch" in code:
+            continue  # 已按 differences 逐项说明，避免重复
+        if code.startswith("unverified:record_identity_incomplete:"):
+            for field in code.split(":", 2)[2].split(","):
+                reasons.append(
+                    f"公开来源未给出{_field_phrase(field)}："
+                    "无法确认这条公开数据就是你要部署的配置"
+                )
+            continue
+        if code.startswith("unverified:target_identity_incomplete:"):
+            for field in code.split(":", 2)[2].split(","):
+                reasons.append(
+                    f"你的目标需求也未给出{_field_phrase(field)}："
+                    "因此这条公开数据最多只能作参考，不能当作该配置下的实测"
+                )
+            continue
+        if code.startswith("missing_metric:"):
+            reasons.append(f"公开来源缺少本需求需要的指标（{code.split(':', 1)[1]}）")
+            continue
+        if code.startswith("unsupported_deployment_field:"):
+            field = code.split(":", 1)[1].split("（", 1)[0]
+            reasons.append(
+                f"公开数据使用了本阶段不建性能模型的部署维度（{field}）："
+                "已按规则阻断，不参与结论"
+            )
+            continue
+        if code.startswith("unverified:deployment_mode_unverified"):
+            reasons.append("部署模式（同机 / 分离部署）有一侧未声明：无法确认口径一致")
+            continue
+        if code.startswith("data_trust_rejected:") or code == "unverified:data_trust_unknown":
+            reasons.append("公开数据的可信等级不满足本需求的实测要求")
+            continue
+        if code.startswith("unverified:workload_not_specified_in_target"):
+            reasons.append("你的目标需求没有描述负载：无法确认公开数据的负载口径与你一致")
+            continue
+        if code == "downgraded:unverified_details_present":
+            continue  # 聚合性的降级说明，前面已逐项交代
+        if code.startswith("unverified:"):
+            reasons.append(code.split(":", 1)[1])
+            continue
+        reasons.append(code)
+
+    unique: list[str] = []
+    for reason in reasons:
+        if reason not in unique:
+            unique.append(reason)
+    if not unique:
+        unique.append(
+            "这条公开数据没有被本需求的候选采用：本需求的性能结论仍需要**目标配置下**的实测"
+        )
+    return same, unique
+
+
+def _match_targets(
+    request: Any, model_repo_id: str, plans: Mapping[str, Any]
+) -> list[Any]:
+    """构造"公开参考要与什么比"的目标集合。
+
+    与 ranker 共用**同一套** facts（``_target_facts``）与**同一个**映射
+    （``services._target_from_facts``），因此参考数据的匹配口径与候选的
+    匹配口径不会分叉。多个候选时取与目标最接近的那个候选作为比较基准。
+    """
+    from llm_capacity_pricing.services import _target_from_facts
+
+    out: list[Any] = []
+    for hardware_id, plan in plans.items():
+        for candidate in plan["candidates"]:
+            out.append(
+                _target_from_facts(
+                    _target_facts(request, model_repo_id, hardware_id, candidate)
+                )
+            )
+    if out:
+        return out
+    # 退化路径：资源规划没有产出候选时，仍用需求本身作为比较基准，
+    # 否则公开参考会因为"没有候选"而整段消失 —— 那是更难读，不是更准确。
+    from llm_capacity_pricing.schemas.performance import (
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    adv = request.advanced
+    return [
+        TargetRequirement(
+            model_name=model_repo_id,
+            model_revision=adv.model_revision,
+            framework=adv.framework,
+            framework_version=adv.framework_version,
+            workload=WorkloadSignature(
+                input_len_target=request.workload.input_len,
+                output_len_target=request.workload.output_len,
+                dataset_name=request.workload.dataset,
+                arrival_mode=request.workload.arrival_mode,
+                configured_concurrency=request.workload.concurrency,
+            ),
+            required_metrics=[],
+            require_measured=True,
+        )
+    ]
+
+
+def _reference_input_len_gap(target: Any, sig: Any) -> float:
+    """输入长度的相对差距 —— **只用于挑选展示顺序**，不参与匹配判定。
+
+    目标输入 8192 时，公开数据的 8000 比 1000 更值得先看；这只影响"先展示谁"，
+    不影响"这条数据能不能用"（那由 Matcher 定级）。
+    """
+    want = getattr(target.workload, "input_len_target", None)
+    got = getattr(sig.workload, "input_len_target", None)
+    if not want or got is None:
+        return 1.0
+    return abs(float(got) - float(want)) / float(max(want, 1))
+
+
+def _best_target_result(targets: Sequence[Any], sig: Any) -> tuple[Any, Any]:
+    """选出"对这条公开数据最有利"的比较基准（候选）。
+
+    取匹配等级最高者；同级时取差异项最少者；再同级取卡数最小者 ——
+    全部是确定性规则，因此报告每次运行结果一致。
+    """
+    from llm_capacity_pricing.perf.benchmark_matcher import LEVEL_ORDER, match
+
+    best: tuple[tuple[int, int, int], Any, Any] | None = None
+    for target in targets:
+        result = match(target, sig)
+        key = (
+            LEVEL_ORDER[result.level],
+            len(result.differences or {}),
+            target.gpu_count or 0,
+        )
+        if best is None or key < best[0]:
+            best = (key, result, target)
+    if best is None:
+        raise ValueError("没有可用的比较基准（targets 为空）")
+    return best[1], best[2]
+
+
+def _performance_provenance(entry: Any, runs: Sequence[Any]) -> list[str]:
+    """说清候选的性能数字到底来自哪条数据、能不能算数。
+
+    候选可能"借"了一条匹配等级不足的实测（``comparable_reference`` /
+    ``modeling_candidate``）。那种情况下正文里的吞吐/时延**不是**本配置的实测，
+    必须在候选旁边写明，否则读者会把别处的数字当成这台机器的能力。
+    只有 ``exact_match`` 才配得上"本配置实测"这个说法。
+    """
+    if entry is None or not entry.evidence_run_ids:
+        return []
+    level = entry.match_level
+    if level == "exact_match":
+        return []
+    by_id = {run.run_id: run for run in runs}
+    out: list[str] = []
+    for run_id in entry.evidence_run_ids:
+        run = by_id.get(run_id)
+        if run is None:
+            out.append(
+                f"性能数字来自 `{run_id}`（匹配等级 {level}）：**不是**本配置实测，"
+                "不得用于 SLA 判定或容量结论"
+            )
+            continue
+        sig = run.signature
+        wl = sig.workload
+        lengths = (
+            f"{wl.input_len_target}/{wl.output_len_target}"
+            if wl.input_len_target is not None and wl.output_len_target is not None
+            else "长度未声明"
+        )
+        where = " / ".join(
+            (
+                f"{sig.model_name} @ {sig.hardware_model} ×{sig.gpu_count}",
+                f"TP{sig.tp_size}" if sig.tp_size is not None else "TP 未声明",
+                f"{sig.framework} {sig.framework_version}",
+                f"{wl.dataset_name or '数据集未声明'} {lengths}",
+            )
+        )
+        _publisher, url = _source_attribution(run)
+        out.append(
+            f"性能数字来自公开数据 `{run_id}`（{where}，匹配等级 **{level}**）："
+            "该数据**不是**本配置的实测，只能作参考，不得用于 SLA 判定或容量结论"
+            + (f"；来源：{url}" if url else "")
+        )
+    return out
+
+
 def _external_references(
-    runs: Sequence[Any], ranked: Mapping[str, Any], *, target_hint: Any
+    runs: Sequence[Any], ranked: Mapping[str, Any], *, targets: Sequence[Any]
 ) -> list[Any]:
     """列出库里的**外部公开实测**，并说明它们为什么不能用于本需求（Demo）。
 
     与候选性能结论严格分开：这些数据不参与 SLA 判定，也不进报价门禁。
     只有公开来源（厂商/项目发布）才进入本列表 —— 内部实测归属候选链路。
+
+    匹配结论**复用** ``perf.benchmark_matcher``：模型/GPU/TP-DP/框架/负载的
+    差异与"记录侧未提供什么"都由 Matcher 判定，本函数只做展示与排序。
     """
+    from llm_capacity_pricing.perf.benchmark_matcher import (
+        LEVEL_ORDER,
+        signature_from_run,
+    )
     from llm_capacity_pricing.schemas.plan import PlanExternalReference
 
     # ranked 的值是 RankedDeployment：它携带**全部**支撑 run（聚合时不止一条）
     matched_run_ids = {rid for r in ranked.values() for rid in (r.evidence_run_ids or [])}
-    out: list[PlanExternalReference] = []
+    entries: list[tuple[tuple[int, int, float, str], Any]] = []
     for run in runs:
         if run.run_id in matched_run_ids:
             continue  # 已被候选采用，不重复列
@@ -758,50 +1100,52 @@ def _external_references(
             "measured_third_party",
         ):
             continue
-        sig = run.signature
+        sig = signature_from_run(run)
+        best_result, best_target = _best_target_result(targets, sig)
+        same, reasons = _explain_match(best_result, best_target, sig)
+        publisher, source_url = _source_attribution(run)
         profile = run.profile
-        reasons: list[str] = []
-        if not sig.model_revision:
-            reasons.append("公开来源未给出模型版本（revision）：无法确认与你的模型版本一致")
-        if not sig.weight_precision:
-            reasons.append("公开来源未给出权重精度：无法确认与你的部署精度一致")
-        if not profile.configured_concurrency:
-            reasons.append("公开来源未给出配置并发：无法与你的负载并发对齐")
-        if sig.model_name and target_hint.model_id and sig.model_name != target_hint.model_id:
-            reasons.append(
-                f"模型不同（公开数据为 {sig.model_name}）：不能代表你要部署的模型"
-            )
-        out.append(
-            PlanExternalReference(
-                run_id=run.run_id,
-                publisher=(run.notes or None),
-                source_url=None,
-                source_file=run.raw_file,
-                source_sha256=run.raw_sha256,
-                data_trust=run.data_trust,
-                model_name=sig.model_name,
-                model_revision=sig.model_revision,
-                weight_precision=sig.weight_precision,
-                hardware_model=sig.hardware_model,
-                gpu_count=sig.gpu_count,
-                tp_size=sig.tp_size,
-                dp_size=sig.dp_size,
-                framework=sig.framework,
-                framework_version=sig.framework_version,
-                dataset_name=sig.workload.dataset_name,
-                input_len_target=sig.workload.input_len_target,
-                output_len_target=sig.workload.output_len_target,
-                configured_concurrency=sig.workload.configured_concurrency,
-                ttft_p99_ms=profile.ttft_p99_ms,
-                tpot_p99_ms=profile.tpot_p99_ms,
-                output_throughput_tok_s=profile.output_throughput_tok_s,
-                match_level=None,
-                not_usable_reasons=reasons
-                or ["该数据未被本需求的候选采用（见匹配说明）"],
-                quality_flags=list(run.quality_flags),
+        entries.append(
+            (
+                (
+                    LEVEL_ORDER[best_result.level],
+                    -len(same),
+                    _reference_input_len_gap(best_target, sig),
+                    run.run_id,
+                ),
+                PlanExternalReference(
+                    run_id=run.run_id,
+                    publisher=publisher,
+                    source_url=source_url,
+                    source_file=run.raw_file,
+                    source_sha256=run.raw_sha256,
+                    data_trust=run.data_trust,
+                    model_name=sig.model_name,
+                    model_revision=sig.model_revision,
+                    weight_precision=sig.weight_precision,
+                    hardware_model=sig.hardware_model,
+                    gpu_count=sig.gpu_count,
+                    tp_size=sig.tp_size,
+                    dp_size=sig.dp_size,
+                    framework=sig.framework,
+                    framework_version=sig.framework_version,
+                    dataset_name=sig.workload.dataset_name,
+                    input_len_target=sig.workload.input_len_target,
+                    output_len_target=sig.workload.output_len_target,
+                    configured_concurrency=sig.workload.configured_concurrency,
+                    ttft_p99_ms=profile.ttft_p99_ms,
+                    tpot_p99_ms=profile.tpot_p99_ms,
+                    output_throughput_tok_s=profile.output_throughput_tok_s,
+                    match_level=best_result.level,
+                    same_conditions=same,
+                    not_usable_reasons=reasons,
+                    quality_flags=list(run.quality_flags),
+                ),
             )
         )
-    return sorted(out, key=lambda r: r.run_id)
+    # 最接近目标的排前面（报告只展示前几条，其余进附录）。
+    # 排序**只影响展示顺序**，不改动任何匹配结论。
+    return [ref for _key, ref in sorted(entries, key=lambda kv: kv[0])]
 
 
 def _cost_profile(candidate: PlanCandidate) -> Any:

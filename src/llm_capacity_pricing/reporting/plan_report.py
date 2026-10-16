@@ -47,6 +47,20 @@ _BUCKET_LABEL = {
     "excluded": "静态不可行",
 }
 
+#: 匹配等级 -> 用户语言（**只有"完全一致"才算本配置实测**）
+_MATCH_LABEL = {
+    "exact_match": "完全一致（本配置实测）",
+    "comparable_reference": "可比参考（非本配置）",
+    "modeling_candidate": "仅可建模（非本配置）",
+    "rejected": "被拒绝",
+}
+
+
+def _match_label(value: str | None) -> str:
+    if value is None:
+        return "—"
+    return _MATCH_LABEL.get(value, value)
+
 
 def _sla_label(candidate: Any) -> str:
     if candidate.sla_status in _SLA_LABEL:
@@ -111,8 +125,12 @@ def _data_kind(candidate: Any, domain: str) -> str:
     return "—"
 
 
-def build_plan_report(result: PlanResult) -> str:
-    """把 ``PlanResult`` 渲染成一份面向用户的 Markdown 报告。"""
+def build_plan_report(result: PlanResult, *, reference_limit: int = 3) -> str:
+    """把 ``PlanResult`` 渲染成一份面向用户的 Markdown 报告。
+
+    ``reference_limit`` 决定正文里展开几条公开参考（其余进第 7 节附录与 JSON）：
+    正文只回答"最接近的几条差在哪"，完整清单留给复核。
+    """
     L: list[str] = []
 
     def add(line: str = "") -> None:
@@ -161,6 +179,16 @@ def build_plan_report(result: PlanResult) -> str:
         "**不得用于生产环境的报价自动发布**（正式报价须由人工在受控流程中签发）。"
     )
     add("")
+    add("**本报告里的数字分五层，请勿跨层混用：**")
+    add("")
+    add("| 层 | 含义 | 怎么读 |")
+    add("|---|---|---|")
+    add("| 静态资源可行 | 按模型参数与显存算出的可行性 | 只说明「装不装得下」，不含性能 |")
+    add("| 公开性能参考 | 官方/第三方**公开发布**的实测（第 2.1 节） | 了解业界水平，**不用于**本需求判定 |")
+    add("| 已验证 SLA | 只有**目标配置下**、可信来源的实测才算 | 没有就是「证据不足」，不猜、不外推 |")
+    add("| 假设成本 | 示例成本目录算出的金额 | 不是报价；本 Demo 中不完整 |")
+    add("| 正式报价资格 | 成本 / SLA / 商务确认 / 审批四维门禁 | 当前恒为「未授权发布」 |")
+    add("")
 
     # ---- 候选方案 ----
     add("## 2. 候选方案")
@@ -170,16 +198,17 @@ def build_plan_report(result: PlanResult) -> str:
         add("")
     else:
         add(
-            "| 候选 | 卡数 | TP×DP | 静态 | 性能/SLA | 性能数据性质 "
+            "| 候选 | 卡数 | TP×DP | 静态 | 性能/SLA | 性能数据性质 | 证据匹配等级 "
             "| 成本(全周期) | 成本口径 | 预算 | 报价 |"
         )
-        add("|---|---|---|---|---|---|---|---|---|---|")
+        add("|---|---|---|---|---|---|---|---|---|---|---|")
         for c in result.candidates:
             add(
                 f"| `{c.candidate_id}` | {c.gpu_count} | {c.tp_size}×{c.dp_size} "
                 f"| {_static_label(c.static_status)} "
                 f"| {_sla_label(c)} "
                 f"| {_data_kind(c, 'performance')} "
+                f"| {_match_label(c.match_level)} "
                 f"| {_fmt(c.total_cash_over_horizon)} {_fmt(c.currency)} "
                 f"| {_data_kind(c, 'economics')} "
                 f"| {c.budget_status or '—'} "
@@ -202,19 +231,48 @@ def build_plan_report(result: PlanResult) -> str:
     # ---- 公开数据参考 ----
     refs = result.external_references
     if refs:
+        shown, rest = refs[:reference_limit], refs[reference_limit:]
+        # 每条都有的缺口说一次就够（通常是"你的目标需求本身没写全"），
+        # 否则同一句话会在 12 条里各出现一遍，读者反而看不出真正的差异。
+        common = [x for x in refs[0].not_usable_reasons if all(
+            x in r.not_usable_reasons for r in refs
+        )]
+
+        def own(reference: Any) -> list[str]:
+            return [x for x in reference.not_usable_reasons if x not in common]
+
         add("## 2.1 公开数据参考（**不参与**本需求的性能判定）")
         add("")
         add(
-            "以下数值来自官方/第三方**公开发布**的实测，用于了解同类配置的业界水平。"
-            "它们**不是**你要部署的配置的实测依据，因此不参与 SLA 判定，也不进报价门禁。"
+            f"库里共有 **{len(refs)} 条**官方/第三方**公开发布**的实测。它们用来看同类配置在业界"
+            "大概什么水平，**不是**你要部署的配置的实测依据：不参与 SLA 判定，也不进报价门禁。"
         )
         add("")
-        add("| 来源 | 模型 | 硬件 | 卡数 | TP/DP | 框架 | ISL/OSL | 并发 | TTFT P99 | TPOT P99 | 输出吞吐 |")
-        add("|---|---|---|---|---|---|---|---|---|---|---|")
-        for r in refs:
+        add(
+            "> 排序：匹配等级 → 与目标相同的条件数 → 输入长度接近程度。"
+            "比较基准取你的候选方案中**与该条数据差异最小**的一个，"
+            "因此下面列的是「最有利情况下」仍然存在的差异。"
+            f"完整 {len(refs)} 条见第 7 节附录，结构化数据见 JSON 结果。"
+        )
+        add("")
+        if common:
+            add(f"**所有 {len(refs)} 条都有、因此下面不再逐条重复的缺口：**")
+            add("")
+            for reason in common:
+                add(f"- {reason}")
+            add("")
+        add(f"### 最相关的 {len(shown)} 条")
+        add("")
+        add(
+            "| # | 来源 | 模型 | GPU | 卡数 | TP/DP | 框架 | ISL/OSL | 并发 "
+            "| TTFT P99 | TPOT P99 | 输出吞吐 |"
+        )
+        add("|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for index, r in enumerate(shown, 1):
             add(
-                f"| `{r.run_id}` | {_fmt(r.model_name)} | {_fmt(r.hardware_model)} "
-                f"| {_fmt(r.gpu_count)} | {_fmt(r.tp_size)}/{_fmt(r.dp_size)} "
+                f"| {index} | {_fmt(r.publisher)} | {_fmt(r.model_name)} "
+                f"| {_fmt(r.hardware_model)} | {_fmt(r.gpu_count)} "
+                f"| {_fmt(r.tp_size)}/{_fmt(r.dp_size)} "
                 f"| {_fmt(r.framework)} {_fmt(r.framework_version)} "
                 f"| {_fmt(r.input_len_target)}/{_fmt(r.output_len_target)} "
                 f"| {_fmt(r.configured_concurrency)} "
@@ -222,14 +280,29 @@ def build_plan_report(result: PlanResult) -> str:
                 f"| {_fmt(r.output_throughput_tok_s)} |"
             )
         add("")
-        for r in refs:
-            add(f"**`{r.run_id}` 为什么不能直接用于你的需求：**")
+        for index, r in enumerate(shown, 1):
+            add(f"#### {index}. `{r.run_id}`")
             add("")
-            for reason in r.not_usable_reasons:
-                add(f"- {reason}")
+            same = list(r.same_conditions or [])
+            add(
+                "- **与目标相同的条件**："
+                + ("；".join(same) if same else "无 —— 连模型与硬件都不同")
+            )
+            differences = own(r)
+            if differences:
+                add("- **不能直接比较的条件**：")
+                for reason in differences:
+                    add(f"  - {reason}")
+            else:
+                add("- **不能直接比较的条件**：仅上列公共缺口")
             add("")
-            add(f"> 来源文件：`{_fmt(r.source_file)}`（sha256 `{_fmt(r.source_sha256)}`）")
-            add(f"> 数据可信等级：`{r.data_trust}`；质量标记：{r.quality_flags}")
+            add(f"- 匹配等级：`{_fmt(r.match_level)}`")
+            add(f"- 来源：{_fmt(r.publisher)}｜{_fmt(r.source_url)}")
+            add(
+                f"- 存档证据：`{_fmt(r.source_file)}`"
+                f"（sha256 `{_fmt(r.source_sha256)}`）"
+            )
+            add(f"- 数据可信等级：`{r.data_trust}`")
             add("")
 
     # ---- 推荐依据 ----
@@ -311,15 +384,22 @@ def build_plan_report(result: PlanResult) -> str:
             for r in c.static_reasons:
                 add(f"  - {r}")
         add(
-            f"- 性能：匹配等级 {_fmt(c.match_level)}，SLA {_fmt(c.sla_status)}，"
+            f"- 性能：匹配等级 {_match_label(c.match_level)}，SLA {_fmt(c.sla_status)}，"
             f"分桶 {_fmt(c.rank_bucket)}"
         )
         add(
             f"  - 输出吞吐 {_fmt(c.output_throughput_tok_s)} tok/s，"
             f"TTFT p99 {_fmt(c.ttft_p99_ms)} ms，TPOT p99 {_fmt(c.tpot_p99_ms)} ms"
+            + (
+                ""
+                if c.match_level in (None, "exact_match")
+                else "（**非本配置实测**，见下）"
+            )
         )
         if c.evidence_run_ids:
             add(f"  - 依据实测：{c.evidence_run_ids}")
+        for note in c.notes:
+            add(f"  - {note}")
         if c.plan_id:
             add(
                 f"- 成本：方案 `{c.plan_id}`（{_fmt(c.cost_basis)}）"
@@ -332,5 +412,39 @@ def build_plan_report(result: PlanResult) -> str:
     add(f"- 候选数：{echo.get('candidate_count')}")
     add(f"- 库中计费规则：{echo.get('billing_rules_in_db')}")
     add("")
+
+    # ---- 附录：其余公开参考 ----
+    if refs and rest:
+        add("## 7. 附录：其余公开参考数据")
+        add("")
+        add(
+            f"以下 {len(rest)} 条与目标的差距不小于第 2.1 节展示的 {len(shown)} 条，"
+            "保留供复核；判定口径与正文完全一致（同样**不参与**本需求的 SLA 判定）。"
+            "完整原因清单见 JSON 结果里的 `external_references`。"
+        )
+        add("")
+        add(
+            "| 来源 | 模型 | GPU | 卡数 | TP/DP | 框架 | ISL/OSL | 并发 "
+            "| TTFT P99 | TPOT P99 | 输出吞吐 | 匹配等级 | 链接 |"
+        )
+        add("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+        for r in rest:
+            add(
+                f"| `{r.run_id}` | {_fmt(r.model_name)} | {_fmt(r.hardware_model)} "
+                f"| {_fmt(r.gpu_count)} | {_fmt(r.tp_size)}/{_fmt(r.dp_size)} "
+                f"| {_fmt(r.framework)} {_fmt(r.framework_version)} "
+                f"| {_fmt(r.input_len_target)}/{_fmt(r.output_len_target)} "
+                f"| {_fmt(r.configured_concurrency)} "
+                f"| {_fmt(r.ttft_p99_ms)} | {_fmt(r.tpot_p99_ms)} "
+                f"| {_fmt(r.output_throughput_tok_s)} | `{_fmt(r.match_level)}` "
+                f"| {_fmt(r.source_url)} |"
+            )
+        add("")
+        for r in rest:
+            differences = own(r)
+            if not differences:
+                continue
+            add(f"- `{r.run_id}`：" + "；".join(differences))
+        add("")
 
     return "\n".join(L)

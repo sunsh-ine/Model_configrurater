@@ -16,6 +16,8 @@ VALID_STATUS = {
     "partial_evidence",
     # M7：官方 Cookbook 数值型来源（有实测数值但环境描述不完整）
     "numeric_source_partial_environment",
+    # D7：公开参考来源（厂商性能实验室 / 第三方社区报告，逐字段字面量核对）
+    "public_reference_partial_environment",
     "verified",
 }
 

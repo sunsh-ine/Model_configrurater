@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "curation_date": "2026-10-15",
+  "provenance_method": "公开来源（厂商性能实验室 / 第三方社区报告）发布的实测结果，逐字段与归档原文核对；原文没写的字段一律留空，不推算、不补造。",
+  "status": "partial_evidence",
+  "warning": "这些记录只作**参考**：它们不是目标配置下的实测，不参与 SLA 判定，也不进报价门禁。每条记录都带 claims，导入时逐字段比对归档原文；缺 claims 的字段不会被采纳。",
+  "sources": {
+    "gpustack_perf_lab_qwen3_32b_h100": {
+      "publisher": "GPUStack (gpustack.ai)",
+      "source_url": "https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/",
+      "raw_url": "https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/",
+      "source_path": "performance-lab/qwen3-32b/h100 (docs.gpustack.ai 2.0)",
+      "evidence_file": "data/raw/official/gpustack_perf_lab_qwen3_32b_h100_2026-10-15.html",
+      "evidence_sha256": "7abb84172e27dc90f1b2e668c495292909c15e991fcec1167b87e534037ae008",
+      "evidence_format": "html",
+      "retrieved_at": "2026-10-15T14:40:00+08:00",
+      "data_trust": "measured_vendor_published",
+      "scope": "厂商性能实验室：Qwen3-32B 在单张 H100 SXM 上分别用 vLLM / SGLang / TensorRT-LLM 做的 ShareGPT 基准。",
+      "caveats": [
+        "只有 1 张 H100，不是单机 8 卡；TP/DP 未在页面声明。",
+        "ShareGPT 数据集长度可变，页面未给出目标长度，因此长度保持为空。",
+        "『Peak concurrent requests = 1000』是**观测到的峰值并发**（等于请求数），不是配置并发；不作为 configured_concurrency。"
+      ]
+    },
+    "community_qwen3_32b_h100_4gpu_report": {
+      "publisher": "MG-Cafe（GitHub 社区实验报告）",
+      "source_url": "https://github.com/MG-Cafe/TPU_V6e_H100_Benchmarking_Qwen/blob/main/results/GPU_BENCHMARK_REPORT.md",
+      "raw_url": "https://raw.githubusercontent.com/MG-Cafe/TPU_V6e_H100_Benchmarking_Qwen/main/results/GPU_BENCHMARK_REPORT.md",
+      "source_path": "results/GPU_BENCHMARK_REPORT.md",
+      "source_git_blob_sha": "7a270d67bcae6c1dd869f5b89d09a137b64e0543",
+      "evidence_file": "data/raw/official/community_qwen3_32b_h100_4gpu_report_2026-10-15.md",
+      "evidence_sha256": "422eec419cd8fd542aa8b969519b4bf86a67e56b8a28bc3333ab61a844eb96f6",
+      "evidence_format": "markdown",
+      "retrieved_at": "2026-10-15T14:41:00+08:00",
+      "data_trust": "measured_third_party",
+      "scope": "第三方社区报告：TPU v6e-8 与 4×H100 的对照基准，报告自称 apple-to-apple（同负载参数）。",
+      "caveats": [
+        "**不是**厂商官方实测，也未经过第三方复核；报告作者自己列出了 vLLM 版本不同、H100 侧禁用 CUDA Graphs 等不可比因素。",
+        "GPU 型号原文写的是『NVIDIA H100 80GB HBM3』，未写 SXM；本工具不做产品别名推断，因此与目录里的『NVIDIA H100 SXM』按**不同型号**处理（宁可阻断，不猜等价）。",
+        "原文未声明配置并发（Request Rate 为 ∞），并发保持为空。"
+      ]
+    }
+  },
+  "records": [
+    {
+      "record_id": "gpustack_perf_lab_qwen3_32b_h100:vllm-sharegpt",
+      "source_id": "gpustack_perf_lab_qwen3_32b_h100",
+      "source_section": "Experiment Results / 1. Choosing the Inference Engine / vLLM",
+      "deployment": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_revision": null,
+        "weight_precision": null,
+        "hardware_model": "NVIDIA H100 SXM",
+        "gpu_count": 1,
+        "tp_size": null,
+        "dp_size": null,
+        "framework": "vllm",
+        "framework_version": "0.11.0"
+      },
+      "workload": {
+        "dataset_name": "sharegpt",
+        "input_len_target": null,
+        "output_len_target": null,
+        "configured_max_concurrency": null,
+        "observed_peak_concurrency": 1000,
+        "num_prompts": 1000
+      },
+      "metrics": {
+        "ttft_mean_ms": 78118.74,
+        "ttft_p99_ms": 153161.51,
+        "tpot_mean_ms": 88.09,
+        "tpot_p99_ms": 378.18,
+        "itl_mean_ms": 69.76,
+        "itl_p99_ms": 277.93,
+        "output_throughput_tok_s": 1131.55,
+        "total_throughput_tok_s": 2352.82,
+        "request_throughput_rps": 5.62,
+        "duration_s": 178.01,
+        "success_count": 1000
+      },
+      "missing_or_unverified_fields": [
+        "model_revision",
+        "weight_precision",
+        "tp_size",
+        "dp_size",
+        "input_len_target",
+        "output_len_target",
+        "configured_max_concurrency"
+      ],
+      "derived_fields": {
+        "arrival_mode": {
+          "value": "unbounded",
+          "reason": "页面给出的基准命令没有 request-rate 参数，请求以最快速度发出；『Peak concurrent requests』是观测值，不能反推为配置并发。"
+        }
+      },
+      "note": "单卡 H100 SXM 的 ShareGPT 基准；原文未声明权重精度与 TP/DP。TTFT P99 高达 153161.51 ms（约 153 秒）—— 这是 1000 条请求无速率限制压满后的排队时延，不是稳态服务时延。",
+      "claims": {
+        "model_name": {
+          "value": "Qwen/Qwen3-32B",
+          "tokens": ["--model", "Qwen/Qwen3-32B"]
+        },
+        "hardware_model": {
+          "value": "NVIDIA H100 SXM",
+          "tokens": ["A", "single", "NVIDIA", "H100", "SXM", "GPU."]
+        },
+        "gpu_count": {
+          "value": 1,
+          "tokens": ["A", "single", "NVIDIA", "H100", "SXM", "GPU."]
+        },
+        "framework": {
+          "value": "vllm",
+          "tokens": ["Engine", "Version", "vLLM:", "v0.11.0"]
+        },
+        "framework_version": {
+          "value": "0.11.0",
+          "tokens": ["vLLM:", "v0.11.0"]
+        },
+        "dataset_name": {
+          "value": "sharegpt",
+          "tokens": ["--dataset-name", "sharegpt"]
+        },
+        "num_prompts": {
+          "value": 1000,
+          "tokens": ["--num-prompts", "1000"]
+        },
+        "observed_peak_concurrency": {
+          "value": 1000,
+          "tokens": ["Peak", "concurrent", "requests:", "1000.00"]
+        },
+        "metrics.success_count": {
+          "value": 1000,
+          "tokens": ["Successful", "requests:", "1000"]
+        },
+        "metrics.duration_s": {
+          "value": 178.01,
+          "tokens": ["Benchmark", "duration", "(s):", "178.01"]
+        },
+        "metrics.request_throughput_rps": {
+          "value": 5.62,
+          "tokens": ["Request", "throughput", "(req/s):", "5.62"]
+        },
+        "metrics.output_throughput_tok_s": {
+          "value": 1131.55,
+          "tokens": ["Output", "token", "throughput", "(tok/s):", "1131.55"]
+        },
+        "metrics.total_throughput_tok_s": {
+          "value": 2352.82,
+          "tokens": ["Total", "Token", "throughput", "(tok/s):", "2352.82"]
+        },
+        "metrics.ttft_mean_ms": {
+          "value": 78118.74,
+          "tokens": ["Mean", "TTFT", "(ms):", "78118.74"]
+        },
+        "metrics.ttft_p99_ms": {
+          "value": 153161.51,
+          "tokens": ["P99", "TTFT", "(ms):", "153161.51"]
+        },
+        "metrics.tpot_mean_ms": {
+          "value": 88.09,
+          "tokens": ["Mean", "TPOT", "(ms):", "88.09"]
+        },
+        "metrics.tpot_p99_ms": {
+          "value": 378.18,
+          "tokens": ["P99", "TPOT", "(ms):", "378.18"]
+        },
+        "metrics.itl_mean_ms": {
+          "value": 69.76,
+          "tokens": ["Mean", "ITL", "(ms):", "69.76"]
+        },
+        "metrics.itl_p99_ms": {
+          "value": 277.93,
+          "tokens": ["P99", "ITL", "(ms):", "277.93"]
+        }
+      }
+    },
+    {
+      "record_id": "community_qwen3_32b_h100_4gpu_report:h100-4gpu-random-32k",
+      "source_id": "community_qwen3_32b_h100_4gpu_report",
+      "source_section": "Performance Results — Head-to-Head / GPU H100×4 列",
+      "deployment": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_revision": null,
+        "weight_precision": "bfloat16",
+        "hardware_model": "NVIDIA H100 80GB HBM3",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "dp_size": null,
+        "framework": "vllm",
+        "framework_version": "0.17.0"
+      },
+      "workload": {
+        "dataset_name": "random",
+        "input_len_target": 31400,
+        "output_len_target": 128,
+        "configured_max_concurrency": null,
+        "num_prompts": 200
+      },
+      "metrics": {
+        "ttft_mean_ms": 184728.97,
+        "ttft_p99_ms": 359749.43,
+        "tpot_mean_ms": 114.77,
+        "tpot_p99_ms": 154.03,
+        "itl_p99_ms": 145.09,
+        "output_throughput_tok_s": 69.87,
+        "total_throughput_tok_s": 17210.03,
+        "request_throughput_rps": 0.55,
+        "duration_s": 366.39,
+        "success_count": 200,
+        "error_rate": 0
+      },
+      "missing_or_unverified_fields": [
+        "model_revision",
+        "dp_size",
+        "configured_max_concurrency"
+      ],
+      "derived_fields": {
+        "arrival_mode": {
+          "value": "unbounded",
+          "reason": "原文 Request Rate 写的是『∞ (inf)』，即不限制到达速率；原文未声明配置并发。"
+        },
+        "metrics.error_rate": {
+          "value": 0,
+          "reason": "原文给出 Failed Requests = 0（200 条请求全部成功），失败率由此推得；原文没有直接给出失败率数值。"
+        }
+      },
+      "note": "4×H100 80GB HBM3、TP4、bfloat16、vLLM 0.17.0（原文另注明该侧禁用 CUDA Graphs）。输入 31400 / 输出 128。原文未写 SXM，故与本目录的『NVIDIA H100 SXM』按不同型号处理。",
+      "claims": {
+        "model_name": {
+          "value": "Qwen/Qwen3-32B",
+          "tokens": ["**Model**", "|", "Qwen/Qwen3-32B"]
+        },
+        "weight_precision": {
+          "value": "bfloat16",
+          "tokens": ["**Model Precision**", "|", "bfloat16", "|", "bfloat16"]
+        },
+        "hardware_model": {
+          "value": "NVIDIA H100 80GB HBM3",
+          "tokens": ["**Accelerator**", "|", "TPU v6e", "|", "NVIDIA H100 80GB HBM3"]
+        },
+        "gpu_count": {
+          "value": 4,
+          "tokens": ["**Number of Chips/GPUs**", "|", "8 chips", "|", "4 GPUs"]
+        },
+        "tp_size": {
+          "value": 4,
+          "tokens": ["**Tensor Parallelism**", "|", "8", "|", "4"]
+        },
+        "framework_version": {
+          "value": "0.17.0",
+          "tokens": ["**vLLM Version**", "|", "0.13.0", "|", "0.17.0"]
+        },
+        "framework": {
+          "value": "vllm",
+          "tokens": ["**Backend**", "|", "vllm"]
+        },
+        "dataset_name": {
+          "value": "random",
+          "tokens": ["**Dataset**", "|", "random"]
+        },
+        "input_len_target": {
+          "value": 31400,
+          "tokens": ["**Input Length**", "|", "31,400 tokens"]
+        },
+        "output_len_target": {
+          "value": 128,
+          "tokens": ["**Output Length**", "|", "128 tokens"]
+        },
+        "num_prompts": {
+          "value": 200,
+          "tokens": ["**Number of Prompts**", "|", "200"]
+        },
+        "metrics.success_count": {
+          "value": 200,
+          "tokens": ["**Successful Requests**", "|", "200", "|", "200"]
+        },
+        "metrics.duration_s": {
+          "value": 366.39,
+          "tokens": ["**Benchmark Duration (s)**", "|", "444.63", "|", "366.39"]
+        },
+        "metrics.request_throughput_rps": {
+          "value": 0.55,
+          "tokens": ["**Request Throughput (req/s)**", "|", "0.45", "|", "0.55"]
+        },
+        "metrics.output_throughput_tok_s": {
+          "value": 69.87,
+          "tokens": ["**Output Token Throughput (tok/s)**", "|", "57.58", "|", "69.87"]
+        },
+        "metrics.total_throughput_tok_s": {
+          "value": 17210.03,
+          "tokens": ["**Total Token Throughput (tok/s)**", "|", "14,181.79", "|", "17,210.03"]
+        },
+        "metrics.ttft_mean_ms": {
+          "value": 184728.97,
+          "tokens": ["**Mean TTFT (ms)**", "|", "221,157.94", "|", "184,728.97"]
+        },
+        "metrics.ttft_p99_ms": {
+          "value": 359749.43,
+          "tokens": ["**P99 TTFT (ms)**", "|", "437,746.44", "|", "359,749.43"]
+        },
+        "metrics.tpot_mean_ms": {
+          "value": 114.77,
+          "tokens": ["**Mean TPOT (ms)**", "|", "140.08", "|", "114.77"]
+        },
+        "metrics.tpot_p99_ms": {
+          "value": 154.03,
+          "tokens": ["**P99 TPOT (ms)**", "|", "143.47", "|", "154.03"]
+        },
+        "metrics.itl_p99_ms": {
+          "value": 145.09,
+          "tokens": ["**P99 ITL (ms)**", "|", "207.16", "|", "145.09"]
+        }
+      }
+    }
+  ]
+}
