@@ -120,9 +120,22 @@ def _config_fingerprint(
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
 
 
+def default_batch_id() -> str:
+    """默认批次号：当天日期（UTC）。
+
+    跨批次（不同日期）重新生成同一配置的清单会得到**不同的 Run 身份**，
+    因此两次独立批次的执行都会各自保留；同一批次内重复导入仍然幂等
+    （ID 由 point_id + batch + 配置指纹 + 序号唯一确定）。
+    """
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
+
+
 def _metadata_templates(
     *,
     point_id: str,
+    batch_id: str,
     config_fingerprint: str,
     repeats: int,
     model_name: str,
@@ -153,13 +166,14 @@ def _metadata_templates(
     """
     templates: list[dict[str, Any]] = []
     for index in range(1, repeats + 1):
-        record_id = f"{point_id}-{config_fingerprint}-r{index}"
+        record_id = f"{point_id}-{batch_id}-{config_fingerprint}-r{index}"
         templates.append(
             {
                 # ---- 身份与溯源 ----
                 "evidence_id": f"{record_id}_evidence",
                 "record_id": record_id,
                 "experiment_point_id": point_id,
+                "batch_id": batch_id,
                 "config_fingerprint": config_fingerprint,
                 "repeat_index": index,
                 "format_version": (
@@ -226,6 +240,7 @@ def plan_benchmarks(
     framework: Framework = "vllm",
     framework_version: str | None = None,
     grid: Sequence[ExperimentGridPoint] | None = None,
+    batch_id: str | None = None,
     repeats: int = 2,
     min_duration_s: Decimal | None = None,
     warmup_requests: int = 8,
@@ -236,6 +251,7 @@ def plan_benchmarks(
     from llm_capacity_pricing.perf.capacity_analyzer import SustainabilityCriteria
 
     grid = tuple(grid) if grid else DEFAULT_EXPERIMENT_GRID
+    batch_id = batch_id or default_batch_id()
     criteria = SustainabilityCriteria()
     duration = min_duration_s if min_duration_s is not None else criteria.min_duration_s
     repeats = max(repeats, criteria.min_repeats_per_point)
@@ -333,6 +349,7 @@ def plan_benchmarks(
                         ),
                         metadata_templates=_metadata_templates(
                             point_id=point_id,
+                            batch_id=batch_id,
                             config_fingerprint=config_fingerprint,
                             repeats=repeats,
                             model_name=model_name,
@@ -370,12 +387,15 @@ def plan_benchmarks(
         "metadata 模板的可信状态默认为**未核验**：导入后需用 attest-run 核验原始文件，才会获得测量类可信等级",
     ]
     return BenchmarkExperimentPlan(
-        plan_id=f"bench-exp::{model_id}::{hardware_id}",
+        plan_id=f"bench-exp::{model_id}::{hardware_id}::{batch_id}",
+        batch_id=batch_id,
         request_id=request_id,
         points=points,
         missing_inputs=missing,
         limitations=limitations,
         notes=[
+            f"批次号 {batch_id}（跨批次重新生成会得到不同的 Run 身份，"
+            "同一批次内重复导入仍幂等）",
             f"共 {len(points)} 个实验点，覆盖 {len(grid)} 组负载条件"
             f"与 {len({(p.tp_size, p.dp_size) for p in points})} 种并行配置",
             "每点至少重复 "

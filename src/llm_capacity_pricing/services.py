@@ -3414,7 +3414,7 @@ def data_quality_report(db_path: str | Path = "data/local.db") -> dict[str, Any]
                 f"（{list(PHASE4_TRUSTED_LEVELS)}）"
             ]
             if any(
-                f.startswith("source_verification_required:") for f in run.quality_flags
+                f.startswith("pending_attestation:") for f in run.quality_flags
             ):
                 reasons.append(
                     "来源声明尚未核验：校验原始文件与配置后运行 "
@@ -3681,6 +3681,7 @@ def plan_benchmarks_for(
     model_revision: str | None = None,
     repeats: int = 2,
     prefix_cache: str = "disabled",
+    batch_id: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
     """M37：按第二阶段候选生成"要跑哪些压测"的清单（不含任何性能数值）。"""
@@ -3718,6 +3719,7 @@ def plan_benchmarks_for(
         framework_version=framework_version,
         repeats=repeats,
         prefix_cache=prefix_cache,
+        batch_id=batch_id,
         request_id=request_id,
     )
     payload = experiment.model_dump(mode="json")
@@ -3976,7 +3978,7 @@ def attest_benchmark_run(
             flags = [
                 f
                 for f in run.quality_flags
-                if not f.startswith("source_verification_required")
+                if not f.startswith("pending_attestation")
             ]
             flags += [
                 "source_verified",
@@ -4020,16 +4022,25 @@ def attest_benchmark_run(
         "production_grade": item["production_grade"] if item else None,
         "notice": (
             "核验结果写入 quality_flags（可追溯核验人与时间）。"
-            "该操作只升级**这一条 Run**，不改变其它记录；"
-            "注意：它赋予的是数据可信等级，不是生产报价授权。"
+            "该操作只升级**这一条 Run**，不改变其它记录。"
         ),
+        # 能力边界必须写清楚，避免把"核验"当成比它更强的东西
+        "limitations": [
+            "本步骤核对的是**提交的哈希与导入时记录的哈希是否一致**："
+            "它只证明原始文件在导入后没有被替换，"
+            "**不能证明**该文件确实来自真实 GPU 执行。",
+            "核验人是一个**字符串记录**，系统不做身份认证与权限校验；"
+            "对受控的离线工具这可以作为人工核验留痕，"
+            "但**不构成**生产级第三方认证。",
+            "因此仍须遵守部署级限制：正式报价必须由人工在受控流程中签发。",
+        ],
     }
 
 
 def _declared_source_kind(run: Any) -> str | None:
     """从 quality_flags 或签名里还原该 Run 声明的来源类型。"""
     for flag in run.quality_flags:
-        if flag.startswith("source_verification_required:"):
+        if flag.startswith("pending_attestation:"):
             return flag.split(":", 1)[1].split("/")[0]
     # 已是测量类的 Run（核验过或直接导入）：按可信等级反推
     return {

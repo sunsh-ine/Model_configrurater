@@ -279,6 +279,9 @@ def plan_benchmarks_cmd(
     usable_source_kind: Optional[str] = typer.Option(None, "--usable-source-kind", help="可用显存来源性质"),
     runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时预留比例"),
     repeats: int = typer.Option(2, "--repeats", help="每个实验点重复次数"),
+    batch_id: Optional[str] = typer.Option(
+        None, "--batch-id", help="实验批次号（缺省为当天日期；跨批次各自独立保存）"
+    ),
     prefix_cache: str = typer.Option(
         "disabled", "--prefix-cache", help="前缀缓存策略：disabled / enabled（必须显式声明）"
     ),
@@ -310,6 +313,7 @@ def plan_benchmarks_cmd(
         model_revision=model_revision,
         repeats=repeats,
         prefix_cache=prefix_cache,
+        batch_id=batch_id,
     )
     try:
         if out or metadata_dir:

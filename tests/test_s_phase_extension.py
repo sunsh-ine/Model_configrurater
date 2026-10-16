@@ -229,7 +229,21 @@ def test_s4_new_benchmark_adapter_plugs_in_without_touching_domains(tmp_path, ro
         )
         info = import_performance_run(source, meta, db, kind="newformat")
         assert info["run_count"] == 1
-        assert info["data_trust"] == ["measured_internal"]
+        # P0-2：新适配器的 internal_measurement 同样先视为待核验
+        assert info["data_trust"] == ["unknown"]
+        from llm_capacity_pricing.services import attest_benchmark_run
+
+        db0, repo0 = open_db(db)
+        try:
+            with db0.session() as session:
+                imported = repo0.get_benchmark_run(session, info["run_ids"][0])
+        finally:
+            db0.dispose()
+        attested = attest_benchmark_run(
+            db, run_id=info["run_ids"][0], confirmed_by="extension-contract-test",
+            raw_sha256=imported.raw_sha256,
+        )
+        assert attested["data_trust"] == "measured_internal"
 
         dbh, repo = open_db(db)
         try:

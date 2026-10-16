@@ -169,6 +169,8 @@ class BenchmarkExperimentPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     plan_id: str
+    #: 实验批次号：同一批次内 ID 稳定（重试幂等），跨批次各自独立保存
+    batch_id: str = "unspecified"
     request_id: str | None = None
     points: list[ExperimentPoint] = Field(default_factory=list)
 

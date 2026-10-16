@@ -531,9 +531,20 @@ def test_sustainability_requires_duration_and_error_evidence(curve_runs):
     assert once.maximum_sustainable_capacity is None
     assert once.observed_stable_candidate == 16
     assert "sustainable_capacity_needs_repeats" in once.quality_flags
-    # 同一并发重复观测两次后才给出可持续容量
-    doubled = list(curve_runs) + [
+    # **同一次执行**换个 run_id 重新导入，不构成独立观测（P0-1）
+    same_bytes = list(curve_runs) + [
         r.model_copy(update={"run_id": r.run_id + "-repeat"})
+        for r in curve_runs
+        if r.profile.configured_concurrency == 16
+    ]
+    cloned = analyze_group(same_bytes, criteria=SustainabilityCriteria(min_duration_s=Decimal("60")))
+    assert cloned.maximum_sustainable_capacity is None
+    assert any(f.startswith("duplicate_observation:c16") for f in cloned.quality_flags)
+    assert any("原始文件哈希相同" in n for n in cloned.notes)
+
+    # **另一次独立执行**（不同原始文件哈希）后，才给出可持续容量
+    doubled = list(curve_runs) + [
+        _independent_repeat(r)
         for r in curve_runs
         if r.profile.configured_concurrency == 16
     ]
@@ -929,6 +940,19 @@ def _candidate_x():
     )
 
 
+def _independent_repeat(run, suffix: str = "-r2"):
+    """把一条 run 复制成**另一次独立执行**。
+
+    P0-1 要求：不同 run_id 不等于独立观测。要作为独立重复观测，
+    必须来自不同的原始执行 —— 这里给一个不同的 ``raw_sha256`` 表示这一点。
+    """
+    digest = (run.raw_sha256 or "0" * 64)
+    flipped = ("1" if digest[0] != "1" else "2") + digest[1:]
+    return run.model_copy(
+        update={"run_id": run.run_id + suffix, "raw_sha256": flipped}
+    )
+
+
 def _with_repeats(measured_runs, concurrency: int = 8, worse: bool = True):
     """给指定并发点造一次**同身份**的重复实测。
 
@@ -1319,9 +1343,8 @@ def test_r5_unknown_error_rate_blocks_sustainable_capacity(curve_runs):
 
 
 def test_r5_latency_slo_included_in_sustainability(curve_runs):
-    doubled = list(curve_runs) + [
-        r.model_copy(update={"run_id": r.run_id + "-r2"}) for r in curve_runs
-    ]
+    # 独立重复观测 = 不同原始执行（不同 raw_sha256）
+    doubled = list(curve_runs) + [_independent_repeat(r) for r in curve_runs]
     strict = analyze_group(
         doubled,
         criteria=SustainabilityCriteria(

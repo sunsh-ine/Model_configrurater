@@ -75,7 +75,7 @@ def main() -> int:
     check("导入后可信等级不是测量类", run.data_trust == "unknown", run.data_trust)
     check(
         "质量标记记录了需要核验",
-        any(f.startswith("source_verification_required:") for f in run.quality_flags),
+        any(f.startswith("pending_attestation:") for f in run.quality_flags),
         str(run.quality_flags),
     )
 
@@ -114,7 +114,7 @@ def main() -> int:
     check(
         "核验后不再提示需要核验",
         not any(
-            f.startswith("source_verification_required") for f in info["quality_flags"]
+            f.startswith("pending_attestation") for f in info["quality_flags"]
         ),
     )
 

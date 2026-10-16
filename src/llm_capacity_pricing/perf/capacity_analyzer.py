@@ -181,6 +181,29 @@ def analyze_group(
         for point in observations:
             ok, why = _passes_basic(point)
             (passing if ok else failing).append(point if ok else (point, why))
+
+        # P0-1：**不同 run_id 不等于独立观测**。原始文件哈希相同的记录是同一次执行
+        # 被重复导入（只是 record_id 不同），不能凑成"重复观测"。
+        # 缺少哈希时无法证明独立，按 run_id 区分（保守但如实记录）。
+        distinct: dict[str, CapacityPoint] = {}
+        duplicates: list[tuple[CapacityPoint, CapacityPoint, str]] = []
+        for point in passing:
+            run = run_by_id.get(point.run_id)
+            raw_sha = getattr(run, "raw_sha256", None) if run is not None else None
+            key = raw_sha if raw_sha else f"run:{point.run_id}"
+            if key in distinct:
+                duplicates.append((point, distinct[key], key))
+                continue
+            distinct[key] = point
+        if duplicates:
+            flags.append(f"duplicate_observation:c{concurrency}")
+            notes.append(
+                f"并发 {concurrency}：有 {len(duplicates)} 条记录与其它记录**原始文件哈希相同**"
+                f"（{[(p.run_id, q.run_id) for p, q, _ in duplicates]}），"
+                "视为同一次执行而非独立重复观测，不计入重复次数门槛"
+            )
+        passing = list(distinct.values())
+
         if failing:
             # 失败观测必须显式处理：该并发点整体不认定为稳定，
             # 并把失败观测列入说明（不静默忽略）
@@ -193,7 +216,7 @@ def analyze_group(
                 f"（失败观测：{[p.run_id for p, _ in failing]}）"
             )
             continue
-        # 全部观测达标：再要求"达标观测次数 ≥ 门槛"
+        # 全部观测达标：再要求"**独立**达标观测次数 ≥ 门槛"
         if len(passing) >= criteria.min_repeats_per_point:
             if max_sustainable is None or concurrency > max_sustainable:
                 max_sustainable = concurrency

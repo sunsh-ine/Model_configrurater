@@ -293,23 +293,24 @@ def run_from_adapter(
     """从 SGLang/vLLM 适配器的解析结果构造 run（真实导入路径）。"""
     sig = signature_from_record(record)
     trust, trust_warning = trust_for_source_kind(record.performance_source_kind)
-    # P0-2：`internal_measurement` 是**自我声明** —— 未经核验不得升级为生产级证据。
-    # 只有 verification_status == "verified" 才允许携带该可信等级，
-    # 其余一律降为 unknown（并留下可追溯标记），由 attest-run 显式核验后再升级。
+    # P0-2：`internal_measurement` 是**自我声明**，metadata 无论怎么写都
+    # **不能**直接授予本地可信等级 —— 导入后一律先视为**待核验**。
+    # 只有 `attest-run` 这个显式核验步骤才能把它升级为 measured_internal。
+    #
+    # 理由：可信等级若由输入数据自己决定，任何字段齐全的文件都能自称实测；
+    # 核验凭据必须来自被核验对象之外（原始文件哈希 + 核验人）。
     #
     # 刻意**不**波及 `official_benchmark`：厂商发布是另一条溯源路径，
-    # 其可信度来自发布方而非我们的核验；它对应的字段完整性由 M9 适用性门禁
-    # 与 SLA 门禁分别把关。
+    # 可信度来自发布方而非我们的核验；字段完整性由 M9 适用性门禁与 SLA 门禁把关。
     provenance_flags: list[str] = []
-    if trust == "measured_internal" and record.verification_status != "verified":
+    if trust == "measured_internal":
         provenance_flags.append(
-            f"source_verification_required:{record.performance_source_kind}"
-            f"/{record.verification_status}"
+            f"pending_attestation:internal_measurement/{record.verification_status}"
         )
         trust_warning = (
             (trust_warning + "; " if trust_warning else "")
-            + "来源声明未经核验：可信等级已降为 unknown；"
-            "校验原始文件与配置后请使用 attest-run 显式核验"
+            + "internal_measurement 导入后一律视为待核验：可信等级为 unknown，"
+            "需显式 attest-run 核验后才升级"
         )
         trust = "unknown"
     sig = sig.model_copy(

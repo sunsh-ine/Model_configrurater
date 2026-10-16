@@ -23,6 +23,10 @@ from llm_capacity_pricing.perf.import_consistency import (
     check_import_consistency,
     check_run_consistency,
 )
+from llm_capacity_pricing.schemas.performance import (
+    TargetRequirement,
+    WorkloadSignature,
+)
 from llm_capacity_pricing.schemas.experiment import (
     DEFAULT_EXPERIMENT_GRID,
     FLAG_SOURCES,
@@ -42,6 +46,29 @@ from llm_capacity_pricing.services import (
 runner = CliRunner()
 REPO = Path(__file__).resolve().parents[1]
 
+
+
+def record_target(run):
+    """从 run 自己的签名构造目标需求（用于验证"模板能与部署对齐"）。"""
+    sig = run.signature
+    return TargetRequirement(
+        model_name=sig.model_name,
+        model_revision=sig.model_revision,
+        weight_precision=sig.weight_precision,
+        hardware_model=sig.hardware_model,
+        gpu_count=sig.gpu_count,
+        tp_size=sig.tp_size,
+        dp_size=sig.dp_size,
+        framework=sig.framework,
+        framework_version=sig.framework_version,
+        workload=WorkloadSignature(
+            input_len_target=sig.workload.input_len_target,
+            output_len_target=sig.workload.output_len_target,
+            dataset_name=sig.workload.dataset_name,
+            arrival_mode=sig.workload.arrival_mode,
+            configured_concurrency=sig.workload.configured_concurrency,
+        ),
+    )
 
 def _db(tmp_path: Path, root: Path, name: str = "m3738.db") -> str:
     db = str(tmp_path / name)
@@ -178,6 +205,17 @@ def test_m37_metadata_template_reaches_exact_match(tmp_path, root):
     raw.write_text("{}", encoding="utf-8")
     run = run_from_adapter(
         record, metadata=meta, raw_file=raw, raw_format=meta["format_version"]
+    )
+    # P0-2：internal_measurement 导入后一律待核验 —— 此时还达不到 exact_match
+    assert run.data_trust == "unknown"
+    assert any(f.startswith("pending_attestation:") for f in run.quality_flags)
+    assert match(record_target(run), signature_from_run(run)).level != "exact_match"
+    # 显式核验后才获得测量类可信等级（此处直接给出可信等级，等价于 attest-run 的结果）
+    run = run.model_copy(
+        update={
+            "data_trust": "measured_internal",
+            "signature": run.signature.model_copy(update={"data_trust": "measured_internal"}),
+        }
     )
     assert run.data_trust == "measured_internal"
 
