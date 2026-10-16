@@ -13,7 +13,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Sequence
 
-from llm_capacity_pricing.engines.tco import compute_tco
+from llm_capacity_pricing.engines.tco import compute_tco, currencies_comparable
 from llm_capacity_pricing.schemas.commercial import BillingRule, RevenueResult
 from llm_capacity_pricing.schemas.decision import (
     BreakevenResult,
@@ -60,18 +60,19 @@ def check_budget(
         reasons.append(
             "currency_not_confirmed: 币种未确认，不得给出预算结论"
         )
-    if compared_currency is not None and currency is not None and (
-        compared_currency != currency
-    ):
-        reasons.append(
-            f"currency_mismatch:{compared_currency}!= {currency}: "
-            "预算与成本币种不一致，不得直接相减"
-        )
+    # 只有显式给出 compared_currency 时才做跨币种比较；
+    # 否则两侧同属一个对象，currency 字段即为两侧币种。
+    if compared_currency is not None:
+        comparable, reason = currencies_comparable(compared_currency, currency)
+        if not comparable:
+            reasons.append(
+                f"{reason}: 预算与成本币种不一致或未知，不得直接相减"
+            )
     if (
         budget_amount is None
         or compared_value is None
         or not currency_confirmed
-        or any(r.startswith("currency_mismatch") for r in reasons)
+        or any(r.startswith("currency_") for r in reasons)
     ):
         return BudgetCheck(
             budget_id=budget_id,
@@ -243,13 +244,9 @@ def analyze_breakeven(
 
     ratio = None
     if revenue is not None:
-        if not tco.currency or not revenue.currency:
-            reasons.append("currency_unknown: 成本或收入的币种未知，不得计算收入成本比")
-        elif tco.currency != revenue.currency:
-            reasons.append(
-                f"currency_mismatch:{revenue.currency}!= {tco.currency}: "
-                "跨币种不得计算收入成本比"
-            )
+        comparable, reason = currencies_comparable(tco.currency, revenue.currency)
+        if not comparable:
+            reasons.append(f"{reason}: 跨币种或币种未知，不得计算收入成本比")
         elif annual_cost:
             ratio = revenue.annual_revenue / annual_cost
 

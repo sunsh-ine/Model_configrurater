@@ -20,6 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from llm_capacity_pricing.schemas.performance import (
+    PRODUCTION_TRUST_LEVELS as _AUTHORITATIVE_PRODUCTION_TRUST_LEVELS,
+)
 from llm_capacity_pricing.schemas.commercial import (
     BillingRule,
     CommercialConfirmation,
@@ -37,10 +40,8 @@ _REQUIRED_MATCH_LEVEL = "exact_match"
 #: 正式报价允许的数据可信等级（V4.2 E1）。
 #: 这是**第四阶段自己的**门禁：即便调用方在第三阶段显式开了 allow_synthetic，
 #: 正式报价也一律拒绝 synthetic_fixture —— 没有任何策略参数可以放宽它。
-PRODUCTION_TRUST_LEVELS: tuple[str, ...] = (
-    "measured_internal",
-    "measured_vendor_published",
-)
+# S3：引用 schema 层的唯一权威定义（不再各自维护一份字面量）
+PRODUCTION_TRUST_LEVELS: tuple[str, ...] = _AUTHORITATIVE_PRODUCTION_TRUST_LEVELS
 
 
 @dataclass

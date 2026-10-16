@@ -138,6 +138,25 @@ def _coverage(
     return decisions, gaps, exclusions
 
 
+def currencies_comparable(
+    left: str | None, right: str | None
+) -> tuple[bool, str | None]:
+    """两个金额能否**直接相减/相除**（S3：唯一权威实现）。
+
+    利润、利润率、盈亏平衡与预算比对都必须先过这一关：
+    币种未知或不同时不得产出数字 —— USD 收入减 CNY 成本没有经济含义。
+
+    返回 ``(可比, 不可比原因码)``；原因码可直接作为 reason/blocker 前缀使用。
+    """
+    if not left or not right:
+        return False, "currency_unknown"
+    if left != right:
+        # 排序后拼接：与调用方传参顺序无关，同一对币种只产生同一个原因码
+        a, b = sorted((left, right))
+        return False, f"currency_mismatch:{a}!={b}"
+    return True, None
+
+
 def compute_tco(
     plan: DeploymentCostPlan,
     items: Sequence[CostCatalogItem],

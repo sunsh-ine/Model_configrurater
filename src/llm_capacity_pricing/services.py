@@ -31,6 +31,7 @@ from llm_capacity_pricing.importers.excel_importer import (
 )
 from llm_capacity_pricing.importers.sglang_adapter import parse_sglang_bench_serving_jsonl_full
 from llm_capacity_pricing.importers.sglang_cookbook import build_numeric_candidates
+from llm_capacity_pricing.schemas.performance import PRODUCTION_TRUST_LEVELS
 from llm_capacity_pricing.schemas.performance import SlaPolicy
 from llm_capacity_pricing.perf.benchmark_matcher import (
     collect_signatures,
@@ -1690,7 +1691,8 @@ def performance_inventory(db_path: str | Path = "data/local.db") -> dict[str, An
         "official_candidates": len(numeric) + len(official),
         "benchmark_runs": len(runs),
         "by_trust": by_trust,
-        "sla_usable_trust_levels": ["measured_internal", "measured_vendor_published"],
+        # S3：与 SLA 判定策略共用同一份可信等级定义
+        "sla_usable_trust_levels": list(PRODUCTION_TRUST_LEVELS),
     }
 
 
@@ -1827,9 +1829,9 @@ def calibrate_performance_for(
         group_key = grouping_key(pool[0])
         pool = [r for r in pool if grouping_key(r) == group_key]
     allowed = (
-        ("measured_internal", "measured_vendor_published", "synthetic_fixture")
+        (*PRODUCTION_TRUST_LEVELS, "synthetic_fixture")
         if allow_synthetic
-        else ("measured_internal", "measured_vendor_published")
+        else PRODUCTION_TRUST_LEVELS
     )
     result = _estimate_performance(
         metric=metric,
@@ -2027,7 +2029,8 @@ PHASE4_SYNTHETIC_NOTICE = (
 )
 
 #: 允许作为"可信容量证据"的数据信任等级（与第三阶段 SLA 门禁一致）
-PHASE4_TRUSTED_LEVELS = ("measured_internal", "measured_vendor_published")
+# S3：引用唯一权威定义（schema 层的 PRODUCTION_TRUST_LEVELS）
+PHASE4_TRUSTED_LEVELS = PRODUCTION_TRUST_LEVELS
 
 
 def _load_yaml_file(path: str | Path) -> dict[str, Any]:

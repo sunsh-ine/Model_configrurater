@@ -246,3 +246,30 @@ def validate_usable_memory(
         )
     if source_kind == "measured" and not source:
         raise UsableMemoryError("来源性质为 measured 时必须给出测量来源描述（设备/时间/命令）")
+
+# ---------------------------------------------------------------------------
+# S3：硬件 ID -> 第三阶段签名里的商品名（唯一权威映射）
+# ---------------------------------------------------------------------------
+#
+# 第二阶段用 ``hardware_id``（如 ``nvidia-h100-sxm-80gb``）标识 SKU，
+# 第三阶段的 Benchmark 签名用商品名（如 ``NVIDIA H100 SXM``）。两者是同一件事的
+# 两种写法，映射必须只有一份 —— 否则新增一张卡时容易只改一处。
+#
+# 该映射必须与 ``data/hardware/hardware_catalog.yaml`` 的 ``product_name`` 一致，
+# 由 tests/test_s_phase_rules.py 的契约测试保证。
+
+SIGNATURE_PRODUCT_NAMES: dict[str, str] = {
+    "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
+    "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
+    "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
+    "nvidia-b200-sxm": "NVIDIA B200 SXM",
+    "ascend-910c": "Ascend 910C",
+}
+
+
+def product_name_for_hardware_id(hardware_id: str | None) -> str | None:
+    """把硬件 ID 映射成签名商品名；未登记的 ID 原样返回（不猜、不编）。"""
+    if hardware_id is None:
+        return None
+    return SIGNATURE_PRODUCT_NAMES.get(hardware_id, hardware_id)
+

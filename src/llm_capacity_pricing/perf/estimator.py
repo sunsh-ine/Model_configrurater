@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Protocol, Sequence
 
+from llm_capacity_pricing.schemas.performance import PRODUCTION_TRUST_LEVELS
 from llm_capacity_pricing.schemas.performance import (
     BenchmarkRun,
     EstimateKind,
@@ -46,7 +47,8 @@ MIN_POINTS_FOR_CALIBRATION = 3
 #: 留出验证至少需要这么多**有效**留出点（V3.1 R6）
 MIN_HOLDOUT_POINTS = 3
 #: 默认可参与估算的数据可信等级（synthetic 只能验证算法）
-DEFAULT_ALLOWED_TRUST: tuple[str, ...] = ("measured_internal", "measured_vendor_published")
+# S3：与 SLA 判定共用同一份可信等级定义
+DEFAULT_ALLOWED_TRUST: tuple[str, ...] = PRODUCTION_TRUST_LEVELS
 #: 留出相对误差上限；超过则认为不可预测
 MAX_HOLDOUT_RELATIVE_ERROR = Decimal("0.15")
 

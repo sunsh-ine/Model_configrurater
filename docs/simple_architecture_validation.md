@@ -140,11 +140,41 @@ python -m llm_capacity_pricing.cli plan \
 
 ---
 
-## 五、S3–S6：待执行
+## 五、S3：统一公共规则与错误表达 ✅
+
+### 5.1 收敛的三条重复规则
+
+| 规则 | 权威领域（唯一实现） | 原先重复处 |
+|---|---|---|
+| **生产可信等级**（哪些数据能支撑生产结论） | `schemas/performance.PRODUCTION_TRUST_LEVELS` | `services.PHASE4_TRUSTED_LEVELS`、`quote_gate.PRODUCTION_TRUST_LEVELS`、`estimator.DEFAULT_ALLOWED_TRUST`、`SlaPolicy` 默认值、CLI 的算法验证信任集（共 5 处字面量） |
+| **硬件 ID → 签名商品名** | `sizing/hardware.product_name_for_hardware_id()` | `perf/ranker._hardware_name`、`workflow._hardware_product_name`、`workflow._candidate_hardware_name`（3 份相同映射） |
+| **币种可比性**（两个金额能否直接相减） | `engines/tco.currencies_comparable()` | `decision/comparison._margin_allowed`、`decision/sensitivity`（预算与盈亏平衡）（3 处各自的判断与原因码） |
+
+收敛后各消费方改为**别名或调用**，不再各自维护一份。
+
+### 5.2 顺带修掉的两处口径漂移
+
+* 币种不匹配的原因码原先带调用方传参顺序（`USD!=CNY` 与 `CNY!=USD` 并存），
+  现按币种名排序拼接，同一对币种只有一个码；
+* 硬件名映射现在有**契约测试**比对 `data/hardware/hardware_catalog.yaml`
+  的 `product_name` —— 新增一张卡忘了改映射会直接失败。
+
+### 5.3 验收对照
+
+| 计划 §5 验收 | 结果 |
+|---|---|
+| 修改一条规则只需改权威领域，所有入口自动一致 | ✅ `test_s3_trust_levels_have_one_authoritative_definition`、`test_s3_adding_a_sku_propagates_to_all_consumers`（运行时改权威映射，ranker/workflow 立刻生效） |
+| 业务规则位于所属领域，Application 只调用与汇总 | ✅ `test_s3_reason_codes_are_not_reinvented`（编排层只报结构性问题，业务码来自领域） |
+| CLI / Agent / Report 不复制业务判断 | ✅ `test_s3_reports_do_not_import_domain_engines`（AST 检查报告层导入） |
+| 沿用既有状态与原因码，不另立平行体系 | ✅ `test_s3_plan_result_reuses_existing_status_vocabulary`（`plan.py` 内不出现 `observed_pass` / `exact_match` 等业务取值） |
+| 无重复实现的规则 | ✅ `test_s3_no_module_redeclares_the_trust_pair`、`test_s3_only_one_hardware_name_mapping_exists`、`test_s3_currency_rule_has_one_implementation` |
+
+---
+
+## 六、S4–S6：待执行
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| S3 | 统一公共规则与错误表达：匹配/SLA 可信度、synthetic 区分、成本完整性、报价门禁、证据追溯各只有一处权威实现 | ⬜ 未开始 |
 | S3 | 统一公共规则与错误表达：匹配/SLA 可信度、synthetic 区分、成本完整性、报价门禁、证据追溯各只有一处权威实现 | ⬜ 未开始 |
 | S4 | 最小可扩展边界：数据 / Benchmark 适配 / 计算规则三个方向 + 开发指南与契约测试 | ⬜ 未开始 |
 | S5 | 简化配置、CLI 与报告：`plan` 为普通入口、历史命令作为高级入口；报告区分实测/估算/假设/缺失 | ⬜ 未开始 |
@@ -167,7 +197,8 @@ python -m llm_capacity_pricing.cli plan \
 |---|---|---|---|---|
 | S0 基线 | 620 passed | 50 / 50 | 160 / 192 / 0 | 17 / 17 |
 | S0 + S1 | 641 passed | 52 / 52 | 160 / 192 / 0 | 17 / 17 |
-| S0 + S1 + S2 | **647 passed** | **52 / 52** | **160 / 192 / 0** | **17 / 17** |
+| S0 + S1 + S2 | 647 passed | 52 / 52 | 160 / 192 / 0 | 17 / 17 |
+| S0 + S1 + S2 + S3 | **660 passed** | **52 / 52** | **160 / 192 / 0** | **17 / 17** |
 
 ---
 
@@ -178,7 +209,7 @@ python -m llm_capacity_pricing.cli plan \
 - [x] 原有测试与全链路验证没有回退（641 passed / 52 步）
 - [x] 160 / 192 / 0 历史基线保持不变
 - [ ] 新模型/GPU/Benchmark 的扩展路径已通过契约测试（S4）
-- [ ] 缺失数据、Synthetic 和未授权报价不会被错误放行（S3/S6 全场景覆盖）
+- [ ] 缺失数据、Synthetic 和未授权报价不会被错误放行（S6 全场景覆盖；S3 已收敛规则来源）
 - [ ] 新旧入口结果一致，Simple 架构文档完成（S6）
 
 **S6 未通过之前不进入第五阶段的新功能开发。**

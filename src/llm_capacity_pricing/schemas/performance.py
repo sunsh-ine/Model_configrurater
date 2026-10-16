@@ -51,6 +51,18 @@ DataTrust = Literal[
     "unknown",
 ]
 
+#: **可用于生产级结论**的数据可信等级（S3：唯一权威定义）。
+#:
+#: 其余等级各有明确用途但都不足以支撑生产承诺：
+#: ``measured_third_party`` 可作为参考，``historical_external_no_latency`` 只能建模，
+#: ``synthetic_fixture`` 仅用于算法验证，``unknown`` 不可用。
+#: 各领域（SLA 判定、报价门禁、性能库存、估算器）一律引用本常量，
+#: 不得各自再写一份字面量列表。
+PRODUCTION_TRUST_LEVELS: tuple[str, ...] = (
+    "measured_internal",
+    "measured_vendor_published",
+)
+
 #: 指标来源侧
 MetricSide = Literal["client", "server", "unknown"]
 
@@ -561,7 +573,7 @@ class SlaPolicy(BaseModel):
     policy_id: str = "default"
     #: 允许作为 observed_pass/fail 依据的数据可信等级
     accepted_trust_levels: list[DataTrust] = Field(
-        default_factory=lambda: ["measured_internal", "measured_vendor_published"]
+        default_factory=lambda: list(PRODUCTION_TRUST_LEVELS)
     )
     #: 允许的最低匹配等级。**默认要求 exact_match**（V3.1 R1）：
     #:   * ``comparable_reference``（负载/细节不同）只用于展示、研究与对比；

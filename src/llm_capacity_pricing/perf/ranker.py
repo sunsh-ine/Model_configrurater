@@ -250,15 +250,10 @@ def _model_name(candidate: DeploymentCandidate, model_by_id: Mapping[str, object
 
 
 def _hardware_name(candidate: DeploymentCandidate) -> str | None:
-    """把硬件 ID 映射成签名里的商品名（``nvidia-h100-sxm-80gb`` -> ``NVIDIA H100 SXM``）。"""
-    mapping = {
-        "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
-        "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
-        "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
-        "nvidia-b200-sxm": "NVIDIA B200 SXM",
-        "ascend-910c": "Ascend 910C",
-    }
-    return mapping.get(candidate.hardware_id, candidate.hardware_id)
+    """把硬件 ID 映射成签名里的商品名（S3：映射的唯一权威在 sizing/hardware.py）。"""
+    from llm_capacity_pricing.sizing.hardware import product_name_for_hardware_id
+
+    return product_name_for_hardware_id(candidate.hardware_id)
 
 
 #: 聚合多次实测时使用的保守规则说明

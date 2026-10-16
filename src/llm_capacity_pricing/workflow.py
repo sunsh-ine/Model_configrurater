@@ -118,15 +118,11 @@ def _model_repo_id(model_spec: Any, fallback: str) -> str:
     return repo or fallback
 
 
-def _hardware_product_name(hardware_id: str) -> str:
-    mapping = {
-        "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
-        "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
-        "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
-        "nvidia-b200-sxm": "NVIDIA B200 SXM",
-        "ascend-910c": "Ascend 910C",
-    }
-    return mapping.get(hardware_id, hardware_id)
+def _hardware_product_name(hardware_id: str) -> str | None:
+    """S3：映射的唯一权威在 sizing/hardware.py。"""
+    from llm_capacity_pricing.sizing.hardware import product_name_for_hardware_id
+
+    return product_name_for_hardware_id(hardware_id)
 
 
 def _target_facts(
@@ -1029,14 +1025,10 @@ def _signature_model_name(candidate: DeploymentCandidate, models: dict[str, Any]
     return repo_id or candidate.model_id
 
 
-def _candidate_hardware_name(candidate: DeploymentCandidate) -> str:
-    mapping = {
-        "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
-        "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
-        "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
-        "nvidia-b200-sxm": "NVIDIA B200 SXM",
-        "ascend-910c": "Ascend 910C",
-    }
-    return mapping.get(candidate.hardware_id, candidate.hardware_id)
+def _candidate_hardware_name(candidate: DeploymentCandidate) -> str | None:
+    """S3：映射的唯一权威在 sizing/hardware.py。"""
+    from llm_capacity_pricing.sizing.hardware import product_name_for_hardware_id
+
+    return product_name_for_hardware_id(candidate.hardware_id)
 
 

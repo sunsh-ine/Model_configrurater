@@ -67,6 +67,7 @@ from llm_capacity_pricing.services import (
     validate_import,
     validate_results,
 )
+from llm_capacity_pricing.schemas.performance import PRODUCTION_TRUST_LEVELS
 from llm_capacity_pricing.importers.official_manifest import OfficialManifestError
 from llm_capacity_pricing.importers.sglang_cookbook import SglangCookbookError
 from llm_capacity_pricing.schemas.performance import SlaPolicy
@@ -777,9 +778,9 @@ def evaluate_sla_cmd(
         policy_id=policy_id,
         allow_synthetic=allow_synthetic,
         accepted_trust_levels=(
-            ["measured_internal", "measured_vendor_published", "synthetic_fixture"]
+            [*PRODUCTION_TRUST_LEVELS, "synthetic_fixture"]
             if allow_synthetic
-            else ["measured_internal", "measured_vendor_published"]
+            else list(PRODUCTION_TRUST_LEVELS)
         ),
     )
     try:

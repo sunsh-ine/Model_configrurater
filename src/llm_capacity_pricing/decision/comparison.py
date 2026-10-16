@@ -19,6 +19,7 @@ from llm_capacity_pricing.schemas.decision import (
     DeploymentComparison,
     DeploymentComparisonEntry,
 )
+from llm_capacity_pricing.engines.tco import currencies_comparable
 from llm_capacity_pricing.schemas.performance import DeploymentRanking
 from llm_capacity_pricing.schemas.tco import DeploymentCostPlan, TcoResult
 
@@ -48,10 +49,9 @@ def _margin_allowed(
         return False, "revenue_missing"
     if tco.incomplete:
         return False, "cost_incomplete"
-    if not tco.currency or not revenue.currency:
-        return False, "currency_unknown"
-    if tco.currency != revenue.currency:
-        return False, f"currency_mismatch:{revenue.currency}!= {tco.currency}"
+    comparable, reason = currencies_comparable(tco.currency, revenue.currency)
+    if not comparable:
+        return False, reason
     if tco.annual_total_cost is None:
         return False, "annual_cost_missing"
     return True, None

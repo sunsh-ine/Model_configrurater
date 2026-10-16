@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-16T10:18:20",
+  "generated_at": "2026-10-16T10:30:07",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-16T10:18:21",
+  "generated_at": "2026-10-16T10:30:09",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -2124,7 +2124,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "data_trust": null,
   "algorithm_validation_only": false,
   "allow_synthetic_used": false,
-  "run_pool_hash": "cbc51506e4b4f34dc165f7aada1aae545bed746541019e49f59da56f21c69490",
+  "run_pool_hash": "48a0416e8ef87c0f326bbee20d034b0f5235344a909970dfbe85b55264622f4a",
   "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
   "production_grade": false,
   "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
@@ -2360,37 +2360,38 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
 === 50. pytest（全量，离线） ===
-........................................................................ [ 11%]
-........................................................................ [ 22%]
-........................................................................ [ 33%]
-........................................................................ [ 44%]
-........................................................................ [ 55%]
-........................................................................ [ 66%]
-........................................................................ [ 77%]
-........................................................................ [ 89%]
-.......................................................................  [100%]
-647 passed in 86.07s (0:01:26)
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+........................................................................ [ 43%]
+........................................................................ [ 54%]
+........................................................................ [ 65%]
+........................................................................ [ 76%]
+........................................................................ [ 87%]
+........................................................................ [ 98%]
+............                                                             [100%]
+660 passed in 80.12s (0:01:20)
 
 === 51. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1340
-drwxrwxr-x  2 ssa ssa   4096 10月 16 10:18 .
-drwxrwxr-x 11 ssa ssa   4096 10月 16 10:18 ..
--rw-rw-r--  1 ssa ssa  21022 10月 16 10:18 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 16 10:18 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 16 10:18 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 16 10:18 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 16 10:18 performance_report.md
--rw-rw-r--  1 ssa ssa 112127 10月 16 10:18 phase4_decision.json
--rw-rw-r--  1 ssa ssa  27866 10月 16 10:18 phase4_report.md
--rw-rw-r--  1 ssa ssa  10547 10月 16 10:18 plan_full.json
--rw-rw-r--  1 ssa ssa   4936 10月 16 10:18 plan_full.md
--rw-rw-r--  1 ssa ssa   3822 10月 16 10:18 plan_minimal.md
--rw-rw-r--  1 ssa ssa   7149 10月 16 10:18 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 16 10:18 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 16 10:18 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 16 10:30 .
+drwxrwxr-x 11 ssa ssa   4096 10月 16 10:30 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 16 10:30 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 16 10:30 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 16 10:30 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 16 10:30 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 16 10:30 performance_report.md
+-rw-rw-r--  1 ssa ssa 112127 10月 16 10:30 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  27866 10月 16 10:30 phase4_report.md
+-rw-rw-r--  1 ssa ssa  10547 10月 16 10:30 plan_full.json
+-rw-rw-r--  1 ssa ssa   4936 10月 16 10:30 plan_full.md
+-rw-rw-r--  1 ssa ssa   3822 10月 16 10:30 plan_minimal.md
+-rw-rw-r--  1 ssa ssa   7149 10月 16 10:30 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 16 10:30 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 16 10:30 sizing_report.md
 
 ==== 汇总 ====
 步骤 52 项：通过 52，失败 0
-完成时间: 2026-10-16T10:20:29+08:00
+完成时间: 2026-10-16T10:32:23+08:00
 环境: Python 3.12.3
 全部步骤通过。
