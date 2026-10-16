@@ -105,11 +105,46 @@ python -m llm_capacity_pricing.cli plan \
 
 ---
 
-## 四、S2–S6：待执行
+## 四、S2：收敛业务编排与调用链 ✅
+
+### 4.1 做了什么
+
+| 动作 | 说明 |
+|---|---|
+| 跨阶段编排迁出 `services.py` | `phase4_decision_for` 的实现搬到 `workflow.evaluate_decision()`；`services` 版本缩成转发包装（函数内延迟导入，模块层无循环依赖） |
+| 统一排序调用入口 | `evaluate_plan` 与 `evaluate_decision` 原来各写一遍排序调用，现统一为 `workflow.build_ranking()` |
+| Agent 复用同一应用服务 | 新增算子 `plan.evaluate` / `plan.evaluate_config`，与 CLI `plan` 调用**同一个** `workflow.evaluate_plan()` |
+| 写明调用链 | `workflow.py` 模块文档记录 CLI/Agent → 应用层 → 四个领域的依赖方向 |
+
+`services.py`：**3455 → 3197 行**（−258），且新增代码不再落在它身上。
+
+### 4.2 验收对照
+
+| 计划 §4 验收 | 结果 |
+|---|---|
+| 主评估调用链清晰且可追踪 | ✅ `workflow.py` 模块文档给出调用链图与依赖方向 |
+| 不出现循环依赖 | ✅ `test_s2_no_module_level_circular_dependency`（用 AST 检查顶层导入） |
+| CLI 与 Agent 调用同一应用服务，不重复编排 | ✅ `test_s2_cli_and_agent_share_the_same_application_service`（同库同配置逐字段一致） |
+| 老入口仍可用 | ✅ `test_s2_services_decision_is_a_thin_compatibility_wrapper`（新旧结果完全一致） |
+| 新增代码不扩大巨型服务文件职责 | ✅ 编排迁出，`services.py` 净减 258 行 |
+| 现有计算结果等价 | ✅ 647 passed；第一阶段 160/192/0 不变 |
+| CLI / Agent / Report 不各自实现业务判断 | ✅ `test_s2_reports_do_not_reimplement_business_rules`（报告层不得调用 `match` / `evaluate_sla` / `compute_tco` / `evaluate_quote_eligibility`） |
+
+### 4.3 本轮的取舍
+
+* **没有**把 `services.py` 机械拆成十几个小文件。它剩下的内容（导入、校验、
+  单领域查询）职责单一，拆分只会增加跳转成本；
+* **保留** `services.phase4_decision_for` 与全部既有 CLI 命令作为兼容入口，
+  只是让它们转发到应用层；
+* 报告层仍然是纯格式化 —— 它读取门禁输出做展示，不重新判定。
+
+---
+
+## 五、S3–S6：待执行
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| S2 | 收敛业务编排：`workflow.py` 负责主流程，`services.py` 不再扩大职责；CLI 与 Agent 复用同一应用服务 | ⬜ 未开始 |
+| S3 | 统一公共规则与错误表达：匹配/SLA 可信度、synthetic 区分、成本完整性、报价门禁、证据追溯各只有一处权威实现 | ⬜ 未开始 |
 | S3 | 统一公共规则与错误表达：匹配/SLA 可信度、synthetic 区分、成本完整性、报价门禁、证据追溯各只有一处权威实现 | ⬜ 未开始 |
 | S4 | 最小可扩展边界：数据 / Benchmark 适配 / 计算规则三个方向 + 开发指南与契约测试 | ⬜ 未开始 |
 | S5 | 简化配置、CLI 与报告：`plan` 为普通入口、历史命令作为高级入口；报告区分实测/估算/假设/缺失 | ⬜ 未开始 |
@@ -131,14 +166,15 @@ python -m llm_capacity_pricing.cli plan \
 | 轮次 | 全量测试 | 全链路步骤 | 第一阶段回归 | 反向场景 |
 |---|---|---|---|---|
 | S0 基线 | 620 passed | 50 / 50 | 160 / 192 / 0 | 17 / 17 |
-| S0 + S1 | **641 passed** | **52 / 52** | **160 / 192 / 0** | **17 / 17** |
+| S0 + S1 | 641 passed | 52 / 52 | 160 / 192 / 0 | 17 / 17 |
+| S0 + S1 + S2 | **647 passed** | **52 / 52** | **160 / 192 / 0** | **17 / 17** |
 
 ---
 
 ## 六、封板检查清单（人工验收用，当前 3/7）
 
 - [x] 一份 YAML、一条 `plan` 命令能完成主评估流程
-- [ ] CLI、Agent 和报告复用相同的核心业务判断（S2/S3）
+- [x] CLI、Agent 和报告复用相同的核心业务判断（S2；业务规则单一权威在 S3 收口）
 - [x] 原有测试与全链路验证没有回退（641 passed / 52 步）
 - [x] 160 / 192 / 0 历史基线保持不变
 - [ ] 新模型/GPU/Benchmark 的扩展路径已通过契约测试（S4）

@@ -459,3 +459,134 @@ def test_s1_plan_matches_underlying_sizing_and_ranking(tmp_path, root):
     for entry in ranking.entries:
         assert by_id[entry.candidate_id].rank_bucket == entry.rank_bucket
         assert by_id[entry.candidate_id].sla_status == entry.sla_status
+
+
+# ==========================================================================
+# S2：CLI / Agent / 报告复用同一个应用服务
+# ==========================================================================
+
+
+def test_s2_cli_and_agent_share_the_same_application_service(tmp_path, root):
+    """同一数据库快照 + 同一配置 -> CLI 与 Agent 结果逐字段一致。"""
+    from llm_capacity_pricing.agent_api import call_agent_op
+
+    db = _sizing_db(tmp_path, root)
+    import_cost_catalog(CATALOG, db)
+
+    out = tmp_path / "cli.json"
+    cli_result = runner.invoke(
+        app, ["plan", "--config", FULL, "--json-out", str(out), "--db", db]
+    )
+    assert cli_result.exit_code == 0, cli_result.stdout
+    cli_payload = json.loads(out.read_text(encoding="utf-8"))
+
+    agent_payload = call_agent_op("plan.evaluate_config", db=db, config=FULL)
+
+    assert agent_payload["status"] == cli_payload["status"]
+    assert agent_payload["domains"] == cli_payload["domains"]
+    assert agent_payload["summary"] == cli_payload["summary"]
+    assert [c["candidate_id"] for c in agent_payload["candidates"]] == [
+        c["candidate_id"] for c in cli_payload["candidates"]
+    ]
+    assert [c["quote_publishable"] for c in agent_payload["candidates"]] == [
+        c["quote_publishable"] for c in cli_payload["candidates"]
+    ]
+
+
+def test_s2_agent_plan_op_accepts_request_object(tmp_path, root):
+    from llm_capacity_pricing.agent_api import call_agent_op
+
+    db = _sizing_db(tmp_path, root)
+    payload = call_agent_op(
+        "plan.evaluate",
+        db=db,
+        request={
+            "request_id": "agent",
+            "model_id": "qwen3-32b",
+            "hardware_ids": ["nvidia-h100-sxm-80gb"],
+            "server_id": "hgx-h100-8gpu",
+            "workload": {"input_len": 8192, "output_len": 256, "concurrency": 32},
+            "resources": {
+                "usable_fraction": "0.9",
+                "usable_source_kind": "synthetic_example",
+                "runtime_reserve_fraction": "0.1",
+            },
+            "advanced": {"tp_sizes": [4], "dp_sizes": [1]},
+        },
+    )
+    assert payload["request_id"] == "agent"
+    assert payload["domains"]["sizing"] == "computed"
+    # 与 CLI 一样：未配置治理时绝不出现可发布候选
+    assert payload["summary"]["publishable"] == []
+
+
+def test_s2_agent_plan_op_rejects_unknown_params(tmp_path):
+    from llm_capacity_pricing.agent_api import call_agent_op
+
+    with pytest.raises(ServiceError, match="不接受参数"):
+        call_agent_op("plan.evaluate", db=str(tmp_path / "x.db"), config="x", extra=1)
+
+
+def test_s2_services_decision_is_a_thin_compatibility_wrapper(tmp_path, root):
+    """`services.phase4_decision_for` 仍可用，且与应用层结果一致。"""
+    from llm_capacity_pricing.services import make_assumptions
+    from llm_capacity_pricing.workflow import evaluate_decision
+
+    db = _sizing_db(tmp_path, root)
+    import_cost_catalog(CATALOG, db)
+    requirement = {"requirement_id": "req-1", "ttft_p99_ms_max": 400}
+    assumptions = make_assumptions(
+        usable_fraction_of_nominal=Decimal("0.9"),
+        usable_memory_source_kind="synthetic_example",
+        runtime_reserve_fraction=Decimal("0.1"),
+        global_concurrency=32,
+        context_length_per_request=8192,
+        tp_sizes=(2, 4, 8),
+        dp_sizes=(1,),
+    )
+    kwargs = dict(
+        requirement=requirement,
+        model_id="qwen3-32b",
+        hardware_id="nvidia-h100-sxm-80gb",
+        server_id="hgx-h100-8gpu",
+        plan_file=PLAN_TEMPLATE,
+        template_id="syn-owned-3y",
+        assumptions=assumptions,
+    )
+    from llm_capacity_pricing.services import phase4_decision_for
+
+    legacy = phase4_decision_for(db, **kwargs)
+    modern = evaluate_decision(db, **kwargs)
+    assert legacy["per_candidate"] == modern["per_candidate"]
+    assert legacy["comparison"] == modern["comparison"]
+
+
+def test_s2_no_module_level_circular_dependency():
+    """services 与 workflow 之间不得出现模块级循环依赖。"""
+    import ast
+    from pathlib import Path as _P
+
+    root = _P("src/llm_capacity_pricing")
+
+    def top_level_imports(name: str) -> list[str]:
+        tree = ast.parse((root / f"{name}.py").read_text(encoding="utf-8"))
+        out = []
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom) and node.module:
+                out.append(node.module)
+            elif isinstance(node, ast.Import):
+                out.extend(a.name for a in node.names)
+        return out
+
+    assert not [m for m in top_level_imports("services") if m.endswith(".workflow")]
+    assert any(m.endswith(".services") for m in top_level_imports("workflow"))
+
+
+def test_s2_reports_do_not_reimplement_business_rules(tmp_path, root):
+    """报告层只格式化：不得在报告模块里出现门禁/匹配判定逻辑。"""
+    from pathlib import Path as _P
+
+    for name in ("plan_report.py", "tco_report.py", "performance_report.py"):
+        src = (_P("src/llm_capacity_pricing/reporting") / name).read_text(encoding="utf-8")
+        for forbidden in ("evaluate_sla(", "match(", "compute_tco(", "evaluate_quote_eligibility("):
+            assert forbidden not in src, f"{name} 不应直接调用 {forbidden}"

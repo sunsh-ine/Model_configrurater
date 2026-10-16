@@ -44,6 +44,9 @@ ALLOWED_QUOTE_PARAMS = frozenset(
 
 #: 每个算子允许的关键字参数白名单（``db`` 由调用方注入，不在此列）
 AGENT_OP_PARAMS: Mapping[str, frozenset[str]] = {
+    # S1/S2：与 CLI `plan` 完全同一个应用入口
+    "plan.evaluate": frozenset({"request"}),
+    "plan.evaluate_config": frozenset({"config"}),
     "phase4.cost_catalog": frozenset(),
     "phase3.performance_inventory": frozenset(),
     "phase4.tco": frozenset(
@@ -94,7 +97,28 @@ AGENT_OP_PARAMS: Mapping[str, frozenset[str]] = {
 }
 
 
+def _plan_evaluate(db: str, *, request: Any) -> dict[str, Any]:
+    """统一评估入口：**与 CLI `plan` 调用同一个 workflow 函数。**"""
+    from llm_capacity_pricing.schemas.plan import PlanRequest
+    from llm_capacity_pricing.workflow import evaluate_plan
+
+    parsed = (
+        request if isinstance(request, PlanRequest) else PlanRequest.model_validate(request)
+    )
+    return evaluate_plan(parsed, db_path=db).model_dump(mode="json")
+
+
+def _plan_evaluate_config(db: str, *, config: str) -> dict[str, Any]:
+    from llm_capacity_pricing.workflow import evaluate_plan, load_plan_request
+
+    return evaluate_plan(load_plan_request(config), db_path=db).model_dump(mode="json")
+
+
 def _impl(op: str) -> Callable[..., dict[str, Any]]:
+    if op == "plan.evaluate":
+        return _plan_evaluate
+    if op == "plan.evaluate_config":
+        return _plan_evaluate_config
     if op == "phase4.cost_catalog":
         return _services.cost_catalog_summary
     if op == "phase3.performance_inventory":

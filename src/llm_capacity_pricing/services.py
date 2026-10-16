@@ -3094,31 +3094,6 @@ def quote_eligibility_for(
     }
 
 
-def _build_ranking(
-    *,
-    requirement_id: str,
-    candidates: Sequence[DeploymentCandidate],
-    runs: Sequence[Any],
-    requirement: dict[str, Any],
-    policy: Any,
-    workload: Any,
-    models: dict[str, Any],
-    target_identity: dict[str, Any],
-) -> Any:
-    from llm_capacity_pricing.schemas.performance import SlaRequirement
-
-    return _rank_deployments(
-        requirement_id=requirement_id,
-        candidates=candidates,
-        runs=runs,
-        sla_requirement=SlaRequirement.model_validate(requirement),
-        policy=policy or SlaPolicy(),
-        workload=workload,
-        model_by_id=models,
-        target_identity=target_identity,
-    )
-
-
 def phase4_decision_for(
     db_path: str | Path,
     *,
@@ -3142,267 +3117,34 @@ def phase4_decision_for(
     scenario_id: str | None = None,
     budgets: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Any]:
-    """M31/M32：把第二/三/四阶段串成一条可审计的部署决策链。
+    """**兼容入口**：跨阶段编排已迁至应用层 ``workflow.evaluate_decision``。
 
-    链路：静态候选 → 性能与 SLA（只读第三阶段结论）→ TCO → 收益情景 →
-    报价门禁 → 多候选比较 + 预算/敏感性/盈亏平衡。
-
-    任何一步缺证据都不会被"补齐"：缺就留空并写明原因。
+    保留本函数是为了不破坏既有调用方与测试；新代码请直接用 ``workflow``。
     """
-    from llm_capacity_pricing.decision.comparison import CandidateEconomics, compare_deployments
-    from llm_capacity_pricing.decision.sensitivity import (
-        analyze_breakeven,
-        analyze_sensitivity,
-        check_budget,
-    )
-    from llm_capacity_pricing.engines.quote_gate import evaluate_quote_eligibility
-    from llm_capacity_pricing.engines.revenue import compute_revenue
-    from llm_capacity_pricing.engines.tco import build_cash_flow, compute_tco
-    from llm_capacity_pricing.schemas.commercial import DemandPeriod, RevenueScenario
-    from llm_capacity_pricing.schemas.performance import (
-        SlaRequirement,
-        TargetRequirement,
-        WorkloadSignature,
-    )
+    from llm_capacity_pricing.workflow import evaluate_decision
 
-    plan = plan_deployment_for(
+    return evaluate_decision(
         db_path,
+        requirement=requirement,
         model_id=model_id,
         hardware_id=hardware_id,
-        server_id=server_id,
+        plan_file=plan_file,
+        template_id=template_id,
         assumptions=assumptions,
-        weight_precision=weight_precision,
-        kv_precision=kv_precision,
-    )
-    db, repo = open_db(db_path)
-    try:
-        with db.session() as session:
-            runs = repo.list_benchmark_runs(session)
-            models = {m.model_id: m for m in repo.list_model_specs(session)}
-            items = repo.list_cost_catalog_items(session)
-            rules = {r.rule_id: r for r in repo.list_billing_rules(session)}
-    finally:
-        db.dispose()
-
-    sla_req = SlaRequirement.model_validate(requirement)
-    workload = WorkloadSignature(
-        input_len_target=input_len_target or assumptions.context_length_per_request,
+        server_id=server_id,
+        policy=policy,
+        input_len_target=input_len_target,
         output_len_target=output_len_target,
         dataset_name=dataset_name,
-        configured_concurrency=assumptions.global_concurrency,
+        model_revision=model_revision,
+        framework=framework,
+        framework_version=framework_version,
+        weight_precision=weight_precision,
+        kv_precision=kv_precision,
+        demand_file=demand_file,
+        scenario_id=scenario_id,
+        budgets=budgets,
     )
-    target_identity = {
-        "model_revision": model_revision,
-        "framework": framework,
-        "framework_version": framework_version,
-    }
-    ranking = _build_ranking(
-        requirement_id=sla_req.requirement_id,
-        candidates=plan["candidates"],
-        runs=runs,
-        requirement=requirement,
-        policy=policy,
-        workload=workload,
-        models=models,
-        target_identity=target_identity,
-    )
-
-    if not items:
-        raise ServiceError("成本目录为空：请先运行 import-cost-catalog")
-
-    templates = load_cost_plan_templates(plan_file)
-    if template_id not in templates:
-        raise ServiceError(f"未知模板 {template_id!r}；可用：{sorted(templates)}")
-    template = templates[template_id]
-    coverage_policy = load_coverage_policy(plan_file)
-
-    scenario = None
-    rule = None
-    if demand_file and scenario_id:
-        raw = load_demand_scenarios(demand_file).get(scenario_id)
-        if raw is None:
-            raise ServiceError(f"未知情景 {scenario_id!r}")
-        scenario = RevenueScenario(
-            scenario_id=raw["scenario_id"],
-            model_name=raw["model_name"],
-            billing_rule_id=raw["billing_rule_id"],
-            days_per_year=raw.get("days_per_year", 365),
-            periods_cover=raw.get("periods_cover", "one_day"),
-            scope_notes=list(raw.get("scope_notes") or []),
-            periods=[DemandPeriod.model_validate(p) for p in raw["periods"]],
-        )
-        rule = rules.get(scenario.billing_rule_id)
-        if rule is None:
-            raise ServiceError(f"计费规则 {scenario.billing_rule_id!r} 不在库中")
-
-    ranked_by_id = {e.candidate_id: e for e in ranking.entries}
-    economics: list[CandidateEconomics] = []
-    sensitivities: list[Any] = []
-    breakevens: list[Any] = []
-    budget_checks: list[Any] = []
-    per_candidate: dict[str, Any] = {}
-    tco_details: list[dict[str, Any]] = []
-    revenue_representative: Any = None
-
-    for candidate in plan["candidates"]:
-        server_count = candidate.nodes_required
-        if server_count is None:
-            per_candidate[candidate.candidate_id] = {
-                "reason": "nodes_required_missing: 候选未给出所需服务器数，无法核算机房相关成本"
-            }
-            economics.append(CandidateEconomics(candidate_id=candidate.candidate_id))
-            continue
-
-        cost_plan = build_cost_plan_from_template(
-            template,
-            candidate_id=candidate.candidate_id,
-            hardware_id=candidate.hardware_id,
-            gpu_count=candidate.gpu_count,
-            server_count=server_count,
-            tp_size=candidate.tp_size,
-            dp_size=candidate.dp_size,
-        )
-        tco = compute_tco(cost_plan, items, coverage_policy=coverage_policy)
-
-        revenue = None
-        if scenario is not None and rule is not None:
-            evidence = capacity_evidence_for(
-                db_path,
-                model_name=_signature_model_name(candidate, models),
-                hardware_model=_hardware_product_name(candidate),
-                gpu_count=candidate.gpu_count,
-                tp_size=candidate.tp_size,
-                dp_size=candidate.dp_size,
-                weight_precision=candidate.weight_precision,
-                configured_concurrency=assumptions.global_concurrency,
-                input_len_target=input_len_target
-                or assumptions.context_length_per_request,
-                output_len_target=output_len_target,
-                dataset_name=dataset_name,
-                model_revision=model_revision,
-                framework=framework,
-                framework_version=framework_version,
-            )
-            revenue = compute_revenue(scenario, rule, capacity_evidence=evidence)
-
-        ranked = ranked_by_id.get(candidate.candidate_id)
-        # V4.1 F4.1：决策链的资格结论也**只能**来自持久化证据。
-        # 这里没有证据 ID，因此一律走诊断入口，结论固定为"不可发布"。
-        eligibility = _diagnostic_eligibility(
-            candidate_id=candidate.candidate_id,
-            tco=tco,
-            sla_status=ranked.sla_status if ranked else None,
-            match_level=ranked.match_level if ranked else None,
-            plan_id=cost_plan.plan_id,
-        )
-
-        cash_flow = build_cash_flow(
-            tco,
-            annual_revenue=revenue.annual_revenue if revenue else None,
-            revenue_basis="scenario_only" if revenue else "none",
-        )
-        economics.append(
-            CandidateEconomics(
-                candidate_id=candidate.candidate_id,
-                plan=cost_plan,
-                tco=tco,
-                revenue=revenue,
-                eligibility=eligibility,
-            )
-        )
-        sensitivities.append(analyze_sensitivity(plan=cost_plan, items=items))
-        breakevens.append(analyze_breakeven(tco=tco, revenue=revenue, rule=rule))
-        for budget in budgets:
-            kind = budget.get("budget_kind", "total_horizon")
-            compared = {
-                "one_time_capex": tco.capex_one_time,
-                "annual_opex": tco.annual_cash_opex,
-                "total_horizon": tco.total_cash_over_horizon,
-            }[kind]
-            budget_checks.append(
-                check_budget(
-                    budget_id=f"{budget['budget_id']}::{candidate.candidate_id}",
-                    budget_amount=(
-                        Decimal(str(budget["budget_amount"]))
-                        if budget.get("budget_amount") is not None
-                        else None
-                    ),
-                    budget_kind=kind,
-                    compared_value=compared,
-                    currency=tco.currency,
-                    currency_confirmed=tco.currency_confirmed,
-                )
-            )
-        tco_details.append(
-            {
-                "plan": cost_plan.model_dump(mode="json"),
-                "tco": tco.model_dump(mode="json"),
-                "cash_flow": cash_flow.model_dump(mode="json"),
-                "revenue": revenue.model_dump(mode="json") if revenue else None,
-            }
-        )
-        if revenue_representative is None and revenue is not None:
-            revenue_representative = revenue.model_dump(mode="json")
-        per_candidate[candidate.candidate_id] = {
-            "plan_id": cost_plan.plan_id,
-            "tco_incomplete": tco.incomplete,
-            "total_cash_over_horizon": tco.total_cash_over_horizon,
-            "annual_total_cost": tco.annual_total_cost,
-            "annual_revenue": revenue.annual_revenue if revenue else None,
-            "capacity_check": revenue.capacity_check if revenue else None,
-            "quote_publishable": eligibility.quote_publishable,
-            "cash_flow_npv": cash_flow.npv,
-            "cash_flow_payback_year": cash_flow.payback_year,
-        }
-
-    comparison = compare_deployments(
-        requirement_id=sla_req.requirement_id,
-        ranking=ranking,
-        economics=economics,
-    )
-
-    limitations = [
-        "成本数据为合成示例或待确认状态时，TCO 结论只用于验证计算链路，不得对外报价",
-        "性能与 SLA 结论原样取自第三阶段，本阶段不做重新判定",
-        "报价资格四维独立，任一未过即不可发布；本阶段不提供任何绕过参数",
-        "没有可信实测容量时，收入情景只作情景分析，不构成产能承诺",
-        "不产出跨维度的综合评分或加权排名",
-    ]
-    return {
-        "requirement_id": sla_req.requirement_id,
-        "ranking": ranking.model_dump(mode="json"),
-        "comparison": comparison.model_dump(mode="json"),
-        "eligibilities": [
-            e.model_dump(mode="json")
-            for e in (ec.eligibility for ec in economics)
-            if e is not None
-        ],
-        "budget_checks": [b.model_dump(mode="json") for b in budget_checks],
-        "sensitivity": [x.model_dump(mode="json") for x in sensitivities],
-        "breakeven": [b.model_dump(mode="json") for b in breakevens],
-        "per_candidate": per_candidate,
-        "tco_details": tco_details,
-        "revenue": revenue_representative,
-        "limitations": limitations,
-        "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
-    }
-
-
-def _signature_model_name(candidate: DeploymentCandidate, models: dict[str, Any]) -> str:
-    spec = models.get(candidate.model_id)
-    repo_id = getattr(spec, "repo_id", None) if spec else None
-    return repo_id or candidate.model_id
-
-
-def _hardware_product_name(candidate: DeploymentCandidate) -> str:
-    mapping = {
-        "nvidia-h100-sxm-80gb": "NVIDIA H100 SXM",
-        "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
-        "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
-        "nvidia-b200-sxm": "NVIDIA B200 SXM",
-        "ascend-910c": "Ascend 910C",
-    }
-    return mapping.get(candidate.hardware_id, candidate.hardware_id)
 
 
 def export_phase4_report(
