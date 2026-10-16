@@ -632,13 +632,24 @@ run_step 49 "plan（S1 完整配置：四领域贯通，报价仍不可发布）
 run_step 50 "S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误）" 1 '^[0-9]+ passed' \
   $PY -m pytest tests/test_s_phase_end_to_end.py -q
 
-run_step 51 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 51 "check-import（M38 导入一致性：口径混用/并发语义/请求账目/缓存口径）" 1 '^检查 [0-9]+ 条实测:|^  "(checked_run_count|ok|blocker_count|warning_count)"' \
+  $CLI check-import --out "$OUT_DIR/import_consistency.json" --db "$DB"
+
+run_step 52 "plan-benchmarks（M37 压测实验清单 + metadata 模板）" 1 '^实验清单已写入|^  "(point_count|plan_json|metadata_file_count)"' \
+  $CLI plan-benchmarks --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+    --framework-version synthetic-fw-1.0 --model-revision synthetic-revision-1 --precision bf16 \
+    --tp-sizes 4 --dp-sizes 1 --context-length 8192 --concurrency 32 \
+    --usable-fraction 0.9 --usable-source-kind synthetic_example \
+    --runtime-reserve-fraction 0.1 \
+    --out "$OUT_DIR/benchmark_experiments.json" --metadata-dir "$OUT_DIR/metadata" --db "$DB"
+
+run_step 53 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 52 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 54 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 53 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 55 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

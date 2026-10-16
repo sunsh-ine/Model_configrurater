@@ -51,8 +51,11 @@ from llm_capacity_pricing.services import (
     import_cost_catalog,
     cost_catalog_summary,
     data_quality_report,
+    check_import_consistency_for,
     import_commercial_confirmations,
     import_quote_approvals,
+    plan_benchmarks_for,
+    export_benchmark_experiments,
     record_sla_evidence_for,
     tco_for,
     revenue_for,
@@ -180,6 +183,100 @@ def plan_cmd(
             "summary": result.summary,
         }
     )
+
+
+@app.command("plan-benchmarks", rich_help_panel="① 主入口（日常使用）")
+def plan_benchmarks_cmd(
+    model: str = typer.Option(..., "--model", help="模型 ID"),
+    hardware: str = typer.Option(..., "--hardware", help="硬件 SKU ID"),
+    server: Optional[str] = typer.Option(None, "--server", help="服务器形态 ID"),
+    ctx: int = typer.Option(8192, "--context-length", help="每请求上下文长度（token）"),
+    concurrency: int = typer.Option(32, "--concurrency", help="全局并发（资源规划用）"),
+    framework: str = typer.Option("vllm", "--framework", help="压测框架：vllm / sglang"),
+    framework_version: Optional[str] = typer.Option(
+        None, "--framework-version", help="框架版本（目标身份必需）"
+    ),
+    model_revision: Optional[str] = typer.Option(
+        None, "--model-revision", help="模型版本（目标身份必需）"
+    ),
+    precision: Optional[str] = typer.Option(None, "--precision", help="权重精度"),
+    kv_precision: str = typer.Option("bf16", "--kv-precision", help="KV cache 精度"),
+    tp_sizes: str = typer.Option("1,2,4,8", "--tp-sizes", help="枚举的 TP 取值"),
+    dp_sizes: str = typer.Option("1,2,4,8", "--dp-sizes", help="枚举的 DP 取值"),
+    usable_fraction: Optional[str] = typer.Option(None, "--usable-fraction", help="可用显存比例假设"),
+    usable_source_kind: Optional[str] = typer.Option(None, "--usable-source-kind", help="可用显存来源性质"),
+    runtime_reserve: Optional[str] = typer.Option(None, "--runtime-reserve-fraction", help="运行时预留比例"),
+    repeats: int = typer.Option(2, "--repeats", help="每个实验点重复次数"),
+    prefix_cache: str = typer.Option(
+        "disabled", "--prefix-cache", help="前缀缓存策略：disabled / enabled（必须显式声明）"
+    ),
+    out: Optional[str] = typer.Option(None, "--out", help="清单 JSON 路径"),
+    metadata_dir: Optional[str] = typer.Option(
+        None, "--metadata-dir", help="按点输出 metadata YAML 模板的目录"
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M37：生成"要跑哪些压测"的清单（不含任何性能数值）。"""
+    assumptions = make_assumptions(
+        usable_fraction_of_nominal=Decimal(usable_fraction) if usable_fraction else None,
+        usable_memory_source_kind=usable_source_kind,
+        runtime_reserve_fraction=Decimal(runtime_reserve) if runtime_reserve else None,
+        global_concurrency=concurrency,
+        context_length_per_request=ctx,
+        tp_sizes=_parse_int_list(tp_sizes),
+        dp_sizes=_parse_int_list(dp_sizes),
+    )
+    kwargs = dict(
+        model_id=model,
+        hardware_id=hardware,
+        assumptions=assumptions,
+        server_id=server,
+        framework=framework,
+        framework_version=framework_version,
+        weight_precision=precision,
+        kv_precision=kv_precision,
+        model_revision=model_revision,
+        repeats=repeats,
+        prefix_cache=prefix_cache,
+    )
+    try:
+        if out or metadata_dir:
+            info = export_benchmark_experiments(
+                db, out or "data/exports/benchmark_experiments.json",
+                metadata_dir=metadata_dir, **kwargs,
+            )
+            typer.secho(
+                f"实验清单已写入 {info['plan_json']}（{info['point_count']} 个实验点）",
+                fg=typer.colors.GREEN,
+            )
+            if info["metadata_files"]:
+                typer.echo(f"metadata 模板 {len(info['metadata_files'])} 份，目录 {metadata_dir}")
+            for item in info["missing_inputs"]:
+                typer.secho(f"缺少输入: {item}", fg=typer.colors.YELLOW)
+            _echo_json(
+                {
+                    "point_count": info["point_count"],
+                    "plan_json": info["plan_json"],
+                    "metadata_file_count": len(info["metadata_files"]),
+                    "missing_inputs": info["missing_inputs"],
+                }
+            )
+            return
+        info = plan_benchmarks_for(db, **kwargs)
+        typer.secho(
+            f"共 {len(info['points'])} 个实验点", fg=typer.colors.GREEN
+        )
+        for item in info["missing_inputs"]:
+            typer.secho(f"缺少输入: {item}", fg=typer.colors.YELLOW)
+        _echo_json(
+            {
+                "point_count": len(info["points"]),
+                "missing_inputs": info["missing_inputs"],
+                "limitations": info["limitations"],
+            }
+        )
+    except (ServiceError, ValueError) as exc:
+        _fail(str(exc))
 
 
 @app.command("init-db", rich_help_panel="② 数据导入")
@@ -502,6 +599,10 @@ def list_records_cmd(
 # ---------------------------------------------------------------------------
 # 第二阶段：模型 / 硬件 / 资源规划
 # ---------------------------------------------------------------------------
+
+
+def _parse_str_list(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 def _parse_int_list(raw: str) -> list[int]:
@@ -976,6 +1077,48 @@ def performance_report_cmd(
 # --------------------------------------------------------------------------
 # 第四阶段（M26–M33）：TCO、收益情景、报价门禁与部署决策
 # --------------------------------------------------------------------------
+
+
+@app.command("check-import", rich_help_panel="③ 校验与库存")
+def check_import_cmd(
+    run_ids: Optional[str] = typer.Option(
+        None, "--run-ids", help="只检查这些 run_id（逗号分隔）；缺省检查全部"
+    ),
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M38：导入一致性校验（口径混用/并发语义/请求账目/缓存口径/重复 Run）。"""
+    info = check_import_consistency_for(
+        db, run_ids=_parse_str_list(run_ids) if run_ids else None
+    )
+    typer.secho(
+        f"检查 {info['checked_run_count']} 条实测："
+        f"blocker {info['blocker_count']}，warning {info['warning_count']}",
+        fg=typer.colors.GREEN if info["ok"] else typer.colors.RED,
+    )
+    for issue in info["issues"]:
+        if issue["severity"] == "info":
+            continue
+        color = typer.colors.RED if issue["severity"] == "blocker" else typer.colors.YELLOW
+        typer.secho(
+            f"  [{issue['severity']}] {issue['code']}: {issue['message']}", fg=color
+        )
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "checked_run_count": info["checked_run_count"],
+            "ok": info["ok"],
+            "blocker_count": info["blocker_count"],
+            "warning_count": info["warning_count"],
+            "codes": sorted({i["code"] for i in info["issues"]}),
+        }
+    )
 
 
 @app.command("data-quality", rich_help_panel="③ 校验与库存")

@@ -3627,3 +3627,198 @@ def _data_gaps(
             "即便导入记录也不构成生产发布授权"
         )
     return gaps
+
+
+# --------------------------------------------------------------------------
+# 第五阶段 M37：标准化压测实验清单
+# --------------------------------------------------------------------------
+
+
+def plan_benchmarks_for(
+    db_path: str | Path,
+    *,
+    model_id: str,
+    hardware_id: str,
+    assumptions: Any,
+    server_id: str | None = None,
+    framework: str = "vllm",
+    framework_version: str | None = None,
+    weight_precision: str | None = None,
+    kv_precision: str = "bf16",
+    model_revision: str | None = None,
+    repeats: int = 2,
+    prefix_cache: str = "disabled",
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """M37：按第二阶段候选生成"要跑哪些压测"的清单（不含任何性能数值）。"""
+    from llm_capacity_pricing.perf.experiment_planner import plan_benchmarks
+    from llm_capacity_pricing.sizing.hardware import product_name_for_hardware_id
+
+    plan = plan_deployment_for(
+        db_path,
+        model_id=model_id,
+        hardware_id=hardware_id,
+        server_id=server_id,
+        assumptions=assumptions,
+        weight_precision=weight_precision,  # type: ignore[arg-type]
+        kv_precision=kv_precision,
+    )
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            models = {m.model_id: m for m in repo.list_model_specs(session)}
+    finally:
+        db.dispose()
+    spec = models.get(model_id)
+    model_name = getattr(spec, "repo_id", None) or model_id
+
+    experiment = plan_benchmarks(
+        candidates=plan["candidates"],
+        model_id=model_id,
+        model_name=model_name,
+        hardware_id=hardware_id,
+        hardware_model=product_name_for_hardware_id(hardware_id),
+        model_revision=model_revision or getattr(spec, "revision", None),
+        weight_precision=weight_precision or getattr(spec, "deployment_precision", None),
+        kv_precision=kv_precision,
+        framework=framework,  # type: ignore[arg-type]
+        framework_version=framework_version,
+        repeats=repeats,
+        prefix_cache=prefix_cache,
+        request_id=request_id,
+    )
+    payload = experiment.model_dump(mode="json")
+    payload["candidate_status_counts"] = plan["status_counts"]
+    payload["sizing_request"] = plan["request"]
+    return payload
+
+
+def export_benchmark_experiments(
+    db_path: str | Path,
+    json_path: str | Path,
+    *,
+    metadata_dir: str | Path | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """把实验清单导出为 JSON，并可**按点**输出 metadata YAML 模板。"""
+    info = plan_benchmarks_for(db_path, **kwargs)
+    out = Path(json_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+    )
+    written: list[str] = []
+    if metadata_dir:
+        folder = Path(metadata_dir)
+        folder.mkdir(parents=True, exist_ok=True)
+        for point in info["points"]:
+            path = folder / f"{point['point_id']}.yaml"
+            path.write_text(
+                yaml.safe_dump(
+                    point["metadata_template"], allow_unicode=True, sort_keys=False
+                ),
+                encoding="utf-8",
+            )
+            written.append(str(path))
+    return {
+        "plan_json": str(out),
+        "point_count": len(info["points"]),
+        "metadata_files": written,
+        "missing_inputs": info["missing_inputs"],
+        "limitations": info["limitations"],
+    }
+
+
+# --------------------------------------------------------------------------
+# 第五阶段 M38：导入一致性校验
+# --------------------------------------------------------------------------
+
+
+def check_import_consistency_for(
+    db_path: str | Path = "data/local.db",
+    *,
+    run_ids: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """M38：对库内（或指定）的 Benchmark Run 做一致性校验。**只报告，不改数据。**"""
+    from llm_capacity_pricing.perf.import_consistency import check_import_consistency
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        db.dispose()
+    if run_ids:
+        wanted = set(run_ids)
+        missing = sorted(wanted - {r.run_id for r in runs})
+        runs = [r for r in runs if r.run_id in wanted]
+    else:
+        missing = []
+
+    report = check_import_consistency(runs)
+    payload = report.to_dict()
+    payload["missing_run_ids"] = missing
+    payload["notice"] = (
+        "本校验只读：不修改任何记录。blocker 表示该批数据不得用于生产结论；"
+        "warning 表示需要人工核对。"
+    )
+    return payload
+
+
+def verify_reimport_is_stable(
+    file: str | Path,
+    metadata_file: str | Path,
+    db_path: str | Path = "data/local.db",
+    *,
+    kind: str = "vllm",
+) -> dict[str, Any]:
+    """M38：同一份结果重复导入必须稳定（run 数、run_id 集合与指标不变）。
+
+    这正是"导入重试不重复写入相同 Run"的可执行验证。
+    """
+    import json as _json
+
+    before = check_import_consistency_for(db_path)
+
+    def _snapshot() -> dict[str, Any]:
+        db, repo = open_db(db_path)
+        try:
+            with db.session() as session:
+                runs = repo.list_benchmark_runs(session)
+        finally:
+            db.dispose()
+        return {
+            "run_count": len(runs),
+            "run_ids": sorted(r.run_id for r in runs),
+            "metrics": {
+                r.run_id: str(r.profile.output_throughput_tok_s) for r in runs
+            },
+        }
+
+    # 先导入一次作为基线，再重试一次：比较"首次导入后"与"重试后"是否一致
+    import_performance_run(file, metadata_file, db_path, kind=kind)
+    first = _snapshot()
+    import_performance_run(file, metadata_file, db_path, kind=kind)
+    second = _snapshot()
+    third = _snapshot()  # 不导入，仅确认快照稳定
+
+    stable = first == second == third
+    return {
+        "file": str(file),
+        "kind": kind,
+        "stable": stable,
+        "snapshots": {
+            "after_first_import": {
+                "run_count": first["run_count"],
+                "run_ids": first["run_ids"],
+            },
+            "after_retry": {"run_count": second["run_count"], "run_ids": second["run_ids"]},
+        },
+        "consistency_before": {"ok": before["ok"], "blockers": before["blocker_count"]},
+        "notice": (
+            "重复导入按 run_id 幂等：不新增记录、不改变已有指标。"
+            if stable
+            else "重复导入改变了库内数据：请检查 run_id 生成是否稳定"
+        ),
+        "raw": _json.dumps({"stable": stable}),
+    }

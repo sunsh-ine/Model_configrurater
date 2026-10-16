@@ -113,12 +113,93 @@ python -m llm_capacity_pricing.cli data-quality --db data/local.db --out quality
 
 ---
 
-## 四、M37–M42：待执行
+## 四、M37：标准化压测实验清单 ✅
+
+### 4.1 交付
+
+`perf/experiment_planner.py` + `schemas/experiment.py` + CLI：
+
+```bash
+python -m llm_capacity_pricing.cli plan-benchmarks \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --framework-version <版本> --model-revision <版本> --precision bf16 \
+  --out data/exports/benchmark_experiments.json \
+  --metadata-dir data/exports/metadata --db data/local.db
+```
+
+每个实验点包含：部署身份（模型版本/精度/GPU SKU/卡数/TP/DP/框架版本）、负载条件
+（输入输出长度/并发/到达方式/数据集/**显式的前缀缓存策略**）、证据强度要求
+（warmup、时长、重复次数、必需指标）、**可导入的 metadata 模板**与压测命令骨架。
+
+首轮矩阵沿用计划 §三（1K/256 @1,8；8K/256 @1,8,16,32；32K/256 @1,8,16），
+并自动继承容量分析的可持续性门槛（重复次数 ≥ 2、时长 ≥ 60s）。
+
+### 4.2 一处刻意的"不给"
+
+复审要求"提供可执行命令示例"。实现时把**服务端启动命令**去掉了 ——
+本仓库归档的官方文档是**压测客户端**文档，服务端启动参数（`--tensor-parallel-size`
+等）在其中查不到；既然是靠"参数必须可在归档文档中查到"来防编造，就不该为服务端破例。
+
+现在只给出 `server_args`（必须对齐的参数：TP/DP/max_model_len/前缀缓存策略）
+并在 notes 里说明"参数名以所用框架版本文档为准"。**测试会逐个校验压测命令中的
+每个 `--flag` 都真实存在于归档文档**，所以这条约束不会随时间漂移。
+
+### 4.3 验收对照
+
+| 计划 §M37 验收 | 结果 |
+|---|---|
+| 同一实验记录可从采集结果追溯到具体部署配置 | ✅ `test_m37_metadata_template_reaches_exact_match`（照模板造的数据 → 与该部署配置匹配到 `exact_match`） |
+| 缺失关键条件的测试不会被判为 exact_match | ✅ `test_m37_missing_identity_conditions_are_declared` |
+| 清单含参数、不含性能数值 | ✅ `test_m37_plan_contains_no_performance_numbers` |
+| 命令可执行且不编造 | ✅ `test_m37_command_flags_come_from_archived_docs` |
+| 覆盖矩阵与重复要求 | ✅ `test_m37_plan_covers_grid_and_feasible_candidates`、`test_m37_repeats_and_duration_meet_sustainability_thresholds` |
+
+---
+
+## 五、M38：真实 Benchmark 导入与一致性验证 ✅
+
+### 5.1 交付
+
+`perf/import_consistency.py` + CLI：
+
+```bash
+python -m llm_capacity_pricing.cli check-import --db data/local.db --out consistency.json
+```
+
+逐条检查（只报告，不改数据）：客户端/服务端指标混用、分位口径是否声明、
+配置并发与实际并发是否自洽、到达方式与限速是否冲突、请求成功/失败/超时账目、
+错误率与计数是否一致、**可计费缓存比例是否被照抄物理命中率**、
+同分组身份是否一致、批次内是否有重复 run_id、重复观测会如何聚合。
+
+**严重度按关键性分级**（避免"一刀切全是 blocker"）：SLA 关键分位
+（TTFT/TPOT P99）缺口径是 `blocker`；ITL/E2E 缺口径只 `warning`；
+只有 Mean、没有任何 P99 是 `warning` + 一条明确的"不得据此推算 P99"提示。
+
+### 5.2 导入幂等
+
+`services.verify_reimport_is_stable()`：先导入一次作为基线，再重试导入，
+比较 run 数、run_id 集合与吞吐指标 —— 三者必须完全一致。
+
+### 5.3 验收对照
+
+| 计划 §M38 验收 | 结果 |
+|---|---|
+| 相同数据重复导入结果稳定 | ✅ `test_m38_reimport_is_stable` |
+| 字段/指标缺失时输出可解释原因 | ✅ `test_m38_request_accounting_and_error_rate`、`test_m38_p99_without_definition_is_blocking` |
+| 不伪造性能值 | ✅ `test_m38_mean_only_never_infers_p99`（断言 P99 仍为 `None`） |
+| 客户端/服务端不混用 | ✅ `test_m38_server_only_metrics_is_blocking` |
+| 配置并发与实际并发分开 | ✅ `test_m38_concurrency_semantics` |
+| 缓存口径不混用 | ✅ `test_m38_cache_rate_must_not_be_copied_from_physical` |
+| 重复 Run 保守聚合 | ✅ `test_m38_batch_checks`（`repeat_runs_will_be_conservatively_aggregated`） |
+
+---
+
+## 六、M39–M42：待执行
 
 | 里程碑 | 目标 | 状态 |
 |---|---|---|
-| M37 | 标准化压测实验清单（实验点、元数据模板、可执行命令示例） | ⬜ 未开始 |
-| M38 | 真实 Benchmark 导入与一致性验证（客户端/服务端口径、并发语义、失败与超时、重复导入幂等） | ⬜ 未开始 |
+| M39 | 现场性能与 SLA 可信度验证（容量曲线、稳定容量、逐子项判定） | ⬜ 未开始 |
+| M40 | 真实成本与方案比较闭环（可比/不可比候选并列） | ⬜ 未开始 |
 | M39 | 现场性能与 SLA 可信度验证（容量曲线、稳定容量、逐子项判定） | ⬜ 未开始 |
 | M40 | 真实成本与方案比较闭环（可比/不可比候选并列） | ⬜ 未开始 |
 | M41 | 降低用户操作成本（配置报错定位、报告层次、补测提示） | ⬜ 未开始 |
@@ -126,16 +207,17 @@ python -m llm_capacity_pricing.cli data-quality --db data/local.db --out quality
 
 ---
 
-## 五、回归记录
+## 七、回归记录
 
 | 轮次 | 全量测试 | 全链路步骤 | 第一阶段回归 | 反向场景 |
 |---|---|---|---|---|
 | S 阶段封板（92944e3） | 683 passed | 53 / 53 | 160 / 192 / 0 | 17 / 17 |
-| M35 + M36 | **709 passed** | **54 / 54** | **160 / 192 / 0** | **17 / 17** |
+| M35 + M36 | 709 passed | 54 / 54 | 160 / 192 / 0 | 17 / 17 |
+| M35–M38 | **727 passed** | **56 / 56** | **160 / 192 / 0** | **17 / 17** |
 
 ---
 
-## 六、未闭环事项（与前几阶段一致）
+## 八、未闭环事项（与前几阶段一致）
 
 1. **真实性能验收未验证** —— 缺少目标模型 / GPU / 配置的真实压测记录；
 2. **商业报价不可发布** —— 未接入可信审批系统，且无已确认真实价格；

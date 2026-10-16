@@ -256,7 +256,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **54 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
+> 完整链路由 **56 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）。
 
 ---
@@ -294,6 +294,8 @@ bash scripts/verify_all.sh
 | `import-cost-catalog --file <yaml> --db <path>` | **M27**：导入成本目录（GPU/机房/电力/网络/软件/运维）与计费规则 |
 | `cost-catalog --db <path>` | **M27**：成本目录库存（类别/口径/状态/缺价项） |
 | `data-quality --db <path> [--out <json>]` | **M36**：数据质量分级（字段完整/缺失/不适用/Synthetic/未验证）+ 可执行补数据指引 |
+| `plan-benchmarks --model <id> --hardware <sku> … [--out <json>] [--metadata-dir <dir>]` | **M37**：生成压测实验清单与 metadata 模板（不含性能数值） |
+| `check-import --db <path> [--run-ids <ids>] [--out <json>]` | **M38**：导入一致性校验（口径混用/并发语义/请求账目/缓存口径/重复 Run） |
 | `import-commercial-confirmations --file <yaml> --db <path>` | **M30**：导入**人工**商务确认记录（本命令不生成确认） |
 | `record-sla-evidence --candidate <id> --requirement <json> --model <名> --hardware <型号> --gpu-count N --tp N …` | **V4.1 F4.1**：跑一次 SLA 评估并**持久化**为可引用的证据记录 |
 | `import-quote-approvals --file <yaml> --db <path>` | **V4.1 F4.1**：导入**人工**审批记录（本命令不生成审批） |
@@ -546,7 +548,8 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/refactor_baseline.md`](docs/refactor_baseline.md) | **S0** 重构基线冻结（接口 / 数据 / 测试） |
 | [`docs/plan_config_reference.md`](docs/plan_config_reference.md) | **S1/S5** `plan` 配置字段说明与报告导读 |
 | [`docs/extension_guide.md`](docs/extension_guide.md) | **S4** 三个扩展方向的开发指南（数据 / Benchmark 适配 / 计算规则） |
-| [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35/M36** 核心数据契约冻结 + 真实数据准备规范与质量分级 |
+| [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35–M38** 核心数据契约冻结 + 真实数据准备规范、质量分级与压测清单 |
+| [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
 | [`docs/phase4_interface_design.md`](docs/phase4_interface_design.md) | **M26** 第四阶段模块划分、接口签名与禁止事项 |

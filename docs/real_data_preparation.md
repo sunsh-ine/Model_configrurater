@@ -130,7 +130,27 @@ python -m llm_capacity_pricing.cli data-quality --db data/local.db --out quality
 
 ---
 
-## 四、压测实验清单（M37 将补齐元数据模板）
+## 四、压测实验清单（M37 已实现，可自动生成）
+
+```bash
+python -m llm_capacity_pricing.cli plan-benchmarks \
+  --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
+  --framework-version <版本> --model-revision <版本> --precision bf16 \
+  --out data/exports/benchmark_experiments.json \
+  --metadata-dir data/exports/metadata --db data/local.db
+```
+
+生成结果里每个点都带**可直接导入的 metadata 模板**与压测命令骨架。
+两点注意：
+
+* 命令骨架中的每个 `--flag` 都能在仓库归档的官方文档里查到（有契约测试保证），
+  但 **不提供服务端启动命令** —— 其参数名与现场部署方式强相关，
+  本仓库未归档服务端文档，不予背书；清单只给出必须对齐的参数
+  （TP / DP / max_model_len / 前缀缓存策略）。
+* metadata 模板里的 `launch_command` / `benchmark_command` 是占位符，
+  请把现场实际命令粘进去 —— 它们是**证据溯源**的一部分。
+
+下面的矩阵是默认取值（可覆盖）：
 
 以 Qwen3-32B BF16 + H100 SXM 为首轮验证对象；资源允许时比较 TP4/DP1 与 TP2/DP2。
 

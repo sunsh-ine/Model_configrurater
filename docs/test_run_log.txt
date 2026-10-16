@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-16T11:01:56",
+  "generated_at": "2026-10-16T11:10:24",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-16T11:01:56",
+  "generated_at": "2026-10-16T11:10:25",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -2158,7 +2158,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "data_trust": null,
   "algorithm_validation_only": false,
   "allow_synthetic_used": false,
-  "run_pool_hash": "90ec1d1cc3cbb74bbbc9faf82ac8a6fd83e674c04db0ae6f198db6e505d917e9",
+  "run_pool_hash": "afbb0b64643facf979f0aeac072e5039a8f3035111aef83ca205e307093fc909",
   "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
   "production_grade": false,
   "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
@@ -2393,46 +2393,78 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 
 === 50. S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误） ===
 ...........                                                              [100%]
-11 passed in 2.52s
+11 passed in 2.17s
 
-=== 51. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
+=== 51. check-import（M38 导入一致性：口径混用/并发语义/请求账目/缓存口径） ===
+检查 5 条实测：blocker 0，warning 5
+  [warning] metric_definition_missing: e2e_p99_ms 有值但没有声明口径 m.latency.e2e.p99：无法确认它是不是 P99（不得当作 P99 使用）
+  [warning] metric_definition_missing: e2e_p99_ms 有值但没有声明口径 m.latency.e2e.p99：无法确认它是不是 P99（不得当作 P99 使用）
+  [warning] metric_definition_missing: e2e_p99_ms 有值但没有声明口径 m.latency.e2e.p99：无法确认它是不是 P99（不得当作 P99 使用）
+  [warning] metric_definition_missing: e2e_p99_ms 有值但没有声明口径 m.latency.e2e.p99：无法确认它是不是 P99（不得当作 P99 使用）
+  [warning] metric_definition_missing: e2e_p99_ms 有值但没有声明口径 m.latency.e2e.p99：无法确认它是不是 P99（不得当作 P99 使用）
+已写入 data/exports/import_consistency.json
+{
+  "checked_run_count": 5,
+  "ok": true,
+  "blocker_count": 0,
+  "warning_count": 5,
+  "codes": [
+    "metric_definition_missing"
+  ]
+}
+
+=== 52. plan-benchmarks（M37 压测实验清单 + metadata 模板） ===
+实验清单已写入 data/exports/benchmark_experiments.json（9 个实验点）
+metadata 模板 9 份，目录 data/exports/metadata
+{
+  "point_count": 9,
+  "plan_json": "data/exports/benchmark_experiments.json",
+  "metadata_file_count": 9,
+  "missing_inputs": []
+}
+
+=== 53. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
 已跟踪文件中未发现内部定价数值（按本地特征表扫描 9 个特征串）
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
-=== 52. pytest（全量，离线） ===
-........................................................................ [ 10%]
-........................................................................ [ 20%]
-........................................................................ [ 30%]
-........................................................................ [ 40%]
-........................................................................ [ 50%]
-........................................................................ [ 60%]
-........................................................................ [ 71%]
-........................................................................ [ 81%]
-........................................................................ [ 91%]
-.............................................................            [100%]
-709 passed in 54.29s
+=== 54. pytest（全量，离线） ===
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 49%]
+........................................................................ [ 59%]
+........................................................................ [ 69%]
+........................................................................ [ 79%]
+........................................................................ [ 89%]
+........................................................................ [ 99%]
+.......                                                                  [100%]
+727 passed in 70.41s (0:01:10)
 
-=== 53. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1356
-drwxrwxr-x  2 ssa ssa   4096 10月 16 11:02 .
-drwxrwxr-x 11 ssa ssa   4096 10月 16 11:02 ..
--rw-rw-r--  1 ssa ssa   8208 10月 16 11:02 data_quality.json
--rw-rw-r--  1 ssa ssa  21022 10月 16 11:02 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 16 11:01 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 16 11:01 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 16 11:02 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 16 11:02 performance_report.md
--rw-rw-r--  1 ssa ssa 112127 10月 16 11:02 phase4_decision.json
--rw-rw-r--  1 ssa ssa  27866 10月 16 11:02 phase4_report.md
--rw-rw-r--  1 ssa ssa  10807 10月 16 11:02 plan_full.json
--rw-rw-r--  1 ssa ssa   5409 10月 16 11:02 plan_full.md
--rw-rw-r--  1 ssa ssa   4167 10月 16 11:02 plan_minimal.md
--rw-rw-r--  1 ssa ssa   7149 10月 16 11:01 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 16 11:01 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 16 11:02 sizing_report.md
+=== 55. 产物清单（内部目录不入库，仅本地查看） ===
+总计 1400
+drwxrwxr-x  3 ssa ssa   4096 10月 16 11:10 .
+drwxrwxr-x 11 ssa ssa   4096 10月 16 11:10 ..
+-rw-rw-r--  1 ssa ssa  33042 10月 16 11:10 benchmark_experiments.json
+-rw-rw-r--  1 ssa ssa   8208 10月 16 11:10 data_quality.json
+-rw-rw-r--  1 ssa ssa  21022 10月 16 11:10 deployment_plan.json
+-rw-rw-r--  1 ssa ssa   2106 10月 16 11:10 import_consistency.json
+-rw-rw-r--  1 ssa ssa 153526 10月 16 11:10 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 16 11:10 legacy_results_with_tests.json
+drwxrwxr-x  2 ssa ssa   4096 10月 16 11:10 metadata
+-rw-rw-r--  1 ssa ssa  68122 10月 16 11:10 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 16 11:10 performance_report.md
+-rw-rw-r--  1 ssa ssa 112127 10月 16 11:10 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  27866 10月 16 11:10 phase4_report.md
+-rw-rw-r--  1 ssa ssa  10807 10月 16 11:10 plan_full.json
+-rw-rw-r--  1 ssa ssa   5409 10月 16 11:10 plan_full.md
+-rw-rw-r--  1 ssa ssa   4167 10月 16 11:10 plan_minimal.md
+-rw-rw-r--  1 ssa ssa   7149 10月 16 11:10 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 16 11:10 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 16 11:10 sizing_report.md
 
 ==== 汇总 ====
-步骤 54 项：通过 54，失败 0
-完成时间: 2026-10-16T11:03:29+08:00
+步骤 56 项：通过 56，失败 0
+完成时间: 2026-10-16T11:12:11+08:00
 环境: Python 3.12.3
 全部步骤通过。
