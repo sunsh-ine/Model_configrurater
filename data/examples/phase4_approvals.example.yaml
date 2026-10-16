@@ -25,9 +25,12 @@ approvals:
       plan_id: "syn-owned-3y::demo-owned"
       scenario_id: syn-demand-base
       billing_rule_id: syn-billing-qwen3-32b
+      # S0：同时绑定计费规则的**内容**指纹；同一个 rule_id 改了单价或条款，
+      # 旧审批也会失效。这里同样留占位值。
+      billing_rule_hash: "0000000000000000000000000000000000000000000000000000000000000000"
       cost_snapshot_hash: "0000000000000000000000000000000000000000000000000000000000000000"
     notes: >-
-      演示占位记录：cost_snapshot_hash 是占位值，与任何真实方案都不匹配，
+      演示占位记录：两个哈希都是占位值，与任何真实方案都不匹配，
       因此导入后仍然不能发布报价。
 
   - approval_id: syn-approval-pending

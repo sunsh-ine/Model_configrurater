@@ -12,6 +12,13 @@ schema_version: "1.0"
 confirmations:
   - confirmation_id: syn-confirmation-demo
     scope: "【示例】qwen3-32b @ H100 报价条款（演示用占位）"
+    # S0：结构化作用域。没有它，这份确认无法与任何具体报价对上，
+    # 正式报价会被阻断（commercial_confirmation_scope_missing）。
+    scope_refs:
+      candidate_ids: ["demo-owned"]
+      requirement_ids: ["req-phase4"]
+      model_names: ["qwen3-32b"]
+      billing_rule_ids: ["syn-billing-qwen3-32b"]
     currency_confirmed: true
     price_confirmed: true
     terms_confirmed: true

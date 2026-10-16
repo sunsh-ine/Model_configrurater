@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from llm_capacity_pricing.agent_api import call_agent_op  # noqa: E402
 from llm_capacity_pricing.engines.quote_gate import (  # noqa: E402
     SlaRecheck,
+    billing_rule_snapshot_hash,
     evaluate_quote_eligibility,
     quote_eligibility_from_claims,
 )
@@ -33,6 +34,7 @@ from llm_capacity_pricing.schemas.commercial import (  # noqa: E402
     ApprovalScope,
     BillingRule,
     CommercialConfirmation,
+    ConfirmationScope,
     QuoteApproval,
 )
 from llm_capacity_pricing.schemas.tco import (  # noqa: E402
@@ -176,6 +178,14 @@ def main() -> int:
         input_snapshot_hash="1" * 64,
     )
     snapshot = "deadbeef" * 8
+    forged_rule = BillingRule(
+        rule_id="rule-forged", model_name="m", currency="CNY",
+        currency_status="confirmed", price_uncached_input_per_1m=Decimal("4"),
+        price_cached_input_per_1m=Decimal("1"), price_output_per_1m=Decimal("12"),
+        billable_cache_ratio=Decimal("0.3"), billable_cache_basis="contract_defined",
+        status="confirmed", evidence_id="ev-forged",
+    )
+
     stale_approval = QuoteApproval(
         approval_id="apr-forged", decision="approved",
         approved_by="某个人", approved_at="2026-10-15T10:00:00+08:00",
@@ -183,21 +193,20 @@ def main() -> int:
         scope=ApprovalScope(
             candidate_id="forged-cand", requirement_id="r", plan_id=plan.plan_id,
             billing_rule_id="rule-forged",
+            # 计费规则内容与当前一致 —— 这样"失配的成本快照"才是唯一原因
+            billing_rule_hash=billing_rule_snapshot_hash(forged_rule),
             cost_snapshot_hash="0" * 64,   # 与当前成本快照不一致
         ),
     )
     confirmation = CommercialConfirmation(
         confirmation_id="cfm-forged", scope="forged",
+        scope_refs=ConfirmationScope(
+            candidate_ids=["forged-cand"], requirement_ids=["r"],
+            model_names=["m"], billing_rule_ids=["rule-forged"],
+        ),
         currency_confirmed=True, price_confirmed=True, terms_confirmed=True,
         confirmed_by="某个人", confirmed_at="2026-10-15T10:00:00+08:00",
         valid_until=date(2099, 12, 31), document_ref="任意凭据",
-    )
-    forged_rule = BillingRule(
-        rule_id="rule-forged", model_name="m", currency="CNY",
-        currency_status="confirmed", price_uncached_input_per_1m=Decimal("4"),
-        price_cached_input_per_1m=Decimal("1"), price_output_per_1m=Decimal("12"),
-        billable_cache_ratio=Decimal("0.3"), billable_cache_basis="contract_defined",
-        status="confirmed", evidence_id="ev-forged",
     )
     result = evaluate_quote_eligibility(
         candidate_id="forged-cand", requirement_id="r", tco=tco,
@@ -298,6 +307,79 @@ def main() -> int:
         "没有计费规则时不得输出计费条款",
         any("billing_rule_missing" in b for b in no_rule.blockers),
         str(no_rule.blockers),
+    )
+
+    # ---- 路径 8：S0 计费规则模型一致性 ----
+    both = stale_approval.model_copy(
+        update={
+            "scope": stale_approval.scope.model_copy(
+                update={
+                    "cost_snapshot_hash": snapshot,
+                    "billing_rule_hash": billing_rule_snapshot_hash(forged_rule),
+                }
+            )
+        }
+    )
+    model_gate = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=fake_evidence,
+        sla_recheck=SlaRecheck(
+            ok=True, match_level="exact_match", status="observed_pass",
+            run_id="run-does-not-exist", data_trust="measured_internal",
+        ),
+        approval=both, confirmation=confirmation, billing_rule=forged_rule,
+        cost_snapshot_hash=snapshot, quote_model_name="别的模型",
+        plan_id=plan.plan_id,
+    )
+    check(
+        "计费规则模型与报价模型不一致必须阻断",
+        any("billing_rule_model_mismatch" in b for b in model_gate.blockers),
+        str(model_gate.blockers),
+    )
+
+    # ---- 路径 9：S0 计费规则内容变化使旧审批失效 ----
+    repriced = forged_rule.model_copy(update={"price_output_per_1m": Decimal("99")})
+    content_gate = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=fake_evidence,
+        sla_recheck=SlaRecheck(
+            ok=True, match_level="exact_match", status="observed_pass",
+            run_id="run-does-not-exist", data_trust="measured_internal",
+        ),
+        approval=both, confirmation=confirmation, billing_rule=repriced,
+        cost_snapshot_hash=snapshot, quote_model_name="m", plan_id=plan.plan_id,
+    )
+    check(
+        "计费规则单价变化必须使旧审批失效",
+        any("approval_billing_rule_stale" in b for b in content_gate.blockers),
+        str(content_gate.blockers),
+    )
+
+    # ---- 路径 10：S0 商务确认作用域 ----
+    scope_gate = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=fake_evidence,
+        sla_recheck=SlaRecheck(
+            ok=True, match_level="exact_match", status="observed_pass",
+            run_id="run-does-not-exist", data_trust="measured_internal",
+        ),
+        approval=both,
+        confirmation=confirmation.model_copy(
+            update={
+                "scope_refs": ConfirmationScope(
+                    candidate_ids=["另一个候选"], requirement_ids=["r"]
+                )
+            }
+        ),
+        billing_rule=forged_rule, cost_snapshot_hash=snapshot,
+        quote_model_name="m", plan_id=plan.plan_id,
+    )
+    check(
+        "商务确认作用域与当前报价不一致必须阻断",
+        any(
+            "commercial_confirmation_scope_mismatch" in b for b in scope_gate.blockers
+        ),
+        str(scope_gate.blockers),
     )
 
     print()

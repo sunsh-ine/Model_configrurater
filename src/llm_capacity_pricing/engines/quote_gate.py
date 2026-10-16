@@ -23,6 +23,7 @@ from datetime import date
 from llm_capacity_pricing.schemas.commercial import (
     BillingRule,
     CommercialConfirmation,
+    ConfirmationScope,
     QuoteApproval,
     QuoteEligibility,
     SlaEvidenceRecord,
@@ -59,6 +60,38 @@ class SlaRecheck:
     #: 重放时 run 池指纹是否与证据记录一致（V4.2 E3）
     run_pool_hash_ok: bool = True
     reasons: list[str] = field(default_factory=list)
+
+
+def billing_rule_snapshot_hash(rule: BillingRule | None) -> str | None:
+    """计费规则**内容**指纹（S0）。
+
+    只绑定 ``rule_id`` 无法发现"同一个规则被改了单价或条款"，
+    因此把决定报价金额的字段全部纳入指纹。
+    """
+    if rule is None:
+        return None
+    import hashlib
+    import json
+
+    payload = {
+        "rule_id": rule.rule_id,
+        "model_name": rule.model_name,
+        "currency": rule.currency,
+        "currency_status": rule.currency_status,
+        "price_uncached_input_per_1m": str(rule.price_uncached_input_per_1m),
+        "price_cached_input_per_1m": str(rule.price_cached_input_per_1m),
+        "price_output_per_1m": str(rule.price_output_per_1m),
+        "billable_cache_ratio": str(rule.billable_cache_ratio),
+        "billable_cache_basis": rule.billable_cache_basis,
+        "batch_discount_fraction": str(rule.batch_discount_fraction),
+        "min_billable_input_tokens_per_request": rule.min_billable_input_tokens_per_request,
+        "billable_on_failure": rule.billable_on_failure,
+        "status": rule.status,
+        "valid_from": rule.valid_from.isoformat() if rule.valid_from else None,
+        "valid_to": rule.valid_to.isoformat() if rule.valid_to else None,
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def _cost_dimension(
@@ -236,11 +269,59 @@ def _sla_dimension(
     return "verified_measured", evidence_id
 
 
+def _model_matches(rule_model: str | None, quote_model: str | None) -> bool:
+    """计费规则的模型必须与报价模型一致（S0）。
+
+    只做大小写/空白归一化，不做别名推断（不同代模型不等价）；
+    任一侧缺失都无法确认一致性，按不通过处理。
+    """
+    from llm_capacity_pricing.perf.benchmark_matcher import normalize_name
+
+    left, right = normalize_name(rule_model), normalize_name(quote_model)
+    if left is None or right is None:
+        return False
+    return left == right
+
+
+def _confirmation_scope_ok(
+    scope_refs: ConfirmationScope | None,
+    *,
+    candidate_id: str,
+    requirement_id: str,
+    model_name: str | None,
+    billing_rule_id: str | None,
+) -> tuple[bool, str | None]:
+    """商务确认必须与**当前**报价作用域一致（S0）。"""
+    if scope_refs is None or not scope_refs.is_scoped:
+        return False, "commercial_confirmation_scope_missing: 确认未声明结构化作用域"
+    if candidate_id not in scope_refs.candidate_ids:
+        return False, f"commercial_confirmation_scope_mismatch:candidate {candidate_id!r}"
+    if requirement_id not in scope_refs.requirement_ids:
+        return False, (
+            f"commercial_confirmation_scope_mismatch:requirement {requirement_id!r}"
+        )
+    if model_name and scope_refs.model_names and model_name not in scope_refs.model_names:
+        return False, f"commercial_confirmation_scope_mismatch:model {model_name!r}"
+    if (
+        billing_rule_id
+        and scope_refs.billing_rule_ids
+        and billing_rule_id not in scope_refs.billing_rule_ids
+    ):
+        return False, (
+            f"commercial_confirmation_scope_mismatch:billing_rule {billing_rule_id!r}"
+        )
+    return True, None
+
+
 def _commercial_dimension(
     confirmation: CommercialConfirmation | None,
     billing_rule: BillingRule | None,
     as_of: date,
     blockers: list[str],
+    *,
+    candidate_id: str,
+    requirement_id: str,
+    quote_model_name: str | None,
 ) -> tuple[str, str | None]:
     """商务维度 = 人工确认 + **计费规则有效**（V4.3：计费条款属于商务条件）。
 
@@ -267,9 +348,26 @@ def _commercial_dimension(
         if billing_rule.valid_to is not None and billing_rule.valid_to < as_of:
             blockers.append(f"billing_rule_expired:{billing_rule.valid_to}")
 
+    # 计费规则的模型必须与报价模型一致（S0）
+    if billing_rule is not None and quote_model_name is not None:
+        if not _model_matches(billing_rule.model_name, quote_model_name):
+            blockers.append(
+                f"billing_rule_model_mismatch: 计费规则是给 {billing_rule.model_name!r} 的，"
+                f"报价模型为 {quote_model_name!r}"
+            )
+
     if confirmation is None:
         blockers.append("commercial_confirmation_missing: 没有人工商务确认记录")
         return "missing", None
+    scope_ok, scope_reason = _confirmation_scope_ok(
+        confirmation.scope_refs,
+        candidate_id=candidate_id,
+        requirement_id=requirement_id,
+        model_name=quote_model_name,
+        billing_rule_id=billing_rule.rule_id if billing_rule else None,
+    )
+    if not scope_ok and scope_reason:
+        blockers.append(scope_reason)
     status = confirmation.status
     if not confirmation.currency_confirmed:
         blockers.append("commercial_currency_unconfirmed: 币种未经人工确认")
@@ -293,6 +391,7 @@ def _approval_dimension(
     scenario_id: str | None,
     billing_rule_id: str | None,
     cost_snapshot_hash: str | None,
+    billing_rule_hash: str | None,
     as_of: date,
     blockers: list[str],
 ) -> tuple[str, str | None, str | None]:
@@ -338,6 +437,14 @@ def _approval_dimension(
             f"{billing_rule_id!r}"
         )
         return "missing", approval_id, None
+    # S0：同一个 rule_id 改了单价/条款，旧审批同样失效
+    if scope.billing_rule_hash != billing_rule_hash:
+        blockers.append(
+            "approval_billing_rule_stale: 审批绑定的计费规则内容与当前不一致"
+            f"（审批 {(scope.billing_rule_hash or 'none')[:12]}… vs 当前 "
+            f"{(billing_rule_hash or 'none')[:12]}…）"
+        )
+        return "missing", approval_id, None
     if cost_snapshot_hash is None or scope.cost_snapshot_hash != cost_snapshot_hash:
         blockers.append(
             "approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致"
@@ -365,6 +472,7 @@ def evaluate_quote_eligibility(
     confirmation: CommercialConfirmation | None,
     billing_rule: BillingRule | None,
     cost_snapshot_hash: str | None,
+    quote_model_name: str | None = None,
     plan_id: str | None = None,
     scenario_id: str | None = None,
     as_of: date | None = None,
@@ -387,7 +495,13 @@ def evaluate_quote_eligibility(
         cautions=cautions,
     )
     commercial_status, confirmation_id = _commercial_dimension(
-        confirmation, billing_rule, today, blockers
+        confirmation,
+        billing_rule,
+        today,
+        blockers,
+        candidate_id=candidate_id,
+        requirement_id=requirement_id,
+        quote_model_name=quote_model_name,
     )
     approval_status, approval_id, approval_ref = _approval_dimension(
         approval=approval,
@@ -398,6 +512,7 @@ def evaluate_quote_eligibility(
         # 作用域基线**只**来自实际使用的计费规则对象，避免"传了规则但没传 ID"的断点
         billing_rule_id=billing_rule.rule_id if billing_rule else None,
         cost_snapshot_hash=cost_snapshot_hash,
+        billing_rule_hash=billing_rule_snapshot_hash(billing_rule),
         as_of=today,
         blockers=blockers,
     )

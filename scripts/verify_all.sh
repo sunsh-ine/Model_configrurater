@@ -33,6 +33,9 @@ P4_PLAN="data/examples/phase4_cost_plan.example.yaml"
 P4_DEMAND="data/examples/phase4_demand.example.yaml"
 P4_CONFIRMATION="data/examples/phase4_commercial_confirmation.example.yaml"
 P4_APPROVALS="data/examples/phase4_approvals.example.yaml"
+# S1：统一评估入口的示例配置
+S1_MINIMAL="data/examples/scenario_minimal.example.yaml"
+S1_FULL="data/examples/scenario_full.example.yaml"
 DB="${DB:-data/local.db}"
 OUT_DIR="${OUT_DIR:-data/exports}"
 
@@ -389,8 +392,9 @@ step_quote_blocked_by_evidence() { # 引用真实证据仍必须阻断（断言�
   if ! printf '%s' "$out" | grep -q 'sla_recheck'; then
     printf '断言失败：必须给出 SLA 重新核验的阻断原因\n'; return 1
   fi
-  if ! printf '%s' "$out" | grep -q 'approval_cost_snapshot_stale'; then
-    printf '断言失败：审批绑定的成本快照不符必须被指出\n'; return 1
+  # 示例审批的计费规则指纹与成本快照都是占位值：两者任一失配都必须被点名
+  if ! printf '%s' "$out" | grep -qE 'approval_(billing_rule|cost_snapshot)_stale'; then
+    printf '断言失败：审批绑定的快照/计费规则不符必须被指出\n'; return 1
   fi
   # V4.3 P0-1：计费规则必须真的被解析并参与判定
   if ! printf '%s' "$out" | grep -q '"billing_rule_id": "syn-billing-qwen3-32b"'; then
@@ -409,6 +413,24 @@ step_quote_rejects_claims() { # 不接受调用方状态字符串（断言）
   printf '%s\n' "$out"
   if ! printf '%s' "$out" | grep -qE 'sla-evaluation-id|必须提供'; then
     printf '断言失败：必须明确要求持久化的证据 ID\n'; return 1
+  fi
+}
+
+step_plan_minimal() { # 仅有资源数据时必须出部分结果，而不是报错（断言）
+  local out
+  if ! out=$($CLI plan --config "$S1_MINIMAL" --out "$OUT_DIR/plan_minimal.md" \
+      --db "$DB" 2>&1); then
+    printf '%s\n' "$out"; return 1
+  fi
+  printf '%s\n' "$out"
+  if ! printf '%s' "$out" | grep -q '整体状态: partial'; then
+    printf '断言失败：缺成本/实测时应给出 partial，而不是整体失败\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q 'sizing=computed'; then
+    printf '断言失败：资源规划领域必须算出结论\n'; return 1
+  fi
+  if ! printf '%s' "$out" | grep -q '可发布正式报价的候选: 无'; then
+    printf '断言失败：未配置治理时不得出现可发布候选\n'; return 1
   fi
 }
 
@@ -593,13 +615,20 @@ run_step 46 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻�
   $CLI phase4-report --out "$OUT_DIR/phase4_report.md" \
     --decision-json "$OUT_DIR/phase4_decision.json" --db "$DB"
 
-run_step 47 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 47 "plan（S1 断言：仅有资源数据 -> partial 且资源领域已计算）" 1 '^整体状态:|^候选数:' \
+  step_plan_minimal
+
+run_step 48 "plan（S1 完整配置：四领域贯通，报价仍不可发布）" 1 '^整体状态:|^可发布正式报价的候选:' \
+  $CLI plan --config "$S1_FULL" --out "$OUT_DIR/plan_full.md" \
+    --json-out "$OUT_DIR/plan_full.json" --db "$DB"
+
+run_step 49 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 48 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 50 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 49 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 51 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

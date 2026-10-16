@@ -221,6 +221,32 @@ python -m llm_capacity_pricing.cli phase4-report \
 > 草稿或未授权策略算得出数字，但会被标为不完整并阻断报价。
 > **价格必须适用**：GPU SKU、区域、有效期在算金额之前校验，不通过则剔除并报明原因。
 
+### 统一评估入口（S1：一份配置 + 一条命令 + 一份报告）
+
+前面各阶段的命令都是**专业入口**；日常使用只需要这一条：
+
+```bash
+# 最小场景：只有模型、候选硬件与目标负载
+python -m llm_capacity_pricing.cli plan \
+  --config data/examples/scenario_minimal.example.yaml \
+  --out data/exports/plan_minimal.md --db data/local.db
+
+# 完整场景：追加 SLA / 成本 / 业务需求 / 治理引用
+python -m llm_capacity_pricing.cli plan \
+  --config data/examples/scenario_full.example.yaml \
+  --out data/exports/plan_full.md \
+  --json-out data/exports/plan_full.json --db data/local.db
+```
+
+配置项里**必需**的只有 `model_id`、`hardware_ids` 与 `workload.input_len`；
+`sla` / `cost` / `demand` / `budget` / `governance` 按场景填写，
+删掉哪一段就只影响对应领域（该领域标为"未配置"），其余照常出结论。
+专业字段收在 `advanced` 下。
+
+报告的四个领域**分开写**（资源规划 / 性能与 SLA / 成本与收益 / 报价资格），
+并逐项标注数据性质（实测 / 估算 / 假设 / 缺失）；
+本入口与既有命令**共用同一套门禁**，不存在更宽松的旁路。
+
 ### 一键复现以上全部步骤
 
 ```bash
@@ -260,6 +286,7 @@ bash scripts/verify_all.sh
 | `calibrate-performance --metric <名> --concurrency N [--allow-synthetic]` | **M22**：精确查询 / 范围内插值（附留出误差，≥3 个有效留出点）/ 不可预测。默认拒绝 synthetic |
 | `evaluate-sla --requirement <json> --run-id <id> [--model-revision/--framework-version/--precision/--dataset …]` | **M23**：SLA 判定。**默认只接受 `exact_match`**，且拒绝 synthetic 与不匹配数据 |
 | `rank-deployments --model <id> --hardware <id> --requirement <json> …` | **M24**：候选性能比较（静态筛选 + 性能证据） |
+| `plan --config <yaml> [--out <md>] [--json-out <json>]` | **S1**：统一评估入口（资源 / 性能 / 成本 / 治理四领域） |
 | `performance-report --out <md>` | **M25**：第三阶段 Markdown 报告 |
 | `import-cost-catalog --file <yaml> --db <path>` | **M27**：导入成本目录（GPU/机房/电力/网络/软件/运维）与计费规则 |
 | `cost-catalog --db <path>` | **M27**：成本目录库存（类别/口径/状态/缺价项） |
@@ -512,6 +539,8 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/security_remediation_report.md`](docs/security_remediation_report.md) | 内部定价数据暴露清单、凭证扫描、历史影响评估 |
 | [`docs/risk_register.md`](docs/risk_register.md) | 风险清单（数据安全 / 证据 / 口径 / 商业 / 工程） |
 | [`docs/phase3_final_validation.md`](docs/phase3_final_validation.md) | 第三阶段验证报告（工程功能 / 性能可信度两个维度） |
+| [`docs/refactor_baseline.md`](docs/refactor_baseline.md) | **S0** 重构基线冻结（接口 / 数据 / 测试） |
+| [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
 | [`docs/phase4_interface_design.md`](docs/phase4_interface_design.md) | **M26** 第四阶段模块划分、接口签名与禁止事项 |
 | [`docs/phase4_final_validation.md`](docs/phase4_final_validation.md) | 第四阶段验证报告（工程功能 / 商业数据 / SLA 实测 / 报价发布四个独立结论） |

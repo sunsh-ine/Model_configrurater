@@ -351,6 +351,26 @@ class RevenueResult(BaseModel):
         return self
 
 
+class ConfirmationScope(BaseModel):
+    """商务确认的**结构化**作用域（S0）。
+
+    自由文本的 ``scope`` 无法与当前报价比对，因此确认必须声明它到底确认了
+    哪些候选、需求、模型与计费规则。任一清单为空即视为"未限定"，
+    不能支撑正式报价。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+    model_names: list[str] = Field(default_factory=list)
+    billing_rule_ids: list[str] = Field(default_factory=list)
+
+    @property
+    def is_scoped(self) -> bool:
+        return bool(self.candidate_ids and self.requirement_ids)
+
+
 class CommercialConfirmation(BaseModel):
     """商务确认记录（M30）。**人工**确认，Agent 不得自行生成确认。"""
 
@@ -358,6 +378,8 @@ class CommercialConfirmation(BaseModel):
 
     confirmation_id: str
     scope: str
+    #: 结构化作用域（S0）：正式报价必须能把确认与当前候选/需求对上
+    scope_refs: ConfirmationScope | None = None
     #: 币种是否已确认
     currency_confirmed: bool = False
     #: 合同/目录价格是否已确认
@@ -534,6 +556,9 @@ class ApprovalScope(BaseModel):
     plan_id: str
     scenario_id: str | None = None
     billing_rule_id: str | None = None
+    #: 审批时看到的**计费规则内容**指纹（S0）：同一个 rule_id 改了单价或条款，
+    #: 旧审批也必须失效 —— 只绑 ID 是不够的
+    billing_rule_hash: str | None = None
     #: 审批时看到的成本快照指纹；成本变了旧审批自动失效
     cost_snapshot_hash: str
 

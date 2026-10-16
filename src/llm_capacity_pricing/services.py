@@ -2957,13 +2957,17 @@ def quote_eligibility_for(
     region: str | None = None,
     as_of: Any = None,
     policy: Any = None,
+    quote_model_name: str | None = None,
 ) -> dict[str, Any]:
     """M30 / V4.1 F4.1：四维报价门禁。
 
     **只接受引用**（candidate_id / requirement_id / sla_evaluation_id / approval_id），
     服务端从持久化记录读取结论并重新核验；没有任何参数能让调用方"声明通过"。
     """
-    from llm_capacity_pricing.engines.quote_gate import evaluate_quote_eligibility
+    from llm_capacity_pricing.engines.quote_gate import (
+        billing_rule_snapshot_hash,
+        evaluate_quote_eligibility,
+    )
     from llm_capacity_pricing.engines.tco import compute_tco, tco_snapshot_hash
 
     if sla_evaluation_id is None:
@@ -3061,6 +3065,10 @@ def quote_eligibility_for(
         confirmation=confirmation,
         billing_rule=billing_rule,
         cost_snapshot_hash=snapshot,
+        # 计费规则/商务确认用的是**商业模型名**（如 qwen3-32b），
+        # 而 SLA 目标身份用的是签名里的模型名（如 Qwen/Qwen3-32B）——
+        # 两者是不同命名空间，调用方可显式指定前者。
+        quote_model_name=quote_model_name or facts.get("model_name"),
         plan_id=plan_id,
         scenario_id=scenario_id,
         as_of=as_of,
@@ -3080,6 +3088,7 @@ def quote_eligibility_for(
         "approval_used": approval.model_dump(mode="json"),
         "confirmation_used": confirmation.model_dump(mode="json") if confirmation else None,
         "billing_rule_used": billing_rule.model_dump(mode="json") if billing_rule else None,
+        "billing_rule_hash": billing_rule_snapshot_hash(billing_rule),
         "billing_rules_available": sorted(rules),
         "assumptions_notice": PHASE4_SYNTHETIC_NOTICE,
     }

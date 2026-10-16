@@ -1373,5 +1373,76 @@ def phase4_report_cmd(
     )
 
 
+
+# --------------------------------------------------------------------------
+# S1：统一评估入口（一份配置 + 一条命令 + 一份结果）
+# --------------------------------------------------------------------------
+
+
+@app.command("plan")
+def plan_cmd(
+    config: str = typer.Option(..., "--config", help="统一评估配置 YAML"),
+    out: Optional[str] = typer.Option(None, "--out", help="Markdown 报告路径"),
+    json_out: Optional[str] = typer.Option(
+        None, "--json-out", help="结构化结果 JSON 路径"
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """统一评估入口：读一份配置，跑通资源/性能/成本/治理四个领域。"""
+    from llm_capacity_pricing.reporting.plan_report import build_plan_report
+    from llm_capacity_pricing.workflow import evaluate_plan, load_plan_request
+
+    try:
+        request = load_plan_request(config)
+    except ServiceError as exc:
+        _fail(str(exc))
+        return
+
+    result = evaluate_plan(request, db_path=db)
+
+    typer.secho(
+        f"整体状态: {result.status}（领域: "
+        + ", ".join(f"{k}={v}" for k, v in result.domains.items())
+        + "）",
+        fg=typer.colors.GREEN if result.status == "ok" else typer.colors.YELLOW,
+    )
+    typer.echo(f"候选数: {len(result.candidates)}")
+    publishable = [c.candidate_id for c in result.candidates if c.quote_publishable]
+    typer.secho(
+        f"可发布正式报价的候选: {publishable or '无'}",
+        fg=typer.colors.GREEN if publishable else typer.colors.YELLOW,
+    )
+    for b in result.blockers:
+        typer.secho(f"  [{b.domain}] {b.code}: {b.message}", fg=typer.colors.RED)
+    for item in result.missing_inputs:
+        typer.echo(f"  缺少输入: {item}")
+
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        md = build_plan_report(result)
+        path.write_text(md, encoding="utf-8")
+        typer.echo(f"报告已写入 {out}（{len(md.encode('utf-8'))} 字节）")
+    if json_out:
+        path = Path(json_out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        typer.echo(f"结果已写入 {json_out}")
+
+    _echo_json(
+        {
+            "status": result.status,
+            "domains": result.domains,
+            "candidate_count": len(result.candidates),
+            "publishable": publishable,
+            "blocker_codes": [b.code for b in result.blockers],
+            "missing_inputs": result.missing_inputs,
+            "summary": result.summary,
+        }
+    )
+
 if __name__ == "__main__":
     app()

@@ -28,6 +28,7 @@ from llm_capacity_pricing.decision.sensitivity import (
 )
 from llm_capacity_pricing.engines.quote_gate import (
     SlaRecheck,
+    billing_rule_snapshot_hash,
     evaluate_quote_eligibility,
     quote_eligibility_from_claims,
 )
@@ -45,6 +46,7 @@ from llm_capacity_pricing.reporting.tco_report import build_tco_report
 from llm_capacity_pricing.schemas.commercial import (
     ApprovalScope,
     BillingRule,
+    ConfirmationScope,
     CommercialConfirmation,
     DemandPeriod,
     QuoteApproval,
@@ -682,6 +684,12 @@ def _confirmation(**overrides) -> CommercialConfirmation:
     base = dict(
         confirmation_id="c1",
         scope="qwen3-32b 报价",
+        scope_refs=ConfirmationScope(
+            candidate_ids=["cand-mech"],
+            requirement_ids=["req-1"],
+            model_names=["qwen3-32b"],
+            billing_rule_ids=["rule-A"],
+        ),
         currency_confirmed=True,
         price_confirmed=True,
         terms_confirmed=True,
@@ -721,6 +729,9 @@ def _approval(**overrides) -> QuoteApproval:
         requirement_id="req-1",
         plan_id="p-mech",
         billing_rule_id=overrides.pop("billing_rule_id", "rule-A"),
+        billing_rule_hash=overrides.pop(
+            "billing_rule_hash", billing_rule_snapshot_hash(_rule(rule_id="rule-A"))
+        ),
         cost_snapshot_hash=overrides.pop("cost_snapshot_hash", "SNAP"),
     )
     base = dict(
@@ -764,6 +775,7 @@ def _gate(tco, **overrides):
         confirmation=_confirmation(),
         billing_rule=_rule(rule_id="rule-A"),
         cost_snapshot_hash="SNAP",
+        quote_model_name="qwen3-32b",
         plan_id="p-mech",
     )
     kwargs.update(overrides)
@@ -2412,6 +2424,7 @@ def test_e3_approval_scope_covers_scenario_and_billing_rule(confirmed_items):
     scope = ApprovalScope(
         candidate_id="cand-mech", requirement_id="req-1", plan_id="p-mech",
         scenario_id="scenario-A", billing_rule_id="rule-A", cost_snapshot_hash="SNAP",
+        billing_rule_hash=billing_rule_snapshot_hash(_rule(rule_id="rule-A")),
     )
     approval = QuoteApproval(
         approval_id="apr-1", decision="approved", approved_by="审批人",
@@ -2942,3 +2955,143 @@ def test_v43_coverage_change_invalidates_approval(confirmed_items):
         cost_snapshot_hash=new_snapshot, plan_id="p-mech",
     )
     assert ok.quote_publishable is True
+
+
+# ==========================================================================
+# S0：报价门禁的三个局部检查（架构收敛轮）
+# ==========================================================================
+
+
+def test_s0_billing_rule_model_must_match_quote_model(confirmed_items):
+    """反向场景 1：计费规则是别的模型的 -> 必须阻断。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    result = _gate(
+        tco,
+        billing_rule=_rule(rule_id="rule-A", model_name="other-model"),
+        quote_model_name="qwen3-32b",
+    )
+    assert result.quote_publishable is False
+    assert any("billing_rule_model_mismatch" in b for b in result.blockers)
+
+    # 大小写/空白差异不算不一致（沿用第三阶段的归一化口径）
+    same = _gate(
+        tco,
+        billing_rule=_rule(rule_id="rule-A", model_name=" Qwen3-32B "),
+        quote_model_name="qwen3-32b",
+    )
+    assert not any("billing_rule_model_mismatch" in b for b in same.blockers)
+
+
+def test_s0_billing_rule_content_change_invalidates_approval(confirmed_items):
+    """反向场景 2：同一个 rule_id 改了单价 -> 旧审批必须失效。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    old_rule = _rule(rule_id="rule-A", price_output_per_1m=Decimal("12"))
+    new_rule = _rule(rule_id="rule-A", price_output_per_1m=Decimal("20"))
+    assert billing_rule_snapshot_hash(old_rule) != billing_rule_snapshot_hash(new_rule)
+
+    stale = _gate(
+        tco,
+        billing_rule=new_rule,
+        approval=_approval(
+            billing_rule_id="rule-A",
+            billing_rule_hash=billing_rule_snapshot_hash(old_rule),
+        ),
+    )
+    assert stale.quote_publishable is False
+    assert any("approval_billing_rule_stale" in b for b in stale.blockers)
+
+    # 条款变化同样失效（有效期）
+    term_changed = _gate(
+        tco,
+        billing_rule=new_rule,
+        approval=_approval(billing_rule_hash=billing_rule_snapshot_hash(old_rule)),
+    )
+    assert any("approval_billing_rule_stale" in b for b in term_changed.blockers)
+
+    # 对照：绑定当前规则内容可以通过计费这一维
+    ok = _gate(
+        tco,
+        billing_rule=new_rule,
+        approval=_approval(
+            billing_rule_id="rule-A",
+            billing_rule_hash=billing_rule_snapshot_hash(new_rule),
+        ),
+    )
+    assert ok.quote_publishable is True
+
+
+def test_s0_confirmation_must_match_quote_scope(confirmed_items):
+    """反向场景 3：商务确认的作用域与当前报价不一致 -> 必须阻断。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+
+    missing_scope = _gate(tco, confirmation=_confirmation(scope_refs=None))
+    assert missing_scope.quote_publishable is False
+    assert any("commercial_confirmation_scope_missing" in b for b in missing_scope.blockers)
+
+    other_candidate = _gate(
+        tco,
+        confirmation=_confirmation(
+            scope_refs=ConfirmationScope(
+                candidate_ids=["someone-else"], requirement_ids=["req-1"]
+            )
+        ),
+    )
+    assert other_candidate.quote_publishable is False
+    assert any(
+        "commercial_confirmation_scope_mismatch:candidate" in b
+        for b in other_candidate.blockers
+    )
+
+    other_requirement = _gate(
+        tco,
+        confirmation=_confirmation(
+            scope_refs=ConfirmationScope(
+                candidate_ids=["cand-mech"], requirement_ids=["other-req"]
+            )
+        ),
+    )
+    assert any(
+        "commercial_confirmation_scope_mismatch:requirement" in b
+        for b in other_requirement.blockers
+    )
+
+    other_rule = _gate(
+        tco,
+        confirmation=_confirmation(
+            scope_refs=ConfirmationScope(
+                candidate_ids=["cand-mech"],
+                requirement_ids=["req-1"],
+                billing_rule_ids=["rule-B"],
+            )
+        ),
+    )
+    assert any(
+        "commercial_confirmation_scope_mismatch:billing_rule" in b
+        for b in other_rule.blockers
+    )
+
+
+def test_s0_service_passes_quote_model_name(tmp_path, root):
+    """服务层把报价模型名带进门禁，模型不一致在真实链路上被拦住。"""
+    db = _p43_db(tmp_path, root)
+    base_run = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    facts = _facts_from_run(base_run)
+    record_sla_evidence_for(
+        db, candidate_id="demo-owned",
+        requirement={"requirement_id": "req-43", "ttft_p99_ms_max": 99999},
+        facts=facts,
+    )
+    _p43_approval(tmp_path, db, billing_rule_id="rule-A")
+    info = quote_eligibility_for(
+        db, candidate_id="demo-owned", requirement_id="req-43", facts=facts,
+        sla_evaluation_id="sla::demo-owned::req-43", approval_id="apr43",
+        billing_rule_id="rule-A",
+    )
+    # rule-A 的模型是 qwen3-32b，而 curve 实测的模型是 SYNTHETIC-MODEL-C
+    assert any(
+        "billing_rule_model_mismatch" in b
+        for b in info["eligibility"]["blockers"]
+    ), info["eligibility"]["blockers"]
+    assert info["eligibility"]["quote_publishable"] is False

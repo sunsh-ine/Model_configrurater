@@ -1,0 +1,65 @@
+# S1 完整场景：在最小场景之上补齐 SLA、成本、业务需求与治理引用。
+#
+# 各段都是**可选**的：删掉哪一段，对应领域就变成"未配置"，其余照常出结论。
+#
+#   python -m llm_capacity_pricing.cli plan --config data/examples/scenario_full.example.yaml \
+#     --out data/exports/plan_full.md --json-out data/exports/plan_full.json --db data/local.db
+
+request_id: full-scenario
+
+model_id: qwen3-32b
+
+hardware_ids:
+  - nvidia-h100-sxm-80gb
+
+server_id: hgx-h100-8gpu
+
+workload:
+  input_len: 8192
+  output_len: 256
+  concurrency: 32
+  dataset: random
+  arrival_mode: unbounded
+
+resources:
+  usable_fraction: "0.9"
+  usable_source_kind: synthetic_example
+  runtime_reserve_fraction: "0.1"
+
+# ---- 性能与 SLA（可选）----
+sla:
+  requirement_id: req-phase4
+  ttft_p99_ms_max: 400
+  tpot_p99_ms_max: 30
+
+# ---- 成本（可选）----
+cost:
+  plan_file: data/examples/phase4_cost_plan.example.yaml
+  template_id: syn-owned-3y
+
+# ---- 业务需求（可选）----
+demand:
+  demand_file: data/examples/phase4_demand.example.yaml
+  scenario_id: syn-demand-base
+
+# ---- 预算（可选）----
+budget:
+  budget_id: budget-demo
+  amount: "3000000"
+  kind: total_horizon
+
+# ---- 治理引用（可选）：三者齐备才会评估报价资格 ----
+# 这里引用的是示例占位记录，因此结论一定是"不可发布" —— 这是预期结果。
+governance:
+  sla_evaluation_id: "sla::demo-owned::req-phase4"
+  approval_id: syn-approval-demo
+  confirmation_id: syn-confirmation-demo
+  billing_rule_id: syn-billing-qwen3-32b
+
+advanced:
+  tp_sizes: [2, 4, 8]
+  dp_sizes: [1]
+  # 需要与已签发 SLA 证据的目标身份对齐时才填：
+  # model_revision: ...
+  # framework: vllm
+  # framework_version: ...
