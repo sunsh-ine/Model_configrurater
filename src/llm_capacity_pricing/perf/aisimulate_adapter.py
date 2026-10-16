@@ -106,6 +106,40 @@ _NATIVE_COUNT_FIELDS: tuple[tuple[str, str], ...] = (
     ("completed_requests", "sim_completed_requests"),
 )
 
+#: AISimulate 的 system 名 <-> 本仓库目录里的 hardware_id。
+#: **显式声明**而不是"按名字猜"；测试会拿目录里的商品名逐条校验，防止它悄悄漂移。
+SYSTEM_TO_HARDWARE_ID: dict[str, str] = {
+    "h100_sxm": "nvidia-h100-sxm-80gb",
+    "h200_sxm": "nvidia-h200-sxm-141gb",
+    "b200_sxm": "nvidia-b200-sxm",
+}
+HARDWARE_ID_TO_SYSTEM: dict[str, str] = {
+    hardware_id: system for system, hardware_id in SYSTEM_TO_HARDWARE_ID.items()
+}
+
+
+def hardware_id_for_system(system: str | None) -> str | None:
+    """把 AISimulate 的 system 映射到本仓库的 hardware_id；没登记的返回 ``None``（不猜）。"""
+    if not system:
+        return None
+    return SYSTEM_TO_HARDWARE_ID.get(" ".join(system.split()).strip().lower())
+
+
+def system_for_hardware_id(hardware_id: str | None) -> str | None:
+    """反向映射：把本仓库的 hardware_id 变成 AISimulate 的 system 名。"""
+    if not hardware_id:
+        return None
+    return HARDWARE_ID_TO_SYSTEM.get(hardware_id)
+
+
+def normalize_system_token(value: str | None) -> str | None:
+    """把 system 名与商品名归一化到可比形式（去掉厂商前缀与非字母数字）。"""
+    if not value:
+        return None
+    text = "".join(ch for ch in value.lower() if ch.isalnum())
+    return text[6:] if text.startswith("nvidia") else text
+
+
 #: 判定 P99 至少需要多少样本 —— 样本不足时 P99 无意义（官方文档亦如此强调）
 MIN_SAMPLES_FOR_P99 = 30
 
@@ -802,6 +836,7 @@ def load_archived(
     tool_version: str | None = None,
     default_backend: str | None = None,
     target: SimulationTarget | None = None,
+    top_n: int | None = None,
 ) -> SimulationResult:
     """只读本地归档输出，拼出一个 :class:`SimulationResult`。
 
@@ -817,7 +852,7 @@ def load_archived(
         surface=(
             "sweeper" if sweeper_csv is not None and native_prediction is None
             else "native_replay" if native_prediction is not None and sweeper_csv is None
-            else "unknown"
+            else "mixed"
         ),
         backend=default_backend,
     )
@@ -865,6 +900,26 @@ def load_archived(
     for candidate in candidates:
         check_comparability(candidate, effective_target)
         assess_verdict(candidate, effective_target)
+
+    if top_n is not None and top_n > 0:
+        # 短名单**在判完可比性之后**裁：优先保留能与目标直接比较的候选，
+        # 否则"吞吐最高的 3 条"很可能恰好全是不可比的工作点，短名单就失去意义。
+        # 原生候选数量本来就少、且是唯一能给出 P99 的来源，因此不参与裁剪。
+        native = [c for c in candidates if c.candidate_id.startswith("sim-native")]
+        sweeper = [c for c in candidates if not c.candidate_id.startswith("sim-native")]
+        sweeper.sort(
+            key=lambda c: (
+                not c.comparable,
+                -(c.metrics.sim_output_throughput_tok_s or Decimal(0)),
+            )
+        )
+        candidates = sweeper[:top_n] + native
+        if target is not None:
+            limitations.append(
+                f"扫描器候选共 {len(sweeper) + len(native) - len(native)} 行，"
+                f"报告只展示其中的 {len(candidates) - len(native)} 行"
+                "（优先展示能与目标直接比较的工作点）"
+            )
 
     expected_tool = (
         SimulationToolIdentity(backend=target.backend, backend_version=target.backend_version)

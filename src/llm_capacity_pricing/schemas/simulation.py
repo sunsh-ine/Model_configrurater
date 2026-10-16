@@ -52,8 +52,9 @@ class SimulationToolIdentity(BaseModel):
 
     tool: str = "aisimulate"
     tool_version: str | None = None
-    #: ``aiconfigurator cli ...``（扫描器）或 ``aisimulate predict``（原生回放）
-    surface: Literal["sweeper", "native_replay", "unknown"] = "unknown"
+    #: ``sweeper`` = ``aiconfigurator cli ...``；``native_replay`` = ``aisimulate predict``；
+    #: ``mixed`` = 一次评估里两者都用上了
+    surface: Literal["sweeper", "native_replay", "mixed", "unknown"] = "unknown"
     backend: str | None = None
     backend_version: str | None = None
     system: str | None = None
@@ -150,6 +151,30 @@ class SimulationMetrics(BaseModel):
     sim_completed_requests: int | None = None
 
 
+class SimulatedCost(BaseModel):
+    """由**我们自己的** TCO 引擎算出的成本，挂在模拟候选旁边。
+
+    刻意与工具输出分开：AISimulate 完全不涉及成本，这里的每个数都来自本仓库的
+    TCO（复用 ``engines/tco.py`` 与既有的成本模板），因此**不是**模拟量。
+    算不出来时保持 ``None`` + ``incomplete=True`` —— 绝不当作零成本。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    hardware_id: str | None = None
+    currency: str | None = None
+    cost_basis: str | None = None
+    horizon_years: int | None = None
+    total_cash_over_horizon: Decimal | None = None
+    capex_one_time: Decimal | None = None
+    annual_cash_opex: Decimal | None = None
+    annual_total_cost: Decimal | None = None
+    incomplete: bool = True
+    coverage_gaps: list[str] = Field(default_factory=list)
+    #: 成本是谁算的（固定为本仓库的 TCO，便于报告里区分"模拟"与"成本"）
+    source: str = "tco"
+
+
 class SimulationCandidate(BaseModel):
     """一个模拟候选：部署身份 + 负载 + 指标 + 结论。"""
 
@@ -174,6 +199,8 @@ class SimulationCandidate(BaseModel):
     source_file: str | None = None
     source_sha256: str | None = None
     source_row: int | None = None
+    #: 该配置的**成本**（来自本仓库的 TCO，不是模拟量）；未算出则 None
+    cost: SimulatedCost | None = None
 
 
 class SimulationResult(BaseModel):

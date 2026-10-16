@@ -24,6 +24,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from llm_capacity_pricing.schemas.performance import SlaRequirement
+from llm_capacity_pricing.schemas.simulation import SimulationResult
 
 #: 领域结论状态（与既有状态码并存，不替代）
 DomainStatus = Literal[
@@ -149,6 +150,59 @@ class PlanAdvanced(BaseModel):
         return v
 
 
+class PlanSimulationInput(BaseModel):
+    """可选：用 NVIDIA AISimulate 的**模拟**结果补充"该配什么、预测性能如何"。
+
+    **默认关闭**：不配置这段时，``plan`` 的行为与输出逐字节不变，也不会调用任何外部工具。
+
+    默认走**离线归档**路线（读仓库里已保存的输出），因此在没有 GPU、没有安装
+    AISimulate 的机器上也能复现；只有显式 ``enable_external: true`` 才会去执行外部命令。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # ---- 离线归档（默认路线）----
+    sweeper_csv: str | None = None
+    native_prediction: str | None = None
+    native_input: str | None = None
+    exp_config: str | None = None
+    per_ops_source: str | None = None
+    #: 原生回放不回显精度；模型名无精度后缀时需在这里给出"我们要求模拟的精度"
+    native_model_precision: str | None = None
+    tool_version: str | None = None
+    default_backend: str | None = None
+    #: 扫描器候选的短名单上限（避免无界展示；原生候选不受限）
+    top_n: int = 3
+
+    # ---- 外部执行（第二阶段，默认关闭）----
+    enable_external: bool = False
+    external_python: str | None = None
+    external_surface: Literal["sweeper", "native_replay"] = "sweeper"
+    external_config: str | None = None
+    external_out_dir: str | None = None
+    external_timeout_s: int = 1800
+
+    @model_validator(mode="after")
+    def _guard(self) -> "PlanSimulationInput":
+        if self.enable_external:
+            if not self.external_config:
+                raise ValueError(
+                    "enable_external 需要同时给出 external_config（要运行的输入 YAML）"
+                )
+            if not self.external_out_dir:
+                raise ValueError(
+                    "enable_external 需要同时给出 external_out_dir（外部输出写到哪）"
+                )
+        if not self.enable_external and not (self.sweeper_csv or self.native_prediction):
+            raise ValueError(
+                "simulation 至少要给出 sweeper_csv 或 native_prediction（离线归档）；"
+                "如果要现场调用外部工具，请显式设置 enable_external: true"
+            )
+        if self.top_n < 1:
+            raise ValueError("top_n 至少为 1")
+        return self
+
+
 class PlanRequest(BaseModel):
     """统一评估输入。"""
 
@@ -168,6 +222,8 @@ class PlanRequest(BaseModel):
     demand: PlanDemandInput | None = None
     budget: PlanBudgetInput | None = None
     governance: PlanGovernanceInput | None = None
+    #: 可选：模拟预测（默认关闭；不影响其它四个领域）
+    simulation: PlanSimulationInput | None = None
 
     advanced: PlanAdvanced = Field(default_factory=PlanAdvanced)
     #: 结果中是否包含未验证/未配置领域的说明（默认包含，如实输出）
@@ -321,6 +377,10 @@ class PlanResult(BaseModel):
     candidates: list[PlanCandidate] = Field(default_factory=list)
     #: 外部公开实测参考（**不参与**候选评价与 SLA 判定）
     external_references: list[PlanExternalReference] = Field(default_factory=list)
+    #: 模拟预测结果（可选领域；状态在 SimulationResult 自己身上，
+    #: **不参与** PlanResult.domains 与整体 status 汇总 ——
+    #: 否则"没开模拟"会把每次评估都降级成 partial）
+    simulation: SimulationResult | None = None
 
     blockers: list[PlanBlocker] = Field(default_factory=list)
     #: 还缺哪些输入才能让更多领域出结论

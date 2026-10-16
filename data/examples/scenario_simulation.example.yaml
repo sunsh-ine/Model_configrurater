@@ -1,0 +1,84 @@
+# 示例：开启「模拟预测」的部署方案评估（P4）
+#
+# 与 demo_qwen3_32b_h100.yaml 的唯一区别是末尾多了一段 `simulation`。
+# **不配置这一段时，plan 的行为与输出完全不变**，也不会调用任何外部工具。
+#
+# `simulation` 默认走**离线归档**路线：读取仓库里已保存的 AISimulate 输出。
+# 因此在没有 GPU、没有安装 AISimulate 的机器上也能复现下面这份报告。
+#
+# 运行：
+#   bash scripts/run_demo.sh                     # 默认 Demo（不开模拟）
+#   python -m llm_capacity_pricing.cli plan \
+#     --config data/examples/scenario_simulation.example.yaml \
+#     --out /tmp/sim_report.md --json-out /tmp/sim_result.json \
+#     --db data/exports/demo/demo.db
+
+request_id: demo-qwen3-32b-h100-simulation
+
+model_id: qwen3-32b
+
+hardware_ids:
+  - nvidia-h100-sxm-80gb
+
+server_id: hgx-h100-8gpu
+
+workload:
+  input_len: 8192
+  output_len: 256
+  concurrency: 32
+  dataset: random
+  arrival_mode: unbounded
+
+resources:
+  usable_fraction: "0.9"
+  usable_source_kind: synthetic_example
+  runtime_reserve_fraction: "0.1"
+
+# SLA：这是**唯一**的 P99 判据来源 —— 模拟的 predicted_pass/fail 也用它，
+# 不存在第二套阈值口径。
+sla:
+  requirement_id: demo-sla-8k
+  ttft_p99_ms_max: 400
+  tpot_p99_ms_max: 30
+
+cost:
+  plan_file: data/examples/phase4_cost_plan.example.yaml
+  template_id: syn-owned-3y
+
+budget:
+  budget_id: demo-budget
+  amount: "3000000"
+  kind: total_horizon
+
+advanced:
+  tp_sizes: [2, 4, 8]
+  dp_sizes: [1]
+  #: 目标精度 —— 模拟结果必须与它一致才允许比较（不一致会被判为不可比较）
+  weight_precision: bf16
+
+simulation:
+  # ---- 离线归档（默认路线；不需要装 AISimulate）----
+  # 扫描器输出：只有稳态单点，**不含 P99**，因此它的候选一律"预测不足以下结论"，
+  # 只用于看业界水平与产量排序。
+  sweeper_csv: docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv
+  # 原生回放输出：**唯一**能给出 p99 的来源，也是唯一能产生 predicted_pass/fail 的候选。
+  native_prediction: docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json
+  # 原生结果里没有身份，必须配它的输入 YAML
+  native_input: docs/poc/aisimulate/16_matched_native_input_tp8_conc32_bf16.yaml
+  # 记录这次模拟的真实后端版本 / 数据库模式 / 经验修正系数
+  exp_config: docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml
+  # 逐算子数据来源（silicon / mixed / empirical）
+  per_ops_source: docs/poc/aisimulate/artifacts/per_ops_source.json
+  # 原生回放不回显精度；模型名（Qwen/Qwen3-32B）不带后缀，故在此声明"我们要求模拟的精度"
+  native_model_precision: bf16
+  tool_version: "0.12.1"
+  # 扫描器候选的短名单上限（避免无界展示；原生候选不受限）
+  top_n: 3
+
+  # ---- 外部执行（第二阶段；默认关闭）----
+  # 打开后会调用独立环境里的 AISimulate。需要显式给解释器路径与输入 YAML：
+  # enable_external: true
+  # external_python: /path/to/aisimulate-venv/bin/python
+  # external_surface: sweeper           # 或 native_replay
+  # external_config: /path/to/exp.yaml  # 要运行的输入
+  # external_out_dir: /tmp/aisimulate-out

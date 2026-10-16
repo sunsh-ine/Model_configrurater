@@ -305,6 +305,8 @@ def build_plan_report(result: PlanResult, *, reference_limit: int = 3) -> str:
             add(f"- 数据可信等级：`{r.data_trust}`")
             add("")
 
+    _simulation_section(result, add)
+
     # ---- 推荐依据 ----
     add("## 3. 推荐依据")
     add("")
@@ -448,3 +450,176 @@ def build_plan_report(result: PlanResult, *, reference_limit: int = 3) -> str:
         add("")
 
     return "\n".join(L)
+
+
+#: 模拟结论 -> 用户语言（**与实测状态严格分开**）
+_VERDICT_LABEL = {
+    "predicted_pass": "预测满足阈值（模拟）",
+    "predicted_fail": "预测**未**满足阈值（模拟）",
+    "insufficient_prediction": "预测不足以下结论",
+}
+_SIM_STATUS_LABEL = {
+    "computed": "已计算",
+    "not_configured": "未启用",
+    "missing_data": "数据不足",
+    "blocked": "被阻断",
+    "error": "出错",
+}
+_SERVING_MODE_LABEL = {"agg": "聚合部署", "disagg": "分离部署（PD）", "unknown": "未声明"}
+_SURFACE_LABEL = {
+    "sweeper": "配置扫描器",
+    "native_replay": "原生回放",
+    "mixed": "配置扫描器 + 原生回放",
+    "unknown": "未声明",
+}
+
+
+def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None:
+    """渲染「模拟部署配置推荐（非实测）」一节。
+
+    与实测证据**并列展示但绝不混用**：这里每个数字都来自性能模拟，
+    不参与 SLA 判定，也不进报价门禁。
+    """
+    simulation = getattr(result, "simulation", None)
+    if simulation is None:
+        return
+    add("## 2.2 模拟部署配置推荐（**非实测**）")
+    add("")
+    status = getattr(simulation, "status", "not_configured")
+    add(f"模拟状态：**{_SIM_STATUS_LABEL.get(status, status)}**")
+    if getattr(simulation, "message", None):
+        add("")
+        add(f"- {simulation.message}")
+    if status != "computed":
+        add("")
+        add(
+            "> 本节只描述性能**模拟**；未启用或无数据时不给任何推测值。"
+            "实测结论见第 2 节的候选方案。"
+        )
+        add("")
+        return
+
+    tool = simulation.tool
+    add("")
+    add(
+        f"- 工具：`{tool.tool}"
+        f"{' ' + tool.tool_version if tool.tool_version else ''}`"
+        f"（{_SURFACE_LABEL.get(tool.surface, tool.surface)}），"
+        f"后端 `{_fmt(tool.backend)} {_fmt(tool.backend_version)}`，"
+        f"硬件库 `{_fmt(tool.system)}`，数据库模式 `{_fmt(tool.database_mode)}`"
+    )
+    if tool.search_space_file:
+        add(
+            f"- 搜索空间存档：`{tool.search_space_file}`"
+            f"（sha256 `{_fmt(tool.search_space_sha256)}`）"
+        )
+    if tool.correction_factors:
+        add(
+            "- 叠加的经验修正系数（**非实测**）："
+            + "、".join(f"`{k}={v}`" for k, v in sorted(tool.correction_factors.items()))
+        )
+    add("")
+
+    recommended = simulation.recommended()
+    best_effort = simulation.best_effort()
+    headline = recommended or best_effort
+    if headline is None:
+        add("**没有模拟候选能与你的需求直接比较（或缺 P99 预测）**，因此不给推荐配置。")
+        add("")
+        for candidate in simulation.candidates[:limit]:
+            reasons = candidate.comparability_reasons or candidate.verdict_reasons
+            add(f"- `{candidate.candidate_id}`：" + "；".join(reasons))
+        add("")
+    else:
+        dep = headline.deployment
+        metrics = headline.metrics
+        if recommended is None:
+            add(
+                "**没有候选被预测为满足你的 P99 阈值**；下面给的是预测吞吐最高的可比候选，"
+                "只用来说明「最好能到哪一步」，**不是**达标建议。"
+            )
+            add("")
+        add(f"**推荐配置（模拟）**：`{headline.candidate_id}`")
+        add("")
+        add("| 项 | 值 |")
+        add("|---|---|")
+        add(f"| 模型 | {_fmt(dep.model_name)}（{_fmt(dep.model_precision)}） |")
+        add(f"| GPU | {_fmt(dep.system)} × {_fmt(dep.gpu_count)} |")
+        add(
+            f"| 并行 | TP{_fmt(dep.tp_size)} × PP{_fmt(dep.pp_size)}"
+            f" × DP{_fmt(dep.dp_size)}"
+            f"{'，副本 ' + str(dep.replicas) if dep.replicas else ''} |"
+        )
+        add(f"| 部署模式 | {_SERVING_MODE_LABEL.get(dep.serving_mode, dep.serving_mode)} |")
+        add(
+            f"| 负载 | 输入 {_fmt(headline.workload.input_len)} / "
+            f"输出 {_fmt(headline.workload.output_len)} / "
+            f"并发 {_fmt(headline.workload.concurrency)} |"
+        )
+        add(
+            f"| 模拟输出吞吐 | {_fmt(metrics.sim_output_throughput_tok_s)} tok/s"
+            f"（{_fmt(metrics.sim_tokens_per_gpu)} tok/s/GPU） |"
+        )
+        add(
+            f"| 模拟 TTFT P99 | {_fmt(metrics.sim_p99_ttft_ms)} ms"
+            f"（均值 {_fmt(metrics.sim_mean_ttft_ms)}） |"
+        )
+        add(
+            f"| 模拟 TPOT P99 | {_fmt(metrics.sim_p99_tpot_ms)} ms"
+            f"（均值 {_fmt(metrics.sim_mean_tpot_ms)}） |"
+        )
+        add(f"| 预测结论 | {_VERDICT_LABEL.get(headline.verdict, headline.verdict)} |")
+        add("")
+        add(
+            "> 这里的 TTFT / TPOT 是**性能模拟**的预测值，不是实测，"
+            "也不与第 2 节的实测证据合并。"
+        )
+        add("")
+        for reason in headline.verdict_reasons:
+            add(f"- {reason}")
+        for note in headline.notes:
+            add(f"- 记录说明：{note}")
+        add("")
+
+        if headline.cost is not None:
+            cost = headline.cost
+            if cost.total_cash_over_horizon is not None:
+                cost_text = (
+                    f"{_fmt(cost.total_cash_over_horizon)} {_fmt(cost.currency)}"
+                    f"（{_fmt(cost.cost_basis)}，{_fmt(cost.horizon_years)} 年）"
+                )
+            else:
+                cost_text = "**不完整，不给总额**"
+            add(f"- **成本（本仓库 TCO 计算，不是模拟值）**：{cost_text}")
+            if cost.incomplete:
+                add(f"  - 成本结论不完整：{cost.coverage_gaps or '含未确认/缺失项'}")
+            add("")
+
+        others = [
+            c for c in simulation.candidates if c.candidate_id != headline.candidate_id
+        ][: max(0, limit - 1)]
+        if others:
+            add("**其它候选（截断展示）**：")
+            add("")
+            add("| 候选 | GPU | 并行 | 并发 | 吞吐 tok/s | TTFT P99 | TPOT P99 | 结论 |")
+            add("|---|---|---|---|---|---|---|---|")
+            for candidate in others:
+                m = candidate.metrics
+                d = candidate.deployment
+                add(
+                    f"| `{candidate.candidate_id}` | {_fmt(d.gpu_count)} "
+                    f"| TP{_fmt(d.tp_size)}×PP{_fmt(d.pp_size)}×DP{_fmt(d.dp_size)} "
+                    f"| {_fmt(candidate.workload.concurrency)} "
+                    f"| {_fmt(m.sim_output_throughput_tok_s)} "
+                    f"| {_fmt(m.sim_p99_ttft_ms)} | {_fmt(m.sim_p99_tpot_ms)} "
+                    f"| {_VERDICT_LABEL.get(candidate.verdict, candidate.verdict)} |"
+                )
+            add("")
+
+    add("**本节结论的限制**：")
+    add("")
+    for limitation in simulation.limitations:
+        add(f"- {limitation}")
+    add("- 与第 2 节**实测证据**的区别：实测只认目标配置下、可信来源的测量结果；")
+    add("  本节全是预测，`predicted_*` 与 `observed_*` 是两套取值，不会互相转换。")
+    add("")

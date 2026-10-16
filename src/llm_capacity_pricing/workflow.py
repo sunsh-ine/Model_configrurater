@@ -256,6 +256,8 @@ def evaluate_plan(
 
     model_spec = models[request.model_id]
     model_repo_id = _model_repo_id(model_spec, request.model_id)
+    #: 模拟比对用的目标 system 取第一个候选硬件（多硬件时报告会写明这一点）
+    first_hardware_id = request.hardware_ids[0] if request.hardware_ids else None
 
     assumptions = _assumptions(request)
     workload = _workload_signature(request)
@@ -611,6 +613,14 @@ def evaluate_plan(
     external_references = _external_references(
         runs, ranked, targets=_match_targets(request, model_repo_id, plans)
     )
+    # P3：可选模拟（默认关闭）。放在最后：它只读取，不参与前面四个领域的任何判定。
+    simulation = _simulate(
+        request,
+        model_repo_id=model_repo_id,
+        hardware_id=first_hardware_id,
+        db_path=db_path,
+        cost_items=cost_items,
+    )
     recommendations = _recommendations(candidates, domains)
     blockers = _dedupe_blockers(blockers)
     status = _overall_status(domains, blockers)
@@ -637,6 +647,7 @@ def evaluate_plan(
         },
         candidates=candidates,
         external_references=external_references,
+        simulation=simulation,
         blockers=blockers,
         missing_inputs=missing,
         next_data_needed=list(dict.fromkeys(next_data)),
@@ -660,6 +671,245 @@ def evaluate_plan(
         limitations=_limitations(domains),
         generated_at=datetime.now(timezone.utc),
     )
+
+
+# ---------------------------------------------------------------------------
+# P3：可选的模拟预测（AISimulate）—— 默认关闭，失败不影响其它领域
+# ---------------------------------------------------------------------------
+
+
+def _simulation_target(
+    request: Any, model_repo_id: str, hardware_id: str | None
+) -> Any:
+    """把用户需求映射成模拟比对身份。
+
+    精度取 ``advanced.weight_precision``（没有就留空 -> 判为不可比较，不猜）；
+    P99 阈值**只从** ``request.sla`` 取 —— 判据只有一个来源，避免两套口径。
+    """
+    from llm_capacity_pricing.perf.aisimulate_adapter import system_for_hardware_id
+    from llm_capacity_pricing.perf.aisimulate_adapter import SimulationTarget
+
+    sla = request.sla
+    return SimulationTarget(
+        model_name=model_repo_id,
+        model_precision=request.advanced.weight_precision,
+        system=system_for_hardware_id(hardware_id),
+        input_len=request.workload.input_len,
+        output_len=request.workload.output_len,
+        concurrency=request.workload.concurrency,
+        ttft_p99_ms_max=sla.ttft_p99_ms_max if sla else None,
+        tpot_p99_ms_max=sla.tpot_p99_ms_max if sla else None,
+        backend=request.advanced.framework,
+        backend_version=request.advanced.framework_version,
+    )
+
+
+def _discover_outputs(out_dir: Any, surface: str) -> dict[str, str]:
+    """在外部工具的输出目录里找它写下的结果文件（新→旧）。
+
+    扫描器把结果写进一层哈希子目录，所以这里递归找；找不到就返回空——
+    由上层报"没找到输出"，而不是猜一个路径。
+    """
+    from pathlib import Path as _Path
+
+    root = _Path(out_dir)
+    if not root.exists():
+        return {}
+    wanted = (
+        {"pareto.csv": "sweeper_csv", "best_config_topn.csv": "sweeper_csv"}
+        if surface == "sweeper"
+        else {"prediction.json": "native_prediction"}
+    )
+    found: dict[str, str] = {}
+    for pattern, key in wanted.items():
+        if key in found:
+            continue
+        hits = sorted(root.rglob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        if hits:
+            found[key] = str(hits[0])
+    return found
+
+
+def _attach_simulated_costs(
+    result: Any, *, request: Any, cost_items: Any, db_path: Any
+) -> None:
+    """给**可比较**的模拟候选挂上我们自己的 TCO 成本。
+
+    刻意与工具输出分开：AISimulate 不涉及成本。算不出来就留 ``incomplete=True``，
+    绝不当作零成本。
+    """
+    if result is None or request.cost is None or not cost_items:
+        return
+    from llm_capacity_pricing.engines.tco import compute_tco
+    from llm_capacity_pricing.perf.aisimulate_adapter import hardware_id_for_system
+    from llm_capacity_pricing.schemas.simulation import SimulatedCost
+    from llm_capacity_pricing.services import (
+        build_cost_plan_from_template,
+        load_coverage_policy,
+        load_cost_plan_templates,
+        open_db,
+    )
+
+    try:
+        templates = load_cost_plan_templates(request.cost.plan_file)
+        policy = load_coverage_policy(request.cost.plan_file)
+    except Exception:  # noqa: BLE001 - 成本侧问题由 economics 领域负责报错
+        return
+    template = templates.get(request.cost.template_id)
+    if template is None:
+        return
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            gpus_per_node = {
+                server.gpu_hardware_id: server.gpus_per_node
+                for server in repo.list_servers(session)
+            }
+    finally:
+        db.dispose()
+
+    as_of = _parse_as_of(request.cost.as_of)
+    for candidate in result.candidates:
+        if not candidate.comparable:
+            continue  # 身份不一致的候选不给成本结论
+        hardware_id = hardware_id_for_system(candidate.deployment.system)
+        gpus = candidate.deployment.gpu_count
+        if hardware_id is None:
+            candidate.cost = SimulatedCost(
+                incomplete=True,
+                coverage_gaps=[f"hardware_id_unknown_for_system:{candidate.deployment.system}"],
+            )
+            continue
+        per_node = gpus_per_node.get(hardware_id)
+        if not gpus or not per_node:
+            candidate.cost = SimulatedCost(
+                hardware_id=hardware_id,
+                incomplete=True,
+                coverage_gaps=["gpu_count_or_gpus_per_node_unknown"],
+            )
+            continue
+        server_count = -(-gpus // per_node)
+        try:
+            cost_plan = build_cost_plan_from_template(
+                template,
+                candidate_id=candidate.candidate_id,
+                hardware_id=hardware_id,
+                gpu_count=gpus,
+                server_count=server_count,
+                tp_size=candidate.deployment.tp_size,
+                dp_size=candidate.deployment.dp_size or 1,
+                region=request.cost.region,
+                as_of_date=as_of,
+            )
+            tco = compute_tco(cost_plan, cost_items, coverage_policy=policy)
+        except Exception as exc:  # noqa: BLE001 - 单个候选算不出成本不影响其它候选
+            candidate.cost = SimulatedCost(
+                hardware_id=hardware_id,
+                incomplete=True,
+                coverage_gaps=[f"tco_failed:{type(exc).__name__}"],
+            )
+            continue
+        candidate.cost = SimulatedCost(
+            hardware_id=hardware_id,
+            currency=tco.currency,
+            cost_basis=tco.cost_basis,
+            horizon_years=tco.horizon_years,
+            total_cash_over_horizon=(None if tco.incomplete else tco.total_cash_over_horizon),
+            capex_one_time=tco.capex_one_time,
+            annual_cash_opex=tco.annual_cash_opex,
+            annual_total_cost=tco.annual_total_cost,
+            incomplete=bool(tco.incomplete),
+            coverage_gaps=list(tco.coverage_gaps),
+        )
+
+
+def _simulate(
+    request: Any,
+    *,
+    model_repo_id: str,
+    hardware_id: str | None,
+    db_path: Any,
+    cost_items: Any,
+) -> Any:
+    """执行（或只读取归档的）模拟预测；**任何失败都不影响其它领域**。"""
+    from llm_capacity_pricing.perf.aisimulate_adapter import (
+        ExternalToolConfig,
+        SimulationNotAvailable,
+        load_archived,
+        run_external,
+    )
+    from llm_capacity_pricing.schemas.simulation import SimulationResult
+
+    config = request.simulation
+    if config is None:
+        return None
+
+    target = _simulation_target(request, model_repo_id, hardware_id)
+    archive: dict[str, str | None] = {
+        "sweeper_csv": config.sweeper_csv,
+        "native_prediction": config.native_prediction,
+        "native_input": config.native_input,
+        "exp_config": config.exp_config,
+        "per_ops_source": config.per_ops_source,
+    }
+
+    if config.enable_external:
+        try:
+            out_dir = run_external(
+                config.external_surface,
+                config_arg=config.external_config,
+                save_dir=config.external_out_dir,
+                config=ExternalToolConfig(
+                    python=config.external_python,
+                    enabled=True,
+                    timeout_s=config.external_timeout_s,
+                ),
+            )
+        except SimulationNotAvailable as exc:
+            return SimulationResult(status="error", message=str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return SimulationResult(
+                status="error", message=f"外部模拟执行异常：{type(exc).__name__}: {exc}"
+            )
+        discovered = _discover_outputs(out_dir, config.external_surface)
+        if not discovered:
+            return SimulationResult(
+                status="missing_data",
+                message=f"外部工具已执行，但在 {out_dir} 下没找到结果文件",
+                source_dir=str(out_dir),
+            )
+        archive.update(discovered)
+        if config.external_surface == "native_replay" and not archive.get("native_input"):
+            archive["native_input"] = str(config.external_config)
+
+    try:
+        result = load_archived(
+            sweeper_csv=archive["sweeper_csv"],
+            native_prediction=archive["native_prediction"],
+            native_input=archive["native_input"],
+            exp_config=archive["exp_config"],
+            per_ops_source=archive["per_ops_source"],
+            native_model_precision=config.native_model_precision,
+            tool_version=config.tool_version,
+            default_backend=config.default_backend,
+            target=target,
+            top_n=config.top_n,
+        )
+    except (ValueError, FileNotFoundError, OSError) as exc:
+        # 归档缺失/格式不对属于输入问题：报出来，但不动其它领域
+        return SimulationResult(
+            status="missing_data", message=f"模拟数据不可用：{exc}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        return SimulationResult(
+            status="error", message=f"模拟结果解析异常：{type(exc).__name__}: {exc}"
+        )
+
+    _attach_simulated_costs(
+        result, request=request, cost_items=cost_items, db_path=db_path
+    )
+    return result
 
 
 def _dedupe_blockers(blockers: Sequence[PlanBlocker]) -> list[PlanBlocker]:

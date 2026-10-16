@@ -243,6 +243,35 @@ DEMO_DB=/tmp/my.db bash scripts/run_demo.sh # 指定数据库（已存在则拒�
 
 详见 [`docs/public_data_demo.md`](docs/public_data_demo.md)。
 
+### 可选：模拟预测（P1–P4，默认关闭）
+
+在配置里加一段 `simulation`，就能让报告多出一节
+「**2.2 模拟部署配置推荐（非实测）**」：给定模型与 GPU，由 NVIDIA AISimulate
+搜索部署配置（TP/PP/DP/副本/部署模式）并给出**含 P99** 的性能预测。
+
+```bash
+python -m llm_capacity_pricing.cli plan \
+  --config data/examples/scenario_simulation.example.yaml \
+  --out data/exports/simulation_report.md \
+  --json-out data/exports/simulation_result.json \
+  --db data/exports/demo/demo.db
+```
+
+三条设计约束：
+
+* **默认关闭**：不写 `simulation` 段时，行为与输出**逐字节不变**，也不会调用任何外部工具；
+* **离线优先**：默认只读仓库里归档的模拟输出，**不需要 GPU、不需要安装 AISimulate**；
+  要现场执行必须显式 `enable_external: true`（argv 列表构造，不走 shell）；
+* **与实测严格隔离**：模拟指标一律 `sim_` 前缀，结论只有
+  `predicted_pass / predicted_fail / insufficient_prediction`，
+  **永不**写入 `BenchmarkRun` / `CapacityPoint`，**永不**产生 `observed_pass`。
+
+⚠️ 两条必须知道的边界：扫描器的单点估计**≈ 原生回放的中位数**（不是 P99，P99 可达其 13.9 倍），
+而官方 SLA 过滤是**均值口径**；所以达标与否**由我们用 P99 自己判**，不采纳工具的结论。
+另外官方精度快照里**没有 Qwen3-32B**，全量 MAPE 为 TTFT 45.27% / TPOT 22.39% ——
+模拟值只适合排序与发现明显不可行。详见
+[`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md)。
+
 ### 统一评估入口（S1：一份配置 + 一条命令 + 一份报告）
 
 前面各阶段的命令都是**专业入口**；日常使用只需要这一条：
@@ -278,7 +307,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **63 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
+> 完整链路由 **64 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）、**Demo（D1–D9）**
 > 与两条反例断言（篡改公开参考声明必须整批拒绝、`DEMO_DB` 指向已有库必须拒绝覆盖）。
 
@@ -391,8 +420,8 @@ llm-capacity-pricing/
 │   │   ├── estimator.py                   # M22 受限估算与留出验证
 │   │   ├── sla_evaluator.py               # M23 SLA 判定
 │   │   └── ranker.py                      # M24 候选比较
-├── tests/                                 # 780 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（63 步，含门禁断言、Demo 与敏感扫描）
+├── tests/                                 # 822 个用例，全部通过
+├── scripts/verify_all.sh                  # 一键复现（64 步，含门禁断言、Demo、模拟与敏感扫描）
 ├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
@@ -577,6 +606,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D9，含数据来源取舍、匹配口径与报告导读） |
 | [`docs/demo_v1_1_final_validation.md`](docs/demo_v1_1_final_validation.md) | **Demo V1.1 封板**（N1 取值绑定加固 + N2 验证结果与冻结声明） |
 | [`docs/aisimulate_poc.md`](docs/aisimulate_poc.md) | **N3/N4** NVIDIA AISimulate 独立 PoC（支持矩阵、离线实验、口径警告、字段映射与集成决策） |
+| [`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md) | **P1–P4 封板** 模拟预测接入（口径纠正、数据契约、可选适配器、反向测试与准确性边界） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
