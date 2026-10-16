@@ -16,8 +16,13 @@ notice: >-
 coverage_policy:
   policy_id: syn-coverage-standard
   version: "1.0"
+  # 授权状态（V4.2 E6）：这份策略是**示例草稿**，没有经过任何真实批准。
+  # draft/unauthorized 的覆盖策略可以参与计算，但报价门禁一定会阻断 ——
+  # 因为"哪些成本必须算"这件事本身必须可追溯到批准人，不能由示例或 Agent 自行决定。
+  authority: draft
   notes:
     - "覆盖全部 10 类基础设施成本；任一类别必须 covered / excluded_by_scope / not_applicable"
+    - "合成示例草稿策略，未获任何真实批准：不得支撑生产级完整 TCO 结论"
   requirements:
     - category: gpu_hardware
     - category: server_chassis

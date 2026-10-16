@@ -88,8 +88,12 @@ def confirmed_cost():
         ),
         selections=[CostLineSelection(item_id=i.item_id) for i in items],
     )
+    # 覆盖策略也做成"完全已授权"，把成本侧的缺口全部堵死 ——
+    # 反向场景要证明的是：即便四维看起来都齐备，门禁依然阻断。
     policy = CostCoveragePolicy(
-        policy_id="forged", version="1.0",
+        policy_id="forged", version="1.0", authority="confirmed",
+        approved_by="示例批准人", approved_at="2026-01-01",
+        document_ref="COV-FORGED-CHECK",
         requirements=[
             CostCoverageRequirement(category="gpu_hardware"),
             CostCoverageRequirement(category="power_energy"),
@@ -164,9 +168,11 @@ def main() -> int:
         requirement_id="r",
         requirement={"requirement_id": "r", "ttft_p99_ms_max": 400},
         target_identity={"model_name": "m"},
-        status="observed_pass", match_level="exact_match", matched_run_id="run-does-not-exist",
+        status="observed_pass", match_level="exact_match",
+        matched_run_id="run-does-not-exist", supporting_run_ids=["run-does-not-exist"],
         data_trust="measured_internal", policy_id="default",
         evaluated_at="2026-10-15T10:00:00+08:00", run_pool_hash="0" * 64,
+        input_snapshot_hash="1" * 64,
     )
     snapshot = "deadbeef" * 8
     stale_approval = QuoteApproval(
@@ -191,9 +197,55 @@ def main() -> int:
         approval=stale_approval, confirmation=confirmation,
         cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
     )
-    check("SLA 重新推导失败必须阻断", not result.quote_publishable, str(result.blockers))
+    check("SLA 重放失败必须阻断", not result.quote_publishable, str(result.blockers))
     check("失配的成本快照必须阻断审批",
           any("approval_cost_snapshot_stale" in b for b in result.blockers))
+
+    # ---- 路径 5：算法验证口径的 observed_pass（V4.2 E1）----
+    algo_evidence = fake_evidence.model_copy(
+        update={
+            "data_trust": "synthetic_fixture",
+            "algorithm_validation_only": True,
+            "allow_synthetic_used": True,
+            "matched_run_id": "syn-run",
+            "supporting_run_ids": ["syn-run"],
+        }
+    )
+    algo_result = evaluate_quote_eligibility(
+        candidate_id="forged-cand", requirement_id="r", tco=tco,
+        sla_evidence=algo_evidence,
+        sla_recheck=SlaRecheck(
+            ok=True, match_level="exact_match", status="observed_pass",
+            run_id="syn-run", data_trust="synthetic_fixture",
+            algorithm_validation_only=True,
+        ),
+        approval=stale_approval.model_copy(
+            update={
+                "scope": stale_approval.scope.model_copy(
+                    update={"cost_snapshot_hash": snapshot}
+                )
+            }
+        ),
+        confirmation=confirmation,
+        cost_snapshot_hash=snapshot, plan_id=plan.plan_id,
+    )
+    check(
+        "算法验证口径的 observed_pass 不得进入正式报价",
+        not algo_result.quote_publishable,
+        str(algo_result.blockers),
+    )
+    check(
+        "必须点名 algorithm_validation_only / synthetic 可信等级",
+        any(
+            k in " ".join(algo_result.blockers)
+            for k in (
+                "sla_algorithm_validation_only",
+                "sla_allow_synthetic_used",
+                "sla_data_trust_not_production",
+            )
+        ),
+        str(algo_result.blockers),
+    )
 
     print()
     if FAILURES:

@@ -32,6 +32,14 @@ from llm_capacity_pricing.schemas.tco import TcoResult
 _SLA_PASS = "observed_pass"
 _REQUIRED_MATCH_LEVEL = "exact_match"
 
+#: 正式报价允许的数据可信等级（V4.2 E1）。
+#: 这是**第四阶段自己的**门禁：即便调用方在第三阶段显式开了 allow_synthetic，
+#: 正式报价也一律拒绝 synthetic_fixture —— 没有任何策略参数可以放宽它。
+PRODUCTION_TRUST_LEVELS: tuple[str, ...] = (
+    "measured_internal",
+    "measured_vendor_published",
+)
+
 
 @dataclass
 class SlaRecheck:
@@ -41,6 +49,14 @@ class SlaRecheck:
     match_level: str | None = None
     status: str | None = None
     run_id: str | None = None
+    #: 重放得到的代表运行的可信等级（V4.2 E1）
+    data_trust: str | None = None
+    #: 重放得到的匹配证明是否仅限算法验证
+    algorithm_validation_only: bool = False
+    #: 重放时目标身份是否与证据记录一致（V4.2 E3）
+    target_identity_ok: bool = True
+    #: 重放时 run 池指纹是否与证据记录一致（V4.2 E3）
+    run_pool_hash_ok: bool = True
     reasons: list[str] = field(default_factory=list)
 
 
@@ -58,6 +74,11 @@ def _cost_dimension(
         blockers.append(
             "cost_currency_not_confirmed: 成本币种未确认"
             + (f"（当前 {tco.currency!r}，状态未确认）" if tco.currency else "（未声明币种）")
+        )
+    if tco.coverage_policy_authority != "confirmed":
+        blockers.append(
+            f"cost_coverage_policy_not_authorized:{tco.coverage_policy_authority}"
+            "（覆盖策略决定「哪些成本必须算」，未授权/草稿策略不能支撑生产级完整 TCO）"
         )
     if tco.unconfirmed_items:
         blockers.append(
@@ -129,6 +150,19 @@ def _sla_dimension(
         for reason in recheck.reasons:
             blockers.append(f"sla_recheck_failed:{reason}")
         return "not_evaluable", evidence_id
+    # V4.2 E3：目标身份与 run 池必须与证据记录一致，否则旧证据不再适用
+    if not recheck.target_identity_ok:
+        blockers.append(
+            "sla_target_identity_changed: 当前目标身份（模型/硬件/拓扑/负载）"
+            "与证据记录不一致，旧证据不再适用"
+        )
+        return "not_evaluable", evidence_id
+    if not recheck.run_pool_hash_ok:
+        blockers.append(
+            "sla_run_pool_changed: 证据池内容已变化（不是同一批实测数据），"
+            "证据不可复现"
+        )
+        return "not_evaluable", evidence_id
     if recheck.status != _SLA_PASS or recheck.match_level != _REQUIRED_MATCH_LEVEL:
         blockers.append(
             f"sla_recheck_not_pass: 重新推导得到 status={recheck.status!r} "
@@ -156,8 +190,47 @@ def _sla_dimension(
         )
         return "not_evaluable", evidence_id
 
+    # ---- V4.2 E1：生产可信度硬门禁（不可被任何策略放宽）----
+    # 记录里声明的质量标记
+    if sla_evidence.algorithm_validation_only:
+        blockers.append(
+            "sla_algorithm_validation_only: 该证据仅用于算法验证"
+            "（第三阶段 allow_synthetic 路径），不得作为正式报价的性能依据"
+        )
+        return "not_evaluable", evidence_id
+    if sla_evidence.allow_synthetic_used:
+        blockers.append(
+            "sla_allow_synthetic_used: 该次 SLA 评估启用了 allow_synthetic，"
+            "属于算法验证口径，正式报价一律拒绝"
+        )
+        return "not_evaluable", evidence_id
+    if sla_evidence.sla_proof_blocked:
+        blockers.append(
+            "sla_proof_blocked_by_match: 匹配证明声明禁止用于 sla_proof，"
+            "不得作为正式报价的性能依据"
+        )
+        return "not_evaluable", evidence_id
+    if sla_evidence.data_trust not in PRODUCTION_TRUST_LEVELS:
+        blockers.append(
+            f"sla_data_trust_not_production:{sla_evidence.data_trust}"
+            f"（正式报价只接受 {list(PRODUCTION_TRUST_LEVELS)}）"
+        )
+        return "not_evaluable", evidence_id
+    # 重放侧的质量标记也必须干净：重新推导的结论同样要过生产门禁
+    if recheck.algorithm_validation_only:
+        blockers.append(
+            "sla_recheck_algorithm_validation_only: 重放得到的匹配证明仅限算法验证"
+        )
+        return "not_evaluable", evidence_id
+    if recheck.data_trust is not None and recheck.data_trust not in PRODUCTION_TRUST_LEVELS:
+        blockers.append(
+            f"sla_recheck_data_trust_not_production:{recheck.data_trust}"
+        )
+        return "not_evaluable", evidence_id
+
     cautions.append(
-        f"SLA 结论已按持久化证据 {evidence_id} 重新核验（run={recheck.run_id}）"
+        f"SLA 结论已按持久化证据 {evidence_id} 重新核验"
+        f"（run={recheck.run_id}，trust={recheck.data_trust}）"
     )
     return "verified_measured", evidence_id
 
@@ -188,6 +261,8 @@ def _approval_dimension(
     candidate_id: str,
     requirement_id: str,
     plan_id: str | None,
+    scenario_id: str | None,
+    billing_rule_id: str | None,
     cost_snapshot_hash: str | None,
     as_of: date,
     blockers: list[str],
@@ -220,6 +295,18 @@ def _approval_dimension(
     if plan_id is not None and scope.plan_id != plan_id:
         blockers.append(
             f"approval_scope_mismatch:plan {scope.plan_id!r} != {plan_id!r}"
+        )
+        return "missing", approval_id, None
+    # V4.2 E3：需求情景与计费规则也属于审批作用域
+    if scenario_id is not None and scope.scenario_id != scenario_id:
+        blockers.append(
+            f"approval_scope_mismatch:scenario {scope.scenario_id!r} != {scenario_id!r}"
+        )
+        return "missing", approval_id, None
+    if billing_rule_id is not None and scope.billing_rule_id != billing_rule_id:
+        blockers.append(
+            f"approval_scope_mismatch:billing_rule {scope.billing_rule_id!r} != "
+            f"{billing_rule_id!r}"
         )
         return "missing", approval_id, None
     if cost_snapshot_hash is None or scope.cost_snapshot_hash != cost_snapshot_hash:
@@ -278,6 +365,8 @@ def evaluate_quote_eligibility(
         candidate_id=candidate_id,
         requirement_id=requirement_id,
         plan_id=plan_id,
+        scenario_id=scenario_id,
+        billing_rule_id=billing_rule_id,
         cost_snapshot_hash=cost_snapshot_hash,
         as_of=today,
         blockers=blockers,

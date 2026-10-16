@@ -191,7 +191,15 @@ python -m llm_capacity_pricing.cli phase4-report \
 > `quote_publishable=True`；其中 SLA 结论由服务端用**持久化证据里的需求快照与目标身份
 > 重新推导**，审批必须绑定**当前成本快照指纹**并在有效期内。合成示例成本、未确认币种、
 > 估算型 SLA、作用域不符或快照失配一律阻断，报告只输出阻断说明、不输出金额。
-> 反向场景断言见 `scripts/check_forged_quote_blocked.py`。
+> 反向场景断言见 `scripts/check_forged_quote_blocked.py`（12 项检查）。
+>
+> **算法验证口径进不了正式报价**：即便第三阶段显式开了 `allow_synthetic` 并产出
+> `observed_pass`，第四阶段仍有一道**不可被任何策略放宽**的生产可信度门禁——
+> 拒绝 `synthetic_fixture`、`algorithm_validation_only`、`allow_synthetic` 与
+> `sla_proof` 禁令。证据记录会永久保留这些质量标记。
+>
+> **证据可重放**：同配置多条实测聚合出的证据会保存全部成员 run_id，
+> 复核时用记录里的目标身份重新匹配重放，而不是拿 `aggregate:...` 去原始表里查。
 
 > **买断与租赁互斥**：不属于当前口径的成本项会被标成 `excluded_by_cost_basis`
 > 并写明原因（排除**不等于**零成本）；**缺价格/缺假设**的成本项标为
@@ -200,6 +208,8 @@ python -m llm_capacity_pricing.cli phase4-report \
 >
 > **成本范围不能靠"不选"规避**：方案模板必须带 `coverage_policy`，每个适用类别
 > 要么被选入、要么用 `scope_exclusions` 显式排除并给出理由，否则记为覆盖缺口。
+> 覆盖策略还必须带 `authority: confirmed` 与批准人/日期/凭据——
+> 草稿或未授权策略算得出数字，但会被标为不完整并阻断报价。
 > **价格必须适用**：GPU SKU、区域、有效期在算金额之前校验，不通过则剔除并报明原因。
 
 ### 一键复现以上全部步骤

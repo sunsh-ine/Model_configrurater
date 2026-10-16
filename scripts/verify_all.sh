@@ -359,6 +359,10 @@ step_record_sla_evidence() { # 生成持久化 SLA 证据；synthetic 曲线不�
   if ! printf '%s' "$out" | grep -q '"sla_evaluation_id"'; then
     printf '断言失败：必须产出可引用的证据 ID\n'; return 1
   fi
+  # V4.2 E1：synthetic 证据绝不能是"生产级"
+  if ! printf '%s' "$out" | grep -q '"production_grade": false'; then
+    printf '断言失败：synthetic 证据必须标 production_grade=false\n'; return 1
+  fi
 }
 
 step_quote_blocked_by_evidence() { # 引用真实证据仍必须阻断（断言）

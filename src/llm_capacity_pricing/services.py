@@ -2510,12 +2510,68 @@ def _diagnostic_eligibility(
 
 
 def _run_pool_hash(runs: Sequence[Any]) -> str:
-    """run 池指纹：数据集被替换后，旧 SLA 证据即不可复现。"""
+    """证据池指纹（V4.2 E3）：覆盖**归一化指标快照**，不只是 run_id。
+
+    只对 run_id/哈希做指纹，会让"换了指标数值但 ID 没变"的情况逃过检测。
+    """
     import hashlib
 
-    blob = "|".join(
-        sorted(f"{r.run_id}:{r.raw_sha256 or '-'}:{r.data_trust}" for r in runs)
-    )
+    entries = []
+    for r in sorted(runs, key=lambda r: r.run_id):
+        pf = r.profile
+        entries.append(
+            "|".join(
+                [
+                    r.run_id,
+                    r.raw_sha256 or "-",
+                    r.data_trust,
+                    str(pf.configured_concurrency),
+                    str(r.signature.workload.input_len_target),
+                    str(r.signature.workload.output_len_target),
+                    str(r.signature.workload.arrival_mode),
+                    str(r.signature.workload.request_rate_rps),
+                    str(pf.output_throughput_tok_s),
+                    str(pf.request_throughput_rps),
+                    str(pf.ttft_p99_ms),
+                    str(pf.tpot_p99_ms),
+                    str(pf.e2e_mean_ms),
+                    str(pf.e2e_p99_ms),
+                    str(pf.error_rate),
+                    str(pf.num_requests),
+                    str(pf.duration_s),
+                ]
+            )
+        )
+    blob = "\n".join(entries)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _input_snapshot_hash(
+    *,
+    target_identity: dict[str, Any],
+    requirement: dict[str, Any],
+    match_level: str | None,
+    supporting_run_ids: Sequence[str],
+    policy_snapshot: dict[str, Any],
+    commercial: dict[str, Any] | None = None,
+) -> str:
+    """规范化输入指纹（V4.2 E3）。
+
+    覆盖：目标部署身份、SLA Requirement、匹配证明等级、参与 Run、
+    评估策略快照、商务方案。任何一项变化都会让旧证据失效。
+    """
+    import hashlib
+    import json
+
+    payload = {
+        "target_identity": target_identity,
+        "requirement": requirement,
+        "match_level": match_level,
+        "supporting_run_ids": sorted(supporting_run_ids),
+        "policy": policy_snapshot,
+        "commercial": commercial or {},
+    }
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
@@ -2548,6 +2604,39 @@ def _target_from_facts(facts: dict[str, Any]) -> Any:
     )
 
 
+def _identity_from_facts(facts: dict[str, Any]) -> dict[str, Any]:
+    """目标身份的规范化快照（用于比对"证据是否仍对应当前目标"）。"""
+    keys = (
+        "model_name",
+        "model_revision",
+        "weight_precision",
+        "hardware_model",
+        "gpu_count",
+        "tp_size",
+        "dp_size",
+        "framework",
+        "framework_version",
+        "input_len_target",
+        "output_len_target",
+        "dataset_name",
+        "arrival_mode",
+        "configured_concurrency",
+    )
+    return {k: facts.get(k) for k in keys}
+
+
+def _policy_snapshot(policy: Any) -> dict[str, Any]:
+    return {
+        "policy_id": getattr(policy, "policy_id", None),
+        "allow_synthetic": bool(getattr(policy, "allow_synthetic", False)),
+        "accepted_trust_levels": list(getattr(policy, "accepted_trust_levels", ()) or ()),
+        "minimum_match_level": getattr(policy, "minimum_match_level", None),
+        "allow_estimate_as_observed": bool(
+            getattr(policy, "allow_estimate_as_observed", False)
+        ),
+    }
+
+
 def record_sla_evidence_for(
     db_path: str | Path,
     *,
@@ -2558,9 +2647,10 @@ def record_sla_evidence_for(
     policy: Any = None,
     target_ref: str | None = None,
 ) -> dict[str, Any]:
-    """V4.1 F4.1：跑一次 SLA 评估并**持久化**为可引用的证据记录。
+    """V4.1 F4.1 / V4.2 E1-E3：跑一次 SLA 评估并**持久化**为可引用的证据记录。
 
-    报价门禁后续只认这条记录，并用其中的需求快照与目标身份重新推导结论。
+    记录里保存：代表运行 + **全部参与运行 ID**、可信等级与匹配证明质量标记、
+    策略快照、run 池指纹、规范化输入指纹。报价门禁据此重放校验。
     """
     from datetime import datetime, timezone
 
@@ -2588,35 +2678,45 @@ def record_sla_evidence_for(
         target_ref=target_ref or candidate_id,
     )
 
+    match_level = best_match.level if best_match else None
+    supporting = (
+        list(best_match.supporting_run_ids)
+        if best_match and best_match.supporting_run_ids
+        else ([best_run.run_id] if best_run else [])
+    )
+    identity = _identity_from_facts(facts)
+    pol_snapshot = _policy_snapshot(policy)
     evidence_id = sla_evaluation_id or f"sla::{candidate_id}::{sla_req.requirement_id}"
+
     record = SlaEvidenceRecord(
         sla_evaluation_id=evidence_id,
         candidate_id=candidate_id,
         requirement_id=sla_req.requirement_id,
         requirement=sla_req.model_dump(mode="json"),
-        target_identity={
-            "model_name": facts.get("model_name"),
-            "model_revision": facts.get("model_revision"),
-            "weight_precision": facts.get("weight_precision"),
-            "hardware_model": facts.get("hardware_model"),
-            "gpu_count": facts.get("gpu_count"),
-            "tp_size": facts.get("tp_size"),
-            "dp_size": facts.get("dp_size"),
-            "framework": facts.get("framework"),
-            "framework_version": facts.get("framework_version"),
-            "input_len_target": facts.get("input_len_target"),
-            "output_len_target": facts.get("output_len_target"),
-            "dataset_name": facts.get("dataset_name"),
-            "arrival_mode": facts.get("arrival_mode"),
-            "configured_concurrency": facts.get("configured_concurrency"),
-        },
+        target_identity=identity,
         status=evaluation.status,
-        match_level=best_match.level if best_match else None,
+        match_level=match_level,
         matched_run_id=best_run.run_id if best_run else None,
+        supporting_run_ids=supporting,
         data_trust=best_run.data_trust if best_run else None,
+        algorithm_validation_only=bool(
+            best_match.algorithm_validation_only if best_match else False
+        ),
+        allow_synthetic_used=bool(getattr(policy, "allow_synthetic", False)),
+        sla_proof_blocked=bool(
+            best_match and "sla_proof" in (best_match.blocked_from or [])
+        ),
+        policy_snapshot=pol_snapshot,
         policy_id=policy.policy_id,
         evaluated_at=datetime.now(timezone.utc),
         run_pool_hash=_run_pool_hash(runs),
+        input_snapshot_hash=_input_snapshot_hash(
+            target_identity=identity,
+            requirement=sla_req.model_dump(mode="json"),
+            match_level=match_level,
+            supporting_run_ids=supporting,
+            policy_snapshot=pol_snapshot,
+        ),
     )
     db, repo = open_db(db_path)
     try:
@@ -2630,10 +2730,24 @@ def record_sla_evidence_for(
         "status": record.status,
         "match_level": record.match_level,
         "matched_run_id": record.matched_run_id,
+        "supporting_run_ids": record.supporting_run_ids,
+        "data_trust": record.data_trust,
+        "algorithm_validation_only": record.algorithm_validation_only,
+        "allow_synthetic_used": record.allow_synthetic_used,
         "run_pool_hash": record.run_pool_hash,
+        "input_snapshot_hash": record.input_snapshot_hash,
+        "production_grade": (
+            record.status == "observed_pass"
+            and record.match_level == "exact_match"
+            and record.data_trust in PHASE4_TRUSTED_LEVELS
+            and not record.algorithm_validation_only
+            and not record.allow_synthetic_used
+            and not record.sla_proof_blocked
+        ),
         "note": (
-            "已持久化。报价门禁会用它重新推导结论；"
-            "若原始数据或需求变化，记录会被判为 stale。"
+            "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，"
+            "记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据"
+            "永远不能用于正式报价。"
         ),
     }
 
@@ -2671,7 +2785,17 @@ def _recheck_sla_evidence(
     facts: dict[str, Any],
     policy: Any = None,
 ) -> Any:
-    """V4.1 F4.1：用记录里的**需求快照 + 目标身份**重新推导结论。"""
+    """V4.1 F4.1 / V4.2 E2-E3：重放 SLA 证据。
+
+    修正要点：
+
+    * **不用** ``record.matched_run_id`` 去原始 Run 表查（聚合证据的 ID 是
+      ``aggregate:A,B`` 这种运行时标识，表里根本没有这一行）。
+      改为：用记录里的**目标身份快照**重新匹配整个证据池，
+      再比较重放得到的代表运行与记录是否一致；
+    * 目标身份、run 池指纹都要与记录比对，不一致即旧证据失效；
+    * 目标身份取自**记录**，调用方传的 facts 只用于比对（不参与计算）。
+    """
     from llm_capacity_pricing.engines.quote_gate import SlaRecheck
     from llm_capacity_pricing.schemas.performance import SlaRequirement
 
@@ -2682,37 +2806,68 @@ def _recheck_sla_evidence(
     finally:
         db.dispose()
 
-    if record.matched_run_id is None:
-        return SlaRecheck(ok=False, reasons=["evidence_has_no_run: 证据未绑定实测记录"])
-    run = next((r for r in runs if r.run_id == record.matched_run_id), None)
-    if run is None:
+    # ---- E3：目标身份必须与记录一致 ----
+    caller_identity = _identity_from_facts(facts)
+    target_identity_ok = caller_identity == dict(record.target_identity or {})
+
+    # ---- E3：证据池指纹必须与记录一致 ----
+    run_pool_hash_ok = _run_pool_hash(runs) == record.run_pool_hash
+
+    def _fail(reasons: list[str], **kw: Any) -> Any:
         return SlaRecheck(
             ok=False,
-            reasons=[f"matched_run_not_found: 证据引用的实测 {record.matched_run_id!r} 已不存在"],
+            target_identity_ok=target_identity_ok,
+            run_pool_hash_ok=run_pool_hash_ok,
+            reasons=reasons,
+            **kw,
         )
 
-    target = _target_from_facts(facts)
-    _best_run, best_match = _best_match(target, runs)
-    if best_match is None:
-        return SlaRecheck(ok=False, reasons=["no_comparable_run: 当前证据池中无可用实测"])
-    if best_match.source_ref != run.run_id and best_match.signature_id != run.signature.signature_id:
-        return SlaRecheck(
-            ok=False,
-            match_level=best_match.level,
-            reasons=[
-                "evidence_run_superseded: 重新匹配得到的是另一条实测 "
-                f"{best_match.source_ref!r}，而非证据引用的 {run.run_id!r}"
-            ],
+    supporting = list(record.supporting_run_ids or [])
+    if not supporting and record.matched_run_id:
+        supporting = [record.matched_run_id]
+    if not supporting:
+        return _fail(["evidence_has_no_run: 证据未记录任何参与实测"])
+
+    missing = [rid for rid in supporting if not any(r.run_id == rid for r in runs)]
+    if missing:
+        return _fail(
+            [f"supporting_run_not_found: 参与实测已不存在 {missing}"]
         )
+
+    # ---- E2：用记录里的目标身份重放匹配（含聚合）----
+    target = _target_from_facts(dict(record.target_identity or {}))
+    best_run, best_match = _best_match(target, runs)
+    if best_match is None or best_run is None:
+        return _fail(["no_comparable_run: 当前证据池中无可用实测"])
+    if best_run.run_id != record.matched_run_id:
+        return _fail(
+            [
+                "evidence_run_superseded: 重放得到的代表运行 "
+                f"{best_run.run_id!r} 与记录 {record.matched_run_id!r} 不一致"
+            ],
+            match_level=best_match.level,
+        )
+
     try:
         sla_req = SlaRequirement.model_validate(record.requirement)
     except Exception as exc:  # noqa: BLE001
-        return SlaRecheck(ok=False, reasons=[f"requirement_snapshot_invalid: {exc}"])
+        return _fail([f"requirement_snapshot_invalid: {exc}"])
+
+    # 重放时也必须用同一套策略口径；策略快照不一致说明口径被换过
+    policy = policy or SlaPolicy()
+    current_policy = _policy_snapshot(policy)
+    if record.policy_snapshot and current_policy != dict(record.policy_snapshot):
+        return _fail(
+            [
+                "policy_changed: 当前策略与证据记录不一致 "
+                f"（记录 {record.policy_snapshot} vs 当前 {current_policy}）"
+            ]
+        )
 
     evaluation = _evaluate_sla(
         sla_req,
-        policy=policy or SlaPolicy(),
-        run=run,
+        policy=policy,
+        run=best_run,
         match_result=best_match,
         target_ref=record.candidate_id,
     )
@@ -2720,9 +2875,14 @@ def _recheck_sla_evidence(
         ok=True,
         match_level=best_match.level,
         status=evaluation.status,
-        run_id=run.run_id,
+        run_id=best_run.run_id,
+        data_trust=best_run.data_trust,
+        algorithm_validation_only=bool(best_match.algorithm_validation_only),
+        target_identity_ok=target_identity_ok,
+        run_pool_hash_ok=run_pool_hash_ok,
         reasons=[
-            f"重新推导：match_level={best_match.level} status={evaluation.status}"
+            f"重放：match_level={best_match.level} status={evaluation.status} "
+            f"run={best_run.run_id} trust={best_run.data_trust}"
         ],
     )
 

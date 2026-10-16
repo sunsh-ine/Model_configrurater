@@ -356,6 +356,7 @@ def compute_tco(
     # ---- 7. 成本范围覆盖（F4.2）----
     coverage_policy_id = None
     coverage_policy_version = None
+    coverage_policy_authority = None
     coverage_decisions: dict[str, str] = {}
     coverage_gaps: list[str] = []
     scope_exclusions: dict[str, str] = {}
@@ -366,6 +367,13 @@ def compute_tco(
     else:
         coverage_policy_id = coverage_policy.policy_id
         coverage_policy_version = coverage_policy.version
+        coverage_policy_authority = coverage_policy.authority
+        if coverage_policy.authority != "confirmed":
+            # 未授权的覆盖策略不能支撑生产级"完整 TCO"（V4.2 E6）
+            completeness.append(
+                f"coverage_policy_not_authorized:{coverage_policy.authority}"
+                "（策略未经批准：可以计算，但不得声称完整口径）"
+            )
         coverage_decisions, coverage_gaps, scope_exclusions = _coverage(
             plan, coverage_policy, components
         )
@@ -516,6 +524,7 @@ def compute_tco(
         validity_unknown_items=validity_unknown,
         coverage_policy_id=coverage_policy_id,
         coverage_policy_version=coverage_policy_version,
+        coverage_policy_authority=coverage_policy_authority,
         coverage_decisions=coverage_decisions,
         coverage_gaps=coverage_gaps,
         scope_exclusions=scope_exclusions,

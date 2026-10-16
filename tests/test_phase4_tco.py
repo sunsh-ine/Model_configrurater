@@ -70,6 +70,7 @@ from llm_capacity_pricing.services import (
     import_quote_approvals,
     init_db,
     load_cost_plan_templates,
+    open_db,
     phase4_decision_for,
     quote_eligibility_for,
     record_sla_evidence_for,
@@ -161,14 +162,29 @@ COVERAGE_CATEGORIES = (
 )
 
 
-def _coverage(*categories: str, policy_id: str = "mech") -> CostCoveragePolicy:
+def _coverage(
+    *categories: str, policy_id: str = "mech", authority: str = "confirmed"
+) -> CostCoveragePolicy:
+    """机制夹具：默认为**已授权**的覆盖策略（V4.2 E6 之后，草稿策略不算完整）。
+
+    ``authority="draft"`` 用于验证"未授权策略不得支撑生产级完整 TCO"。
+    """
+    kwargs = {}
+    if authority == "confirmed":
+        kwargs = dict(
+            approved_by="示例批准人",
+            approved_at="2026-10-15",
+            document_ref="COV-EXAMPLE-001",
+        )
     return CostCoveragePolicy(
         policy_id=policy_id,
         version="1.0",
+        authority=authority,  # type: ignore[arg-type]
         requirements=[
             CostCoverageRequirement(category=c)  # type: ignore[arg-type]
             for c in (categories or COVERAGE_CATEGORIES)
         ],
+        **kwargs,
     )
 
 
@@ -481,6 +497,8 @@ def _full_evidence(**overrides) -> CapacityEvidence:
         output_len_target=256,
         ttft_p99_ms=Decimal("100"),
         tpot_p99_ms=Decimal("10"),
+        # Little 定律用**平均**驻留时间（E5）：这里给一个合理的 mean E2E
+        e2e_mean_ms=Decimal("500"),
         error_rate=Decimal("0"),
         sla_status="observed_pass",
         sustainability_verified=True,
@@ -686,10 +704,12 @@ def _sla_evidence(**overrides) -> SlaEvidenceRecord:
         status="observed_pass",
         match_level="exact_match",
         matched_run_id="run-1",
+        supporting_run_ids=["run-1"],
         data_trust="measured_internal",
         policy_id="default",
         evaluated_at="2026-10-15T10:00:00+08:00",
         run_pool_hash="0" * 64,
+        input_snapshot_hash="1" * 64,
     )
     base.update(overrides)
     return SlaEvidenceRecord(**base)
@@ -721,7 +741,11 @@ def _recheck(**overrides) -> SlaRecheck:
         match_level="exact_match",
         status="observed_pass",
         run_id="run-1",
-        reasons=["重新推导：match_level=exact_match status=observed_pass"],
+        data_trust="measured_internal",
+        algorithm_validation_only=False,
+        target_identity_ok=True,
+        run_pool_hash_ok=True,
+        reasons=["重放：match_level=exact_match status=observed_pass run=run-1"],
     )
     base.update(overrides)
     return SlaRecheck(**base)
@@ -1957,3 +1981,573 @@ def test_f46_partially_verified_cannot_be_reported_as_feasible():
     )
     assert result.capacity_check == "partially_verified"
     assert any("不得当作容量可行" in w for w in result.warnings)
+
+
+# ==========================================================================
+# V4.2 E1–E6：定向加固
+# ==========================================================================
+
+
+def _measured_runs(root: Path):
+    """把示例性能曲线标记为"内部实测"的机制夹具（与第三阶段同一做法）。"""
+    import json
+
+    import yaml as _yaml
+
+    from llm_capacity_pricing.importers.vllm_adapter import (
+        parse_vllm_bench_serve_json_full,
+    )
+    from llm_capacity_pricing.perf.performance_profile import run_from_adapter
+
+    folder = root / "data" / "fixtures" / "perf_curve"
+    index = json.loads((folder / "INDEX.json").read_text(encoding="utf-8"))
+    runs = []
+    for point in index["points"]:
+        data = folder / point["file"]
+        meta = _yaml.safe_load((folder / point["metadata"]).read_text(encoding="utf-8"))
+        records, _ = parse_vllm_bench_serve_json_full(data, meta)
+        run = run_from_adapter(
+            records[0], metadata=meta, raw_file=data,
+            raw_format="vllm-bench-serve-json/v1",
+        )
+        sig = run.signature.model_copy(update={"data_trust": "measured_internal"})
+        runs.append(run.model_copy(update={"signature": sig, "data_trust": "measured_internal"}))
+    return runs
+
+
+def _facts_from_run(run, **overrides):
+    """从实测签名推导目标事实（保证身份完全对齐，否则达不到 exact_match）。"""
+    sig = run.signature
+    base = {
+        "model_name": sig.model_name,
+        "model_revision": sig.model_revision,
+        "weight_precision": sig.weight_precision,
+        "hardware_model": sig.hardware_model,
+        "gpu_count": sig.gpu_count,
+        "tp_size": sig.tp_size,
+        "dp_size": sig.dp_size,
+        "framework": sig.framework,
+        "framework_version": sig.framework_version,
+        "configured_concurrency": sig.workload.configured_concurrency,
+        "input_len_target": sig.workload.input_len_target,
+        "output_len_target": sig.workload.output_len_target,
+        "dataset_name": sig.workload.dataset_name,
+        "arrival_mode": sig.workload.arrival_mode,
+    }
+    base.update(overrides)
+    return base
+
+
+def _evidence_db(tmp_path: Path, root: Path, runs, name: str) -> str:
+    from llm_capacity_pricing.services import open_db
+
+    db = str(tmp_path / name)
+    init_db(db)
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            repo.upsert_benchmark_runs(session, runs)
+            session.commit()
+    finally:
+        d.dispose()
+    return db
+
+
+# ---- E1：算法验证结果不得进入正式报价 --------------------------------------
+
+
+def test_e1_synthetic_evidence_never_reaches_formal_quote(tmp_path, root):
+    """即便显式允许 synthetic，正式报价也必须阻断。"""
+    from llm_capacity_pricing.schemas.performance import SlaPolicy
+
+    runs = _measured_runs(root)
+    db = _evidence_db(tmp_path, root, runs, "e1.db")
+    algo_policy = SlaPolicy(
+        policy_id="algorithm-validation-only",
+        allow_synthetic=True,
+        accepted_trust_levels=[
+            "measured_internal",
+            "measured_vendor_published",
+            "synthetic_fixture",
+        ],
+    )
+    # 用非实测等级的 run 造证据：把一条 run 标成 synthetic
+    synthetic = [
+        r.model_copy(
+            update={
+                "data_trust": "synthetic_fixture",
+                "signature": r.signature.model_copy(
+                    update={"data_trust": "synthetic_fixture"}
+                ),
+            }
+        )
+        for r in runs
+        if r.profile.configured_concurrency == 8
+    ]
+    db = _evidence_db(tmp_path, root, synthetic, "e1b.db")
+    info = record_sla_evidence_for(
+        db,
+        candidate_id="cand-mech",
+        requirement={"requirement_id": "req-1", "ttft_p99_ms_max": 99999},
+        # 显式启用算法验证口径 —— 这正是复查担心的那条路径
+        facts=_facts_from_run(synthetic[0], allow_synthetic=True),
+        policy=algo_policy,
+    )
+    # 第三阶段确实给出了 observed_pass，但记录里必须留下"仅算法验证"的痕迹
+    assert info["status"] == "observed_pass"
+    assert info["algorithm_validation_only"] is True
+    assert info["allow_synthetic_used"] is True
+    assert info["production_grade"] is False
+
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    assert stored.allow_synthetic_used is True
+    assert stored.data_trust == "synthetic_fixture"
+
+    # 即便其余三维"完美"、且重放也一致，正式报价仍必须拒绝
+    items = confirmed_items_fixture()
+    tco = _tco(_plan(items), items)
+    result = evaluate_quote_eligibility(
+        candidate_id="cand-mech",
+        requirement_id="req-1",
+        tco=tco,
+        sla_evidence=stored,
+        sla_recheck=_recheck(
+            run_id=stored.matched_run_id,
+            data_trust="synthetic_fixture",
+            algorithm_validation_only=True,
+        ),
+        approval=_approval(),
+        confirmation=_confirmation(),
+        cost_snapshot_hash="SNAP",
+        plan_id="p-mech",
+    )
+    assert result.quote_publishable is False
+    joined = " ".join(result.blockers)
+    assert (
+        "sla_algorithm_validation_only" in joined
+        or "sla_allow_synthetic_used" in joined
+        or "sla_data_trust_not_production" in joined
+    ), joined
+    assert result.sla_verification_status != "verified_measured"
+
+
+def confirmed_items_fixture():
+    """与 `confirmed_items` 夹具同构，供不依赖 fixture 注入的用例复用。"""
+    return [
+        CostCatalogItem(
+            item_id="gpu", category="gpu_hardware", name="fixture gpu", basis="owned",
+            price_basis="one_time_per_gpu", unit_price=Decimal("100000"),
+            unit="currency_per_gpu", currency="CNY", currency_status="confirmed",
+            status="confirmed", origin="internal_actual", evidence_id="ev_gpu",
+        ),
+        CostCatalogItem(
+            item_id="chassis", category="server_chassis", name="fixture chassis",
+            basis="owned", price_basis="one_time_per_server", unit_price=Decimal("50000"),
+            unit="currency_per_server", currency="CNY", currency_status="confirmed",
+            status="confirmed", origin="internal_actual", evidence_id="ev_chassis",
+        ),
+        CostCatalogItem(
+            item_id="power", category="power_energy", name="fixture power",
+            price_basis="per_kwh", unit_price=Decimal("1"), unit="currency_per_kwh",
+            currency="CNY", currency_status="confirmed", status="confirmed",
+            origin="internal_actual", evidence_id="ev_power",
+        ),
+        CostCatalogItem(
+            item_id="space", category="facility_space", name="fixture space",
+            price_basis="per_rack_year", unit_price=Decimal("1000"),
+            unit="currency_per_rack_year", currency="CNY", currency_status="confirmed",
+            status="confirmed", origin="internal_actual",
+            default_quantity=Decimal("1"), evidence_id="ev_space",
+        ),
+        CostCatalogItem(
+            item_id="ops", category="operations", name="fixture ops",
+            price_basis="per_server_year", unit_price=Decimal("2000"),
+            unit="currency_per_server_year", currency="CNY", currency_status="confirmed",
+            status="confirmed", origin="internal_actual", evidence_id="ev_ops",
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        dict(data_trust="synthetic_fixture"),
+        dict(algorithm_validation_only=True),
+        dict(sla_proof_blocked=True),
+    ],
+)
+def test_e1_quality_flags_block_formal_quote(confirmed_items, fields):
+    """可信等级 / 仅算法验证 / sla_proof 禁令：任一条都足以阻断。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    result = _gate(tco, sla_evidence=_sla_evidence(**fields))
+    assert result.quote_publishable is False
+    joined = " ".join(result.blockers)
+    assert (
+        "sla_data_trust_not_production" in joined
+        or "sla_algorithm_validation_only" in joined
+        or "sla_proof_blocked_by_match" in joined
+    )
+
+
+def test_e1_production_trust_levels_are_enforced_by_recheck_too(confirmed_items):
+    """重放得到的可信等级同样要过生产门禁。"""
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    result = _gate(tco, sla_recheck=_recheck(data_trust="synthetic_fixture"))
+    assert result.quote_publishable is False
+    assert any("sla_recheck_data_trust_not_production" in b for b in result.blockers)
+
+
+# ---- E2：聚合证据可重放 ----------------------------------------------------
+
+
+def test_e2_aggregate_evidence_replays_without_lookup_failure(tmp_path, root):
+    """两条同配置实测聚合后，复核必须能重放，而不是 matched_run_not_found。"""
+    from llm_capacity_pricing.services import _recheck_sla_evidence
+
+    base = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    twin = base.model_copy(
+        update={
+            "run_id": base.run_id + "-twin",
+            "raw_sha256": (base.raw_sha256 or "a") + "b",
+            "profile": base.profile.model_copy(
+                update={
+                    "ttft_p99_ms": (base.profile.ttft_p99_ms or Decimal("100")) * 2,
+                    "output_throughput_tok_s": (
+                        base.profile.output_throughput_tok_s or Decimal("100")
+                    ) / 2,
+                }
+            ),
+        }
+    )
+    db = _evidence_db(tmp_path, root, [base, twin], "e2.db")
+    info = record_sla_evidence_for(
+        db,
+        candidate_id="cand-mech",
+        requirement={"requirement_id": "req-1", "ttft_p99_ms_max": 99999},
+        facts=_facts_from_run(base),
+    )
+    assert info["matched_run_id"].startswith("aggregate:")
+    assert sorted(info["supporting_run_ids"]) == sorted([base.run_id, twin.run_id])
+    # 聚合 ID 只能由成员组成，不能是真实 run_id
+    assert info["matched_run_id"] not in {base.run_id, twin.run_id}
+
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    recheck = _recheck_sla_evidence(
+        db, record=stored, facts=_facts_from_run(base), policy=None
+    )
+    assert recheck.ok is True, recheck.reasons
+    assert recheck.run_id == info["matched_run_id"]
+    assert not any("not_found" in r for r in recheck.reasons)
+    assert recheck.target_identity_ok is True
+    assert recheck.run_pool_hash_ok is True
+
+
+def test_e2_aggregate_id_is_deterministic(measured_runs_inline):
+    """聚合 ID 对成员顺序不敏感，保证同一组实测重放出同一个 ID。"""
+    from llm_capacity_pricing.perf.ranker import _best_match
+
+    a, b = measured_runs_inline
+    target = _target_for_curve(a)
+    _run1, m1 = _best_match(target, [a, b])
+    _run2, m2 = _best_match(target, [b, a])
+    assert m1.source_ref == m2.source_ref
+    assert m1.source_ref == "aggregate:" + ",".join(sorted([a.run_id, b.run_id]))
+
+
+def _target_for_curve(run):
+    from llm_capacity_pricing.perf.benchmark_matcher import signature_from_run
+    from llm_capacity_pricing.schemas.performance import (
+        TargetRequirement,
+        WorkloadSignature,
+    )
+
+    sig = signature_from_run(run)
+    return TargetRequirement(
+        model_name=sig.model_name,
+        model_revision=sig.model_revision,
+        weight_precision=sig.weight_precision,
+        hardware_model=sig.hardware_model,
+        gpu_count=sig.gpu_count,
+        tp_size=sig.tp_size,
+        dp_size=sig.dp_size,
+        framework=sig.framework,
+        framework_version=sig.framework_version,
+        workload=WorkloadSignature(
+            input_len_target=sig.workload.input_len_target,
+            output_len_target=sig.workload.output_len_target,
+            dataset_name=sig.workload.dataset_name,
+            arrival_mode=sig.workload.arrival_mode,
+            configured_concurrency=sig.workload.configured_concurrency,
+        ),
+        require_measured=False,
+    )
+
+
+@pytest.fixture
+def measured_runs_inline(root):
+    """同配置的两条实测（机制夹具）。"""
+    base = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    twin = base.model_copy(
+        update={
+            "run_id": base.run_id + "-z",
+            "profile": base.profile.model_copy(
+                update={
+                    "ttft_p99_ms": (base.profile.ttft_p99_ms or Decimal("100")) * 2,
+                }
+            ),
+        }
+    )
+    return [base, twin]
+
+
+def test_e2_supporting_runs_must_still_exist(tmp_path, root):
+    """证据引用的成员实测被删除 -> 复核失败（而不是崩溃或静默通过）。"""
+    from llm_capacity_pricing.services import _recheck_sla_evidence
+
+    base = next(
+        r for r in _measured_runs(root) if r.profile.configured_concurrency == 8
+    )
+    db = _evidence_db(tmp_path, root, [base], "e2b.db")
+    info = record_sla_evidence_for(
+        db, candidate_id="cand-mech",
+        requirement={"requirement_id": "req-1", "ttft_p99_ms_max": 99999},
+        facts=_facts_from_run(base),
+    )
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            repo.delete_benchmark_runs(session, [base.run_id])
+            session.commit()
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    recheck = _recheck_sla_evidence(db, record=stored, facts=_facts_from_run(base))
+    assert recheck.ok is False
+    assert any("supporting_run_not_found" in r for r in recheck.reasons)
+
+
+# ---- E3：快照与作用域闭合 --------------------------------------------------
+
+
+def test_e3_run_pool_change_invalidates_evidence(confirmed_items):
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    result = _gate(tco, sla_recheck=_recheck(run_pool_hash_ok=False))
+    assert result.quote_publishable is False
+    assert any("sla_run_pool_changed" in b for b in result.blockers)
+
+
+def test_e3_target_identity_change_invalidates_evidence(confirmed_items):
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    result = _gate(tco, sla_recheck=_recheck(target_identity_ok=False))
+    assert result.quote_publishable is False
+    assert any("sla_target_identity_changed" in b for b in result.blockers)
+
+
+def test_e3_policy_change_is_detected(tmp_path, root):
+    """换了评估策略（比如开启 allow_synthetic）-> 旧证据不可复现。"""
+    from llm_capacity_pricing.schemas.performance import SlaPolicy
+    from llm_capacity_pricing.services import _recheck_sla_evidence
+
+    runs = _measured_runs(root)
+    base = next(r for r in runs if r.profile.configured_concurrency == 8)
+    db = _evidence_db(tmp_path, root, runs, "e3.db")
+    info = record_sla_evidence_for(
+        db, candidate_id="cand-mech",
+        requirement={"requirement_id": "req-1", "ttft_p99_ms_max": 99999},
+        facts=_facts_from_run(base),
+    )
+    d, repo = open_db(db)
+    try:
+        with d.session() as session:
+            stored = repo.get_sla_evidence(session, info["sla_evaluation_id"])
+    finally:
+        d.dispose()
+    same = _recheck_sla_evidence(db, record=stored, facts=_facts_from_run(base))
+    assert same.ok is True
+    changed = _recheck_sla_evidence(
+        db,
+        record=stored,
+        facts=_facts_from_run(base),
+        policy=SlaPolicy(policy_id="other", allow_synthetic=True),
+    )
+    assert changed.ok is False
+    assert any("policy_changed" in r for r in changed.reasons)
+
+
+def test_e3_run_pool_hash_covers_metric_values(root):
+    """指纹必须覆盖归一化指标：只改数值不改 ID 也要被检测到。"""
+    from llm_capacity_pricing.services import _run_pool_hash
+
+    runs = _measured_runs(root)
+    base = _run_pool_hash(runs)
+    tampered = [
+        r.model_copy(
+            update={"profile": r.profile.model_copy(update={"ttft_p99_ms": Decimal("1")})}
+        )
+        for r in runs
+    ]
+    assert _run_pool_hash(tampered) != base
+
+
+def test_e3_approval_scope_covers_scenario_and_billing_rule(confirmed_items):
+    tco = _tco(_plan(confirmed_items), confirmed_items)
+    scope = ApprovalScope(
+        candidate_id="cand-mech", requirement_id="req-1", plan_id="p-mech",
+        scenario_id="scenario-A", billing_rule_id="rule-A", cost_snapshot_hash="SNAP",
+    )
+    approval = QuoteApproval(
+        approval_id="apr-1", decision="approved", approved_by="审批人",
+        approved_at="2026-10-15T10:00:00+08:00", valid_until="2099-12-31",
+        document_ref="APR-1", scope=scope,
+    )
+    ok = evaluate_quote_eligibility(
+        candidate_id="cand-mech", requirement_id="req-1", tco=tco,
+        sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
+        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
+        scenario_id="scenario-A", billing_rule_id="rule-A",
+    )
+    assert ok.quote_publishable is True
+
+    other_scenario = evaluate_quote_eligibility(
+        candidate_id="cand-mech", requirement_id="req-1", tco=tco,
+        sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
+        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
+        scenario_id="scenario-B", billing_rule_id="rule-A",
+    )
+    assert other_scenario.quote_publishable is False
+    assert any("approval_scope_mismatch:scenario" in b for b in other_scenario.blockers)
+
+    other_rule = evaluate_quote_eligibility(
+        candidate_id="cand-mech", requirement_id="req-1", tco=tco,
+        sla_evidence=_sla_evidence(), sla_recheck=_recheck(), approval=approval,
+        confirmation=_confirmation(), cost_snapshot_hash="SNAP", plan_id="p-mech",
+        scenario_id="scenario-A", billing_rule_id="rule-B",
+    )
+    assert other_rule.quote_publishable is False
+    assert any("approval_scope_mismatch:billing_rule" in b for b in other_rule.blockers)
+
+
+# ---- E4：收入区间遵守合同上限 ----------------------------------------------
+
+
+def test_e4_lower_bound_never_exceeds_contract_cap():
+    """业务估计 60% / 合同上限 20%：下界也不得按 60% 计折扣。"""
+    period = DemandPeriod(
+        label="p", duration_hours=Decimal("1"), request_count=1000,
+        avg_input_tokens=Decimal("1000"), avg_output_tokens=Decimal("0"),
+        cached_input_fraction=Decimal("0.6"),
+    )
+    rule = _rule(
+        billable_cache_ratio=Decimal("0.2"),
+        price_uncached_input_per_1m=Decimal("10"),
+        price_cached_input_per_1m=Decimal("1"),
+    )
+    result = compute_revenue(_scenario(periods=[period]), rule)
+    p = result.periods[0]
+    # 合同口径只认可 20% 缓存价
+    assert p.billable_input_tokens_cached == Decimal("200000")
+    # 下界 = 按 20% 计（折扣最多），上界 = 完全不打折；不得出现按 60% 计算的更低值
+    revenue_at_cap = (
+        Decimal("800000") / Decimal("1000000") * 10
+        + Decimal("200000") / Decimal("1000000") * 1
+    )
+    revenue_at_zero = Decimal("1000000") / Decimal("1000000") * 10
+    assert p.revenue_lower_bound == min(revenue_at_cap, revenue_at_zero)
+    assert p.revenue_upper_bound == max(revenue_at_cap, revenue_at_zero)
+    assert p.revenue_lower_bound != (
+        Decimal("400000") / Decimal("1000000") * 10
+        + Decimal("600000") / Decimal("1000000") * 1
+    )
+
+
+def test_e4_bounds_follow_actual_price_ordering():
+    """缓存价高于未缓存价时，区间方向应当反转（不预设缓存价一定更低）。"""
+    period = DemandPeriod(
+        label="p", duration_hours=Decimal("1"), request_count=1000,
+        avg_input_tokens=Decimal("1000"), avg_output_tokens=Decimal("0"),
+        cached_input_fraction=Decimal("0.5"),
+    )
+    cheaper_cached = compute_revenue(
+        _scenario(periods=[period]),
+        _rule(price_uncached_input_per_1m=Decimal("10"),
+              price_cached_input_per_1m=Decimal("1")),
+    ).periods[0]
+    pricier_cached = compute_revenue(
+        _scenario(periods=[period]),
+        _rule(price_uncached_input_per_1m=Decimal("1"),
+              price_cached_input_per_1m=Decimal("10")),
+    ).periods[0]
+    # 缓存价更低：折扣越多收入越低 -> 下界在"足额折扣"端
+    assert cheaper_cached.revenue_lower_bound <= cheaper_cached.revenue <= cheaper_cached.revenue_upper_bound
+    # 缓存价更高：折扣越多收入越高 -> 区间方向相反，但上下界仍然包住基准值
+    assert pricier_cached.revenue_lower_bound <= pricier_cached.revenue <= pricier_cached.revenue_upper_bound
+    assert pricier_cached.revenue_lower_bound < cheaper_cached.revenue_lower_bound
+
+
+# ---- E5：Little 定律统计口径 ------------------------------------------------
+
+
+def test_e5_little_law_requires_mean_e2e():
+    """只有 P99 时不得反推平均并发：该子项标 unknown。"""
+    limits = SlaLimits(ttft_p99_ms_max=Decimal("9999"), tpot_p99_ms_max=Decimal("9999"))
+    no_mean = _full_evidence(e2e_mean_ms=None)
+    result = compute_revenue(_scenario(), _rule(), capacity_evidence=no_mean, sla_limits=limits)
+    d = result.capacity_detail
+    assert d.concurrency_and_load == "unknown"
+    assert result.capacity_check == "partially_verified"
+    assert any("不使用 P99 TTFT/TPOT 代替" in r for r in d.reasons)
+
+
+def test_e5_mean_e2e_enables_concurrency_judgement():
+    limits = SlaLimits(ttft_p99_ms_max=Decimal("9999"), tpot_p99_ms_max=Decimal("9999"))
+    with_mean = _full_evidence(e2e_mean_ms=Decimal("200"))
+    result = compute_revenue(_scenario(), _rule(), capacity_evidence=with_mean, sla_limits=limits)
+    assert result.capacity_detail.concurrency_and_load == "satisfied"
+    assert any("W̄" in r for r in result.capacity_detail.reasons)
+
+
+# ---- E6：覆盖策略可信度 ----------------------------------------------------
+
+
+def test_e6_draft_coverage_policy_blocks_production_quote(confirmed_items):
+    policy = _coverage(authority="draft")
+    tco = _tco(_plan(confirmed_items), confirmed_items, policy)
+    assert tco.incomplete is True
+    assert tco.coverage_policy_authority == "draft"
+    assert any("coverage_policy_not_authorized" in r for r in tco.completeness_reasons)
+
+    result = _gate(tco)
+    assert result.quote_publishable is False
+    assert any("cost_coverage_policy_not_authorized" in b for b in result.blockers)
+
+
+def test_e6_confirmed_policy_requires_approval_audit_fields():
+    with pytest.raises(Exception, match="approved_by"):
+        CostCoveragePolicy(
+            policy_id="p", version="1.0", authority="confirmed",
+            requirements=[CostCoverageRequirement(category="gpu_hardware")],
+        )
+
+
+def test_e6_example_policy_is_draft_not_claimed_confirmed(tmp_path):
+    """示例策略必须是 draft：不能声称获得了真实批准。"""
+    from llm_capacity_pricing.services import load_coverage_policy
+
+    policy = load_coverage_policy(PLAN_EXAMPLE)
+    assert policy is not None
+    assert policy.authority == "draft"
+    assert policy.approved_by is None

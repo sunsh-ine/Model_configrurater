@@ -270,6 +270,12 @@ class CostCoveragePolicy(BaseModel):
     policy_id: str
     #: 策略版本（口径变化必须升版本，便于追溯历史结论）
     version: str
+    #: 策略授权状态（V4.2 E6）：只有 confirmed 才能支撑**生产级**完整 TCO；
+    #: draft / unauthorized 可以用来算，但报价门禁一律阻断。
+    authority: Literal["confirmed", "draft", "unauthorized"] = "draft"
+    approved_by: str | None = None
+    approved_at: date | None = None
+    document_ref: str | None = None
     #: 该策略适用的口径；None = 通用
     applies_to_basis: CostBasis | None = None
     requirements: list[CostCoverageRequirement] = Field(default_factory=list)
@@ -282,6 +288,17 @@ class CostCoveragePolicy(BaseModel):
         seen = [r.category for r in self.requirements]
         if len(seen) != len(set(seen)):
             raise ValueError("同一类别不得在覆盖策略中重复声明")
+        if self.authority == "confirmed":
+            missing = [
+                n
+                for n in ("approved_by", "approved_at", "document_ref")
+                if getattr(self, n) is None
+            ]
+            if missing:
+                raise ValueError(
+                    f"authority=confirmed 的覆盖策略必须齐备 {missing}"
+                    "（覆盖策略决定了「哪些成本必须算」，必须可追溯到批准人）"
+                )
         return self
 
 
@@ -432,6 +449,8 @@ class TcoResult(BaseModel):
     # ---- 成本范围覆盖（F4.2）--------------------------------------------
     coverage_policy_id: str | None = None
     coverage_policy_version: str | None = None
+    #: 覆盖策略的授权状态（V4.2 E6）：draft/unauthorized 不得支撑生产级结论
+    coverage_policy_authority: str | None = None
     #: 每个适用类别的覆盖结论（category -> coverage decision）
     coverage_decisions: dict[str, str] = Field(default_factory=dict)
     #: 应覆盖却未被选入、也未显式排除的类别 —— **不能靠不选来规避**

@@ -348,7 +348,9 @@ def _aggregate_runs(runs: Sequence[BenchmarkRun], level: str) -> BenchmarkRun:
             ),
         }
     )
-    aggregate_id = "aggregate:" + ",".join(r.run_id for r in runs)
+    # V4.2 E2：成员按 run_id 排序，保证同一组实测得到**同一个**聚合 ID，
+    # 否则证据重放时无法用 ID 比对
+    aggregate_id = "aggregate:" + ",".join(sorted(r.run_id for r in runs))
     # V3.1 最终复审 P1：聚合记录必须有**自己的签名身份**，不能沿用首条 Run 的
     # signature_id —— 否则"这条证据由哪几条实测构成"在签名层面看不出来，
     # 只能依赖 run_id 的字符串约定，证据关系不清晰。

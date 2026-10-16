@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-15T20:57:45",
+  "generated_at": "2026-10-16T09:23:39",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-15T20:57:46",
+  "generated_at": "2026-10-16T09:23:41",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -2050,7 +2050,7 @@ SLA 状态: observed_pass
 
 === 35. tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解） ===
 TCO：一次性 1680000，年现金 101747.0720，全周期 1985241.2160（owned）
-成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'currency_not_confirmed: 存在未确认币种的成本项']
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项']
 {
   "plan_id": "syn-owned-3y::demo-owned",
   "cost_basis": "owned",
@@ -2066,7 +2066,7 @@ TCO：一次性 1680000，年现金 101747.0720，全周期 1985241.2160（owned
 
 === 36. tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除） ===
 TCO：一次性 None，年现金 701747.0720，全周期 2105241.2160（leased）
-成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'currency_not_confirmed: 存在未确认币种的成本项']
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项']
 {
   "plan_id": "syn-leased-3y::demo-leased",
   "cost_basis": "leased",
@@ -2084,7 +2084,7 @@ TCO：一次性 None，年现金 701747.0720，全周期 2105241.2160（leased�
 
 === 37. tco（M28 断言：缺价项 -> incomplete，未知不等于零） ===
 TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned）
-成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_gap:maintenance,network,operations,software_license（类别未选入且未显式排除：不选它不等于它不存在）', 'currency_not_confirmed: 存在未确认币种的成本项', 'unknown_cost_items:network/syn-infiniband-fabric（缺价格或缺假设：未知不等于零，总额不完整）']
+成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_gap:maintenance,network,operations,software_license（类别未选入且未显式排除：不选它不等于它不存在）', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项', 'unknown_cost_items:network/syn-infiniband-fabric（缺价格或缺假设：未知不等于零，总额不完整）']
 {
   "plan_id": "syn-owned-incomplete::demo-incomplete",
   "cost_basis": "owned",
@@ -2120,8 +2120,14 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "status": "not_evaluable",
   "match_level": null,
   "matched_run_id": null,
-  "run_pool_hash": "b3e29ac6c6cfce639f7d9f18f71aacf5098dfa9ec03a9ff93a393cbcd30368b1",
-  "note": "已持久化。报价门禁会用它重新推导结论；若原始数据或需求变化，记录会被判为 stale。"
+  "supporting_run_ids": [],
+  "data_trust": null,
+  "algorithm_validation_only": false,
+  "allow_synthetic_used": false,
+  "run_pool_hash": "c52dfc3e497ac135c955e3f1626afe9c0b07dc7effd5fa00f2c9909064de559b",
+  "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
+  "production_grade": false,
+  "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
 }
 
 === 40. import-commercial-confirmations（人工确认记录，示例占位） ===
@@ -2150,11 +2156,13 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
 正式报价不可发布
   - approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 ebaad5bfc1af…）
   - cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价
+  - cost_coverage_policy_not_authorized:draft（覆盖策略决定「哪些成本必须算」，未授权/草稿策略不能支撑生产级完整 TCO）
   - cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）
   - cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径
+  - cost_incomplete:coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）
   - cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项
   - cost_items_unconfirmed:['gpu_hardware/syn-gpu-purchase', 'server_chassis/syn-server-chassis', 'network/syn-network-port', 'storage/syn-storage', 'power_energy/syn-power-energy', 'facility_space/syn-rack-space', 'cooling/syn-cooling', 'software_license/syn-software-license', 'operations/syn-operations', 'maintenance/syn-maintenance']（价格状态不是 confirmed，报价前必须逐项确认）
-  - sla_recheck_failed:evidence_has_no_run: 证据未绑定实测记录
+  - sla_recheck_failed:evidence_has_no_run: 证据未记录任何参与实测
 {
   "quote_publishable": false,
   "cost_estimate_status": "incomplete",
@@ -2167,11 +2175,13 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "blockers": [
     "approval_cost_snapshot_stale: 审批绑定的成本快照与当前成本不一致（审批 000000000000… vs 当前 ebaad5bfc1af…）",
     "cost_contains_synthetic_prices: 成本使用了合成示例价格，不得进入正式报价",
+    "cost_coverage_policy_not_authorized:draft（覆盖策略决定「哪些成本必须算」，未授权/草稿策略不能支撑生产级完整 TCO）",
     "cost_currency_not_confirmed: 成本币种未确认（当前 'CNY'，状态未确认）",
     "cost_incomplete:contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径",
+    "cost_incomplete:coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）",
     "cost_incomplete:currency_not_confirmed: 存在未确认币种的成本项",
     "cost_items_unconfirmed:['gpu_hardware/syn-gpu-purchase', 'server_chassis/syn-server-chassis', 'network/syn-network-port', 'storage/syn-storage', 'power_energy/syn-power-energy', 'facility_space/syn-rack-space', 'cooling/syn-cooling', 'software_license/syn-software-license', 'operations/syn-operations', 'maintenance/syn-maintenance']（价格状态不是 confirmed，报价前必须逐项确认）",
-    "sla_recheck_failed:evidence_has_no_run: 证据未绑定实测记录"
+    "sla_recheck_failed:evidence_has_no_run: 证据未记录任何参与实测"
   ]
 }
 
@@ -2192,10 +2202,12 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 [ok]   Agent 接口必须拒绝缺失证据引用
 [ok]   服务层必须拒绝缺失 SLA 证据 ID
 [ok]   服务层必须拒绝缺失审批 ID
-[ok]   SLA 重新推导失败必须阻断
+[ok]   SLA 重放失败必须阻断
 [ok]   失配的成本快照必须阻断审批
+[ok]   算法验证口径的 observed_pass 不得进入正式报价
+[ok]   必须点名 algorithm_validation_only / synthetic 可信等级
 
-反向场景检查通过 10/10：伪造声明、缺证据引用、未核验证据与失配成本快照全部被阻断。
+反向场景检查通过 12/12：伪造声明、缺证据引用、未核验证据与失配成本快照全部被阻断。
 
 === 45. phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路） ===
 候选分桶: {'requires_benchmark': 2, 'excluded': 1}
@@ -2263,34 +2275,34 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
 === 48. pytest（全量，离线） ===
-........................................................................ [ 12%]
-........................................................................ [ 24%]
-........................................................................ [ 36%]
-........................................................................ [ 49%]
-........................................................................ [ 61%]
-........................................................................ [ 73%]
-........................................................................ [ 85%]
-........................................................................ [ 98%]
-...........                                                              [100%]
-587 passed in 46.07s
+........................................................................ [ 11%]
+........................................................................ [ 23%]
+........................................................................ [ 35%]
+........................................................................ [ 47%]
+........................................................................ [ 59%]
+........................................................................ [ 71%]
+........................................................................ [ 83%]
+........................................................................ [ 94%]
+...............................                                          [100%]
+607 passed in 105.71s (0:01:45)
 
 === 49. 产物清单（内部目录不入库，仅本地查看） ===
 总计 1316
-drwxrwxr-x  2 ssa ssa   4096 10月 15 20:58 .
-drwxrwxr-x 11 ssa ssa   4096 10月 15 20:58 ..
--rw-rw-r--  1 ssa ssa  21022 10月 15 20:57 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 15 20:57 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 15 20:57 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 15 20:57 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 15 20:58 performance_report.md
--rw-rw-r--  1 ssa ssa 110851 10月 15 20:58 phase4_decision.json
--rw-rw-r--  1 ssa ssa  27866 10月 15 20:58 phase4_report.md
--rw-rw-r--  1 ssa ssa   7149 10月 15 20:57 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 15 20:57 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 15 20:57 sizing_report.md
+drwxrwxr-x  2 ssa ssa   4096 10月 16 09:24 .
+drwxrwxr-x 11 ssa ssa   4096 10月 16 09:24 ..
+-rw-rw-r--  1 ssa ssa  21022 10月 16 09:24 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 16 09:23 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 16 09:23 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 16 09:23 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 16 09:24 performance_report.md
+-rw-rw-r--  1 ssa ssa 112055 10月 16 09:24 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  27866 10月 16 09:24 phase4_report.md
+-rw-rw-r--  1 ssa ssa   7149 10月 16 09:23 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 16 09:23 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 16 09:24 sizing_report.md
 
 ==== 汇总 ====
 步骤 50 项：通过 50，失败 0
-完成时间: 2026-10-15T20:59:06+08:00
+完成时间: 2026-10-16T09:26:53+08:00
 环境: Python 3.12.3
 全部步骤通过。

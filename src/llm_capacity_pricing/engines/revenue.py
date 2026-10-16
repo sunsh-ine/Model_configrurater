@@ -75,6 +75,9 @@ class CapacityEvidence:
     #: 实测时延与失败率（用于 SLA / 可持续性子项）
     ttft_p99_ms: Decimal | None = None
     tpot_p99_ms: Decimal | None = None
+    #: **平均**端到端时延（V4.2 E5）。Little 定律要求平均驻留时间，
+    #: 不得用 P99 TTFT + P99 TPOT×输出长度拼接代替。
+    e2e_mean_ms: Decimal | None = None
     error_rate: Decimal | None = None
     #: 该 run 的 SLA 评估结论（observed_pass / observed_fail / not_evaluable …）
     sla_status: str | None = None
@@ -84,24 +87,26 @@ class CapacityEvidence:
 
 def _effective_cache_fractions(
     business_estimate: Decimal, rule: BillingRule
-) -> tuple[Decimal, Decimal, str]:
-    """返回 ``(基准折扣比例, 最大可辩护折扣比例, 规则说明)``。
+) -> tuple[Decimal, str]:
+    """返回 ``(实际计费折扣比例, 规则说明)``（V4.2 E4 修正）。
 
-    基准比例 = 若合同给了上限则取 ``min(业务估计, 上限)``，否则取业务估计。
-    最大可辩护比例 = ``min(1, max(业务估计, 合同上限))`` —— 用于收入**下界**。
-    **两者都不是"保守估计"**：缓存价更低时，折扣越多收入越低。
+    合同允许按缓存价计费的输入占比上限是 ``billable_cache_ratio``；
+    实际可计费占比 = ``min(业务估计, 合同上限)``。
+    **绝不使用 max() 去扩大合同上限** —— 合同只允许 20% 时，
+    业务估计 60% 也不能拿 60% 去算折扣。
+
+    业务估计与合同上限是两个独立的界；可计费占比的取值范围是
+    ``[0, min(业务估计, 合同上限)]``，收入区间由这个范围两端算出，
+    并按"缓存价可能高于或低于未缓存价"的实际大小**排序**，不预设方向。
     """
     if rule.billable_cache_ratio is None:
         return (
             business_estimate,
-            business_estimate,
-            "未定义合同上限：按业务侧估计计费（结果未受合同约束）",
+            "未定义合同上限：按业务侧估计计费（结果未受合同约束，区间不完整）",
         )
     applied = min(business_estimate, rule.billable_cache_ratio)
-    high = min(Decimal(1), max(business_estimate, rule.billable_cache_ratio))
     return (
         applied,
-        high,
         f"按合同上限计费：min(业务估计 {business_estimate}, 合同上限 "
         f"{rule.billable_cache_ratio}) = {applied}",
     )
@@ -197,24 +202,24 @@ def _capacity(
     # ---- 子项 3：并发与负载一致性 ----
     load_notes: list[str] = []
     load_status: str = "satisfied"
-    if (
-        ev.configured_concurrency is None
-        or ev.ttft_p99_ms is None
-        or ev.tpot_p99_ms is None
-        or peak_rate is None
-        or peak_output_tokens is None
-    ):
+    # V4.2 E5：Little 定律 N̄ = λ × W̄ 里的 W̄ 是**平均**驻留时间。
+    # 用 P99 TTFT + P99 TPOT×输出长度拼接会显著高估并发需求、错误拒绝可行配置，
+    # 因此只有拿到实测 mean_e2e_ms 才反推；拿不到就把该子项标为 unknown。
+    if ev.configured_concurrency is None or peak_rate is None:
         load_status = "unknown"
-        load_notes.append("并发/负载：缺并发或时延字段，无法用 Little 定律反推所需并发")
+        load_notes.append("并发/负载：缺实测配置并发或需求速率，无法反推所需并发")
+    elif ev.e2e_mean_ms is None:
+        load_status = "unknown"
+        load_notes.append(
+            "并发/负载：缺实测**平均**端到端时延（mean E2E），"
+            "不使用 P99 TTFT/TPOT 代替——那会高估平均并发需求，只能标 unknown"
+        )
     else:
-        # Little 定律：并发 ≈ 速率 × 单请求驻留时间
-        residence_s = (
-            ev.ttft_p99_ms + ev.tpot_p99_ms * peak_output_tokens
-        ) / MILLISECONDS_PER_SECOND
+        residence_s = ev.e2e_mean_ms / MILLISECONDS_PER_SECOND
         implied = peak_rate * residence_s
         load_notes.append(
             f"并发：按 Little 定律推算需求侧需要约 {implied} 并发"
-            f"（速率 {peak_rate} req/s × 驻留 {residence_s} s）"
+            f"（λ={peak_rate} req/s × W̄={residence_s} s，W̄ 取自实测 mean E2E）"
             f"，实测配置并发 {ev.configured_concurrency}"
         )
         if implied > Decimal(ev.configured_concurrency):
@@ -384,7 +389,7 @@ def compute_revenue(
                 "失败请求按合同口径（billable_on_failure=False）不计费"
             )
 
-        applied, high, rule_label = _effective_cache_fractions(
+        applied, rule_label = _effective_cache_fractions(
             period.cached_input_fraction, rule
         )
         cache_rule_labels.append(f"{period.label}:{rule_label}")
@@ -404,16 +409,17 @@ def compute_revenue(
             rule=rule,
             batch=period.batch,
         )
-        # 收入区间：下界 = 最大可辩护折扣；上界 = 完全不打折
-        _, _, _, _, _, lower = _amounts(
+        # 收入区间：可计费占比在 [0, applied] 之间，两端各算一次，
+        # 再按实际金额大小排序 —— 不预设"缓存价一定更低"（V4.2 E4）
+        _, _, _, _, _, at_cap = _amounts(
             billable_requests=billable,
             avg_input_tokens=per_req_input,
             avg_output_tokens=period.avg_output_tokens,
-            cached_fraction=high,
+            cached_fraction=applied,
             rule=rule,
             batch=period.batch,
         )
-        _, _, _, _, _, upper = _amounts(
+        _, _, _, _, _, at_zero = _amounts(
             billable_requests=billable,
             avg_input_tokens=per_req_input,
             avg_output_tokens=period.avg_output_tokens,
@@ -421,6 +427,7 @@ def compute_revenue(
             rule=rule,
             batch=period.batch,
         )
+        lower, upper = min(at_cap, at_zero), max(at_cap, at_zero)
 
         gross = in_rev + out_rev
         discount = gross - revenue
@@ -490,7 +497,7 @@ def compute_revenue(
 
     notes = [
         "收入从业务请求量推算，未使用第一阶段的理论满载收入口径",
-        "收入区间 = [最大折扣下界, 完全不打折上界]；基准值不是保守下界（缓存价更低时折扣越多收入越低）",
+        "收入区间按「可计费占比 ∈ [0, 合同允许上限]」两端计算并按实际金额排序；基准值是这个区间里的一点，**不是保守下界**（可计费占比越小、缓存价越低时收入越高）",
         "请求量分三段记录：需求 / 成功服务 / 可计费，失败请求是否计费由合同口径决定",
     ]
     if scenario.periods_cover == "one_day":

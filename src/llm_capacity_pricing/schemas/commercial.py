@@ -477,12 +477,29 @@ class SlaEvidenceRecord(BaseModel):
     target_identity: dict[str, Any]
     status: SlaStatusLiteral
     match_level: MatchLevelLiteral | None = None
+    #: 代表运行 ID：单条实测是 run_id，多条聚合是 ``aggregate:<成员 run_id 列表>``
     matched_run_id: str | None = None
+    #: **参与该结论的全部实测 run_id**（V4.2 E2）：聚合证据必须保存成员列表，
+    #: 复核时据此重放，而不是拿 ``aggregate:...`` 字符串去原始表里查。
+    supporting_run_ids: list[str] = Field(default_factory=list)
     data_trust: str | None = None
+
+    # ---- 生产可信度（V4.2 E1）------------------------------------------
+    #: 匹配结论是否**仅用于算法验证**（第三阶段 allow_synthetic 路径）
+    algorithm_validation_only: bool = False
+    #: 当次 SLA 评估是否启用了 allow_synthetic
+    allow_synthetic_used: bool = False
+    #: 匹配证明是否声明禁止用于 sla_proof
+    sla_proof_blocked: bool = False
+    #: 评估策略快照（关键字段），用于复核时判断策略是否被更换
+    policy_snapshot: dict[str, Any] = Field(default_factory=dict)
+
     policy_id: str
     evaluated_at: datetime
-    #: 评估时 run 池的指纹（数据集变化即视为证据不可复现）
+    #: 评估时 run 池的指纹（含归一化指标快照；数据变化即视为证据不可复现）
     run_pool_hash: str
+    #: 覆盖"目标身份 + 需求 + 匹配证明 + 参与 Run 指标 + 策略 + 商务方案"的规范化指纹
+    input_snapshot_hash: str
 
     @model_validator(mode="after")
     def _guard(self) -> "SlaEvidenceRecord":
@@ -490,6 +507,20 @@ class SlaEvidenceRecord(BaseModel):
             raise ValueError("observed_pass 的 SLA 证据必须来自 exact_match")
         if self.status in ("observed_pass", "observed_fail") and not self.matched_run_id:
             raise ValueError("实测类 SLA 结论必须绑定 matched_run_id")
+        if self.matched_run_id and not self.supporting_run_ids:
+            raise ValueError(
+                "必须记录 supporting_run_ids：聚合证据（aggregate:...）不是真实 run_id，"
+                "没有成员列表就无法重放"
+            )
+        if self.matched_run_id and self.matched_run_id.startswith("aggregate:"):
+            members = ",".join(sorted(self.supporting_run_ids))
+            if self.matched_run_id != f"aggregate:{members}":
+                raise ValueError(
+                    "聚合证据的 matched_run_id 必须等于 aggregate:<排序后的成员 run_id>"
+                )
+        if self.algorithm_validation_only and self.status == "observed_pass":
+            # 允许记录，但调用方（门禁）必须能看出它不能用于生产
+            pass
         return self
 
 

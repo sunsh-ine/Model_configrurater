@@ -14,7 +14,7 @@
 
 | 结论 | 状态 | 依据 |
 |---|---|---|
-| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`50/50` 全链路步骤通过，`587 passed` |
+| **工程功能是否完成** | ✅ **完成** | M26–M34 全部落地：管理层、TCO 引擎、收益引擎、报价门禁、比较与敏感性、报告与受限接口；`50/50` 全链路步骤通过，`607 passed` |
 | **商业数据是否确认** | ⛔ **未确认** | 仓库内成本/计费数据全部为 `synthetic_example` 或 `pending_business_confirmation`；币种状态为 `assumed`/`unconfirmed`。尚无任何真实合同价接入 |
 | **SLA 是否具备实测依据** | ⛔ **不具备** | 目标配置（Qwen3-32B × H100/H200）无 `exact_match` 的可信实测，第三阶段结论恒为 `not_evaluable` / `requires_benchmark`，本阶段**未做任何放宽** |
 | **正式报价是否可发布** | ⛔ **不可发布** | 四维门禁三个维度未过（成本不完整、SLA 未验证、无人工确认与审批）。报告输出**阻断说明**而非报价金额 |
@@ -27,7 +27,7 @@
 | 任务书要求 | 交付物 |
 |---|---|
 | 源码 | `schemas/tco.py`、`schemas/commercial.py`、`schemas/decision.py`、`engines/tco.py`、`engines/revenue.py`、`engines/quote_gate.py`、`decision/comparison.py`、`decision/sensitivity.py`、`reporting/tco_report.py`、`agent_api.py`、`importers/cost_catalog.py` |
-| 测试 | `tests/test_phase4_tco.py`（88 个用例） |
+| 测试 | `tests/test_phase4_tco.py`（108 个用例） |
 | TCO 手算对照案例 | 见本文 §三；用例 `test_m28_hand_computed_tco_matches_engine` |
 | 方案比较示例 | `data/exports/phase4_report.md` §2；用例 `test_m31_*` |
 | 报价阻断示例 | `data/exports/phase4_report.md` §7；用例 `test_m30_*`、`test_m33_report_blocks_quote_and_watermarks` |
@@ -153,7 +153,7 @@ bash scripts/verify_all.sh
 | 项 | 结果 |
 |---|---|
 | 全链路步骤 | **47 / 47 通过**（第四阶段 11 步，其中 4 步为**断言式**） |
-| 全量测试 | **587 passed**（第三阶段 499 → 第四阶段新增 88） |
+| 全量测试 | **607 passed**（第三阶段 499 → 第四阶段新增 108） |
 | 第一阶段回归 | 默认情景 **160**（32×5）、`pricing_result` 总数 **192**、超容差不匹配 **0** —— 不变 |
 | 敏感数据扫描 | 已跟踪文件中未发现内部定价数值；忽略规则校验通过 |
 
@@ -229,7 +229,7 @@ phase4.quote_eligibility / phase4.decision / phase3.performance_inventory
 
 ## 十、安全事项（**独立、未闭环、未授权执行**）
 
-仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 587 项测试通过而消除**，
+仓库为 Public，历史提交中曾出现内部定价数据。该风险**不因 607 项测试通过而消除**，
 也不能由本阶段的功能开发替代处理。方案与影响评估见
 `docs/security_remediation_report.md` §4。
 
@@ -398,7 +398,7 @@ USD 收入减 CNY 成本也能得出"利润 200"。
 
 * 全链路 `50/50` 通过，其中**断言式**步骤 4 个（租赁口径、缺价不完整、
   证据未核验必须阻断、不接受状态字符串）+ **反向场景**步骤 1 个；
-* 全量测试 **587 passed**，第一阶段回归 **160 / 192 / 0 超容差** 不变；
+* 全量测试 **607 passed**，第一阶段回归 **160 / 192 / 0 超容差** 不变；
 * 任务书对照：V4.0 正文未随指令提供，本节按复审列出的差异项
   （成本类别覆盖策略、审批登记与证据绑定、价格有效期、报价作用域、
   需求成功率、币种可比性、可复算输入快照）逐项落实；
@@ -419,3 +419,147 @@ evaluate_quote_eligibility(
 ```
 
 四个维度独立，**没有任何参数可以放宽门禁**；调用方无法只靠传字符串影响结论。
+
+---
+
+# 附：V4.2 定向加固（E1–E7）
+
+复审在 V4.1 基础上指出三处遗留：算法验证结果可能进入正式报价、聚合证据无法重放、
+快照与审批作用域未闭合。另有两处模型口径问题（收入区间、Little 定律）。本轮逐项修复。
+
+## B.1 E1（P0）正式报价禁止 Synthetic / 算法验证
+
+**问题**：`_sla_dimension()` 只看重放后的 `status == observed_pass` 与
+`match_level == exact_match`，没有检查数据可信等级、匹配证明的 `sla_proof` 禁令、
+`algorithm_validation_only` 标记，以及当次 SLA 评估是否启用了 `allow_synthetic`。
+第三阶段允许显式 `allow_synthetic=True` 产出仅用于算法验证的 `observed_pass` ——
+这是合理的测试设计，但**不能**被第四阶段当作生产依据。
+
+**整改**：第四阶段自建一道**不可被任何策略放宽**的生产可信度门禁
+（`PRODUCTION_TRUST_LEVELS`），在门禁里逐条检查：
+
+| 检查 | 阻断原因码 |
+|---|---|
+| 记录的数据可信等级必须属于测量类 | `sla_data_trust_not_production` |
+| 匹配证明不得仅限算法验证 | `sla_algorithm_validation_only` |
+| 当次评估不得启用 `allow_synthetic` | `sla_allow_synthetic_used` |
+| 匹配证明不得声明禁止 `sla_proof` | `sla_proof_blocked_by_match` |
+| **重放**得到的可信等级与质量标记同样要过门禁 | `sla_recheck_data_trust_not_production` / `sla_recheck_algorithm_validation_only` |
+
+证据记录新增 `algorithm_validation_only` / `allow_synthetic_used` / `sla_proof_blocked` /
+`policy_snapshot` 字段，把"这是算法验证口径"永久留在记录里。
+`record-sla-evidence` 同时输出 `production_grade` 布尔值，便于人工一眼判断。
+
+**复现**：`test_e1_synthetic_evidence_never_reaches_formal_quote`（用
+`allow_synthetic=True` 真的跑出 `observed_pass`，再确认门禁拒绝）、
+`test_e1_quality_flags_block_formal_quote`、
+`test_e1_production_trust_levels_are_enforced_by_recheck_too`；
+反向场景脚本路径 5（12/12 全阻断）。
+
+## B.2 E2（P0）聚合 SLA 证据可重放
+
+**问题**：多条实测保守聚合后，`record_sla_evidence_for()` 把
+`matched_run_id` 存成 `aggregate:run-a,run-b`；而 `_recheck_sla_evidence()`
+拿这个字符串去原始 `benchmark_run` 表里查 —— 聚合记录只是运行时产物，
+表里没有这一行，于是**必然** `matched_run_not_found`。这是确定的流程断裂。
+
+**整改**：
+
+1. 证据记录保存 **`supporting_run_ids`**（全部参与实测），并有 schema 校验
+   —— 聚合证据的 `matched_run_id` 必须精确等于 `aggregate:<排序后的成员>`；
+2. 复核**不再**用 `matched_run_id` 去表里查。改为：用记录里的**目标身份快照**
+   重新匹配整个证据池，比较重放得到的代表运行与记录是否一致；
+3. `_aggregate_runs()` 的聚合 ID 改为**对成员排序**，保证同一组实测得到同一个 ID
+   （否则重放时无法比对）。
+
+**复现**：`test_e2_aggregate_evidence_replays_without_lookup_failure`（两条同配置实测
+→ 聚合 → 重放成功）、`test_e2_aggregate_id_is_deterministic`、
+`test_e2_supporting_runs_must_still_exist`。
+
+## B.3 E3（P0）完整快照与审批作用域
+
+**问题**（三处）：
+
+| 位置 | 问题 |
+|---|---|
+| `_recheck_sla_evidence()` | 用调用方传入的 facts 计算，而不是记录里的 `target_identity`，也未比对两者 |
+| `run_pool_hash` | 创建时保存了，复核时不比较；且指纹只含 run_id/哈希/可信等级，未覆盖指标数值 |
+| `_approval_dimension()` | 未检查 `scenario_id` / `billing_rule_id` 与审批作用域的一致性 |
+
+**整改**：
+
+1. **目标身份以记录为准**：重放用 `record.target_identity` 构造目标；
+   调用方传的 facts 只用于**比对**，不一致即 `sla_target_identity_changed`；
+2. **run 池指纹比较**：复核时重算并比对，不一致即 `sla_run_pool_changed`；
+   指纹扩展到**归一化指标快照**（并发、负载长度、到达方式、吞吐、TTFT/TPOT、
+   mean/p99 E2E、失败率、样本量、时长）—— 只改数值不改 ID 也会被检出
+   （`test_e3_run_pool_hash_covers_metric_values` 专门验证这一点）；
+3. **规范化输入指纹** `input_snapshot_hash`：覆盖目标身份 + SLA Requirement +
+   匹配证明等级 + 参与 Run + 评估策略快照 + 商务方案；
+4. **策略快照比对**：策略被换过（例如把 `allow_synthetic` 打开）即
+   `policy_changed`，旧证据不可复现；
+5. **审批作用域补齐** `scenario_id` / `billing_rule_id`：任一不符即
+   `approval_scope_mismatch`。
+
+**复现**：`test_e3_run_pool_change_invalidates_evidence`、
+`test_e3_target_identity_change_invalidates_evidence`、`test_e3_policy_change_is_detected`、
+`test_e3_run_pool_hash_covers_metric_values`、
+`test_e3_approval_scope_covers_scenario_and_billing_rule`。
+
+## B.4 E4（P1）收入区间遵守合同计费范围
+
+**问题**：`high = min(1, max(业务估计, 合同上限))` 用 `max()` **扩大了合同上限**
+—— 合同只允许 20%、业务估计 60% 时，下界仍按 60% 计折扣，超出合同允许范围。
+
+**整改**：合同允许的可计费占比区间是 `[0, min(业务估计, 合同上限)]`。
+收入区间由该区间**两端**算出，并按**实际金额大小排序**
+（不预设"缓存价一定更低"；缓存价更高时区间方向自然反转）。
+
+**复现**：`test_e4_lower_bound_never_exceeds_contract_cap`（显式断言下界不等于按 60%
+计算的值）、`test_e4_bounds_follow_actual_price_ordering`。
+
+## B.5 E5（P1）Little 定律统计口径
+
+**问题**：`residence = P99 TTFT + P99 TPOT × 输出长度` 是**两个 P99 拼出来的上界**，
+不是 Little 定律要求的**平均**驻留时间。用它反推会显著高估平均并发需求，
+从而错误拒绝实际可行的配置。
+
+**整改**：并发子项改用实测 `e2e_mean_ms`；**没有 mean E2E 就把该子项标 `unknown`**，
+绝不用 P99 代替。缺失时容量结论只能是 `partially_verified`。
+
+**复现**：`test_e5_little_law_requires_mean_e2e`、`test_e5_mean_e2e_enables_concurrency_judgement`。
+
+## B.6 E6（P1）覆盖策略可信度
+
+**问题**：覆盖策略本身没有授权概念 —— 谁都可以写一份"只要求 1 个类别"的策略，
+把大量成本合法地排除在"完整性检查"之外。
+
+**整改**：`CostCoveragePolicy` 新增 `authority`（`confirmed` / `draft` / `unauthorized`）
+与批准人、批准日期、凭据编号（`confirmed` 时必填）。非 `confirmed` 的策略：
+
+* 使 `TcoResult.incomplete = True`（`coverage_policy_not_authorized`）；
+* 被报价门禁阻断（`cost_coverage_policy_not_authorized`）。
+
+示例策略**故意标为 `draft`**：它是合成示例，不能声称获得任何真实批准。
+
+**复现**：`test_e6_draft_coverage_policy_blocks_production_quote`、
+`test_e6_confirmed_policy_requires_approval_audit_fields`、
+`test_e6_example_policy_is_draft_not_claimed_confirmed`。
+
+## B.7 E7 端到端与回归
+
+| 项 | 结果 |
+|---|---|
+| 全链路 | **50 / 50 通过**（断言式步骤 4 个 + 反向场景步骤 1 个，反向场景 12 项检查） |
+| 全量测试 | **607 passed**（第四阶段 88 → 108 用例） |
+| 第一阶段回归 | 默认情景 **160**、`pricing_result` **192**、超容差不匹配 **0** —— 不变 |
+
+## B.8 仍未闭环的事项（如实列出）
+
+1. **审批人身份与权限未认证**。`import-quote-approvals` 只做持久化，
+   没有独立的身份认证与权限校验（离线算法测试可接受，生产级需要受信任的
+   审批输入通道与 RBAC）。本轮**未实现**，需要上游系统提供。
+2. **任务书 V4.0 正文仍未提供**。B 节按复审列出的差异项逐条落实，
+   但尚未与 V4.0 原文做逐条对照。
+3. **真实商务数据与目标配置实测缺失**，与前几轮一致。
+4. **仓库为 Public，历史内部定价数据风险未闭环**，未重写历史。

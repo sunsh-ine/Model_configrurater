@@ -126,7 +126,7 @@ def import_quote_approvals(file, db) -> dict
 
 | 维度 | 通过条件 |
 |---|---|
-| `cost_estimate_status` | `TcoResult.incomplete == False`、币种已确认、无合成价格、**无未确认条目** |
+| `cost_estimate_status` | `TcoResult.incomplete == False`、币种已确认、无合成价格、无未确认条目、**覆盖策略已授权** |
 | `sla_verification_status` | 存在证据记录，且**重新推导**得到 `observed_pass` + `exact_match`，且与记录结论一致 |
 | `commercial_confirmation_status` | 币种 / 价格 / 条款三项人工确认，且在有效期内 |
 | `approval_status` | 存在审批记录、`decision=approved`、作用域匹配、**成本快照指纹一致**、未过期 |
@@ -137,6 +137,21 @@ def import_quote_approvals(file, db) -> dict
 2. 引用的实测必须仍存在，且重新匹配到的仍是同一条（否则 `evidence_run_superseded`）；
 3. 重新推导的等级/状态必须与记录一致（否则 `sla_evidence_stale`）；
 4. 成本快照指纹必须与审批一致（否则 `approval_cost_snapshot_stale`）。
+
+**V4.2 追加的生产可信度门禁**（不可被任何策略放宽）：
+
+* 证据的数据可信等级必须属于测量类（`synthetic_fixture` 一律拒绝）；
+* 匹配证明不得仅限算法验证（`algorithm_validation_only`）；
+* 当次 SLA 评估不得启用 `allow_synthetic`；
+* 匹配证明不得声明禁止 `sla_proof`；
+* **重放**得到的可信等级与质量标记同样要过这套门禁。
+
+**V4.2 追加的快照绑定**：
+
+* 重放使用记录里的 `target_identity`，调用方 facts 只用于比对；
+* `run_pool_hash` 在复核时重算并比对（指纹含归一化指标快照）；
+* 策略快照不一致即 `policy_changed`；
+* 审批作用域还覆盖 `scenario_id` 与 `billing_rule_id`。
 
 `quote_eligibility_from_claims()` 是**内部诊断**入口：恒返回
 `quote_publishable=False` 且 `claims_only=True`，且不会把声明升级为 `verified_measured`。
