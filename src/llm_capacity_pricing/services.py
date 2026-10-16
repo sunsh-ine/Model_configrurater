@@ -3219,3 +3219,411 @@ def export_phase4_report(
         ),
         "synthetic_disclaimer": PHASE4_SYNTHETIC_NOTICE,
     }
+
+
+# --------------------------------------------------------------------------
+# 第五阶段 M36：真实数据质量分级
+# --------------------------------------------------------------------------
+
+
+#: 生产级结论需要的最小指标集（缺任一项都不能支撑 SLA 判定）
+SLA_CRITICAL_METRICS = ("ttft_p99_ms", "tpot_p99_ms", "output_throughput_tok_s")
+
+
+def _quality_summary(counts: dict[str, dict[str, int]]) -> str:
+    total = sum(sum(v.values()) for v in counts.values())
+    if not total:
+        return "库中没有可评估的记录：请先按 docs/real_data_preparation.md 导入数据"
+    complete = sum(v.get("complete", 0) for v in counts.values())
+    synthetic = sum(v.get("synthetic", 0) for v in counts.values())
+    return (
+        f"共 {total} 条记录，其中 {complete} 条字段齐备且可用于生产级结论，"
+        f"{synthetic} 条为合成测试数据（仅用于算法验证）"
+    )
+
+
+def data_quality_report(db_path: str | Path = "data/local.db") -> dict[str, Any]:
+    """M36：按证据可用性给库内记录分级，并给出可执行的补数据指引。
+
+    **只读**：不修改任何记录的信任等级，也不会把 synthetic 升级为生产级。
+    """
+    from llm_capacity_pricing.perf.benchmark_matcher import (
+        RECORD_IDENTITY_FIELDS,
+        RECORD_WORKLOAD_IDENTITY_FIELDS,
+        is_absent,
+        signature_from_run,
+    )
+    from llm_capacity_pricing.schemas.data_quality import DataQualityItem
+    from llm_capacity_pricing.sizing.hardware import product_name_for_hardware_id
+
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            models = repo.list_model_specs(session)
+            hardware = repo.list_hardware(session)
+            servers = repo.list_servers(session)
+            runs = repo.list_benchmark_runs(session)
+            cost_items = repo.list_cost_catalog_items(session)
+            billing_rules = repo.list_billing_rules(session)
+            evidence_records = repo.list_sla_evidence(session)
+            approvals = repo.list_quote_approvals(session)
+    finally:
+        db.dispose()
+
+    items: list[DataQualityItem] = []
+
+    # ---- 模型结构 ----
+    for spec in models:
+        pending = list(getattr(spec, "fields_pending_verification", []) or [])
+        missing = [
+            name
+            for name in ("num_hidden_layers", "hidden_size", "num_attention_heads", "vocab_size")
+            if getattr(spec, name, None) is None
+        ]
+        if spec.status not in ("parsed", "ok", "verified"):
+            items.append(
+                DataQualityItem(
+                    domain="model", record_id=spec.model_id, status="not_applicable",
+                    reasons=[f"结构状态为 {spec.status!r}，本轮不支持"],
+                    usable_for=[],
+                    details={"status": spec.status},
+                )
+            )
+        elif missing or pending:
+            items.append(
+                DataQualityItem(
+                    domain="model", record_id=spec.model_id, status="missing_fields",
+                    reasons=[f"缺少结构字段 {missing}" if missing else ""]
+                    + ([f"待核实字段 {pending}"] if pending else []),
+                    usable_for=["reference", "modeling"],
+                    details={"missing": missing, "pending": pending},
+                )
+            )
+        else:
+            items.append(
+                DataQualityItem(
+                    domain="model", record_id=spec.model_id, status="complete",
+                    reasons=[], production_grade=True,
+                    usable_for=["reference", "modeling", "sizing"],
+                    details={"precision": spec.deployment_precision},
+                )
+            )
+
+    # ---- 硬件规格 ----
+    for hw in hardware:
+        if not getattr(hw, "supported_in_phase2", False):
+            items.append(
+                DataQualityItem(
+                    domain="hardware", record_id=hw.hardware_id, status="not_applicable",
+                    reasons=["本轮不支持的 SKU（规格未核实）"], usable_for=[],
+                    details={"verification_status": hw.verification_status},
+                )
+            )
+            continue
+        pending = list(getattr(hw, "fields_pending_verification", []) or [])
+        measured = hw.usable_memory_bytes is not None
+        if measured and not pending:
+            items.append(
+                DataQualityItem(
+                    domain="hardware", record_id=hw.hardware_id, status="complete",
+                    production_grade=True, usable_for=["reference", "sizing"],
+                    details={"usable_memory_status": hw.usable_memory_status},
+                )
+            )
+        else:
+            items.append(
+                DataQualityItem(
+                    domain="hardware", record_id=hw.hardware_id, status="missing_fields",
+                    reasons=(
+                        ([] if measured else [
+                            "可用显存未实测（usable_memory_bytes 为空）："
+                            "规划只会给出条件可行"
+                        ])
+                        + ([f"待核实字段 {pending}"] if pending else [])
+                    ),
+                    usable_for=["reference"],
+                    details={
+                        "usable_memory_status": hw.usable_memory_status,
+                        "pending": pending,
+                    },
+                )
+            )
+
+    for server in servers:
+        items.append(
+            DataQualityItem(
+                domain="server", record_id=server.server_id,
+                status=(
+                    "complete" if server.gpus_per_node else "missing_fields"
+                ),
+                reasons=[] if server.gpus_per_node else ["未声明每节点卡数"],
+                production_grade=bool(server.gpus_per_node),
+                usable_for=["reference", "sizing"],
+                details={"gpus_per_node": server.gpus_per_node},
+            )
+        )
+
+    # ---- 性能实测（最关键的一类）----
+    for run in runs:
+        sig = signature_from_run(run)
+        missing_identity = [
+            name for name in RECORD_IDENTITY_FIELDS if is_absent(getattr(sig, name, None))
+        ] + [
+            f"workload.{name}"
+            for name in RECORD_WORKLOAD_IDENTITY_FIELDS
+            if is_absent(getattr(sig.workload, name, None))
+        ]
+        missing_metrics = [
+            name
+            for name in SLA_CRITICAL_METRICS
+            if getattr(run.profile, name, None) is None
+        ]
+        trust = run.data_trust
+        details = {
+            "data_trust": trust,
+            "hardware_model": sig.hardware_model,
+            "hardware_id_hint": product_name_for_hardware_id(sig.hardware_model),
+            "missing_identity": missing_identity,
+            "missing_metrics": missing_metrics,
+            "raw_sha256": run.raw_sha256,
+        }
+        if trust == "synthetic_fixture":
+            items.append(
+                DataQualityItem(
+                    domain="benchmark_run", record_id=run.run_id, status="synthetic",
+                    reasons=["合成数据：仅用于算法验证，不得作为生产依据"],
+                    usable_for=["algorithm_validation"],
+                    details=details,
+                )
+            )
+        elif missing_identity or missing_metrics:
+            items.append(
+                DataQualityItem(
+                    domain="benchmark_run", record_id=run.run_id, status="missing_fields",
+                    reasons=(
+                        ([f"部署/负载身份不完整：{missing_identity}"] if missing_identity else [])
+                        + ([f"缺少 SLA 关键指标：{missing_metrics}"] if missing_metrics else [])
+                    ),
+                    usable_for=["reference"] if missing_metrics else [],
+                    details=details,
+                )
+            )
+        elif trust not in PHASE4_TRUSTED_LEVELS:
+            items.append(
+                DataQualityItem(
+                    domain="benchmark_run", record_id=run.run_id, status="unverified",
+                    reasons=[
+                        f"来源可信等级为 {trust!r}，不属于可用于生产结论的等级"
+                        f"（{list(PHASE4_TRUSTED_LEVELS)}）"
+                    ],
+                    usable_for=["reference", "modeling"],
+                    details=details,
+                )
+            )
+        else:
+            items.append(
+                DataQualityItem(
+                    domain="benchmark_run", record_id=run.run_id, status="complete",
+                    production_grade=True, usable_for=["sla_proof", "capacity_analysis"],
+                    details=details,
+                )
+            )
+
+    # ---- 成本目录 ----
+    for item in cost_items:
+        detail = {
+            "category": item.category,
+            "price_basis": item.price_basis,
+            "currency": item.currency,
+            "currency_status": item.currency_status,
+            "status": item.status,
+            "applies_to_hardware_id": item.applies_to_hardware_id,
+            "region": item.region,
+        }
+        if item.status == "synthetic_example":
+            items.append(
+                DataQualityItem(
+                    domain="cost_item", record_id=item.item_id, status="synthetic",
+                    reasons=["合成示例价格：不得用于正式报价"],
+                    usable_for=["algorithm_validation"], details=detail,
+                )
+            )
+        elif item.unit_price is None:
+            items.append(
+                DataQualityItem(
+                    domain="cost_item", record_id=item.item_id, status="missing_fields",
+                    reasons=["缺少 unit_price（未知不等于零）"], usable_for=[],
+                    details=detail,
+                )
+            )
+        elif item.status != "confirmed" or item.currency_status != "confirmed":
+            items.append(
+                DataQualityItem(
+                    domain="cost_item", record_id=item.item_id, status="unverified",
+                    reasons=[
+                        f"价格状态 {item.status!r}、币种状态 {item.currency_status!r}："
+                        "需人工确认后方可进入正式报价"
+                    ],
+                    usable_for=["modeling"], details=detail,
+                )
+            )
+        else:
+            items.append(
+                DataQualityItem(
+                    domain="cost_item", record_id=item.item_id, status="complete",
+                    production_grade=True, usable_for=["formal_quote"], details=detail,
+                )
+            )
+
+    for rule in billing_rules:
+        detail = {
+            "model_name": rule.model_name,
+            "currency": rule.currency,
+            "currency_status": rule.currency_status,
+            "billable_cache_basis": rule.billable_cache_basis,
+            "status": rule.status,
+        }
+        if rule.status == "synthetic_example":
+            status, reasons = "synthetic", ["合成示例计费规则：不得用于正式报价"]
+            usable = ["algorithm_validation"]
+        elif rule.status != "confirmed":
+            status, reasons = "unverified", [
+                f"计费规则状态 {rule.status!r}：需人工确认"
+            ]
+            usable = ["modeling"]
+        elif rule.billable_cache_basis in ("assumed", "unknown"):
+            status, reasons = "unverified", [
+                f"可计费缓存比例依据为 {rule.billable_cache_basis!r}：未经合同确认"
+            ]
+            usable = ["modeling"]
+        else:
+            status, reasons = "complete", []
+            usable = ["formal_quote"]
+        items.append(
+            DataQualityItem(
+                domain="billing_rule", record_id=rule.rule_id, status=status,  # type: ignore[arg-type]
+                reasons=reasons, production_grade=(status == "complete"),
+                usable_for=usable, details=detail,
+            )
+        )
+
+    # ---- 治理证据 ----
+    for record in evidence_records:
+        production = (
+            record.status == "observed_pass"
+            and record.match_level == "exact_match"
+            and record.data_trust in PHASE4_TRUSTED_LEVELS
+            and not record.algorithm_validation_only
+            and not record.allow_synthetic_used
+            and not record.sla_proof_blocked
+        )
+        reasons: list[str] = []
+        if record.algorithm_validation_only or record.allow_synthetic_used:
+            reasons.append("该证据来自算法验证口径（allow_synthetic），不得用于正式报价")
+        if record.data_trust not in PHASE4_TRUSTED_LEVELS:
+            reasons.append(f"可信等级 {record.data_trust!r} 不属生产级")
+        if record.status != "observed_pass":
+            reasons.append(f"SLA 状态为 {record.status!r}")
+        items.append(
+            DataQualityItem(
+                domain="sla_evidence", record_id=record.sla_evaluation_id,
+                status=(
+                    "complete" if production
+                    else ("synthetic" if record.allow_synthetic_used else "unverified")
+                ),
+                reasons=reasons,
+                production_grade=production,
+                usable_for=["sla_proof"] if production else ["algorithm_validation"],
+                details={
+                    "status": record.status,
+                    "match_level": record.match_level,
+                    "data_trust": record.data_trust,
+                    "supporting_run_ids": list(record.supporting_run_ids),
+                },
+            )
+        )
+
+    for approval in approvals:
+        ok = approval.decision == "approved"
+        items.append(
+            DataQualityItem(
+                domain="approval", record_id=approval.approval_id,
+                status="complete" if ok else "unverified",
+                reasons=[] if ok else [f"审批决定为 {approval.decision!r}"],
+                # 注意：即使记录标记为 approved，本系统**没有**校验审批人身份与权限，
+                # 因此 production_grade 恒为 False（部署级限制）。
+                production_grade=False,
+                usable_for=[],
+                details={
+                    "decision": approval.decision,
+                    "approved_by": approval.approved_by,
+                    "document_ref": approval.document_ref,
+                    "identity_verified": False,
+                    "note": "未接入可信审批系统：审批人身份与权限未经校验",
+                },
+            )
+        )
+
+    counts: dict[str, dict[str, int]] = {}
+    for item in items:
+        counts.setdefault(item.domain, {})
+        counts[item.domain][item.status] = counts[item.domain].get(item.status, 0) + 1
+
+    gaps = _data_gaps(counts, runs=runs, cost_items=cost_items, rules=billing_rules)
+    return {
+        "counts": counts,
+        "items": [i.model_dump(mode="json") for i in items],
+        "gaps": gaps,
+        "summary": _quality_summary(counts),
+        "notice": (
+            "本报告只读：不修改任何记录的信任等级，也不把 synthetic/未验证数据"
+            "升级为生产级。补数据指引见 docs/real_data_preparation.md。"
+        ),
+    }
+
+
+def _data_gaps(
+    counts: dict[str, dict[str, int]],
+    *,
+    runs: Sequence[Any],
+    cost_items: Sequence[Any],
+    rules: Sequence[Any],
+) -> list[str]:
+    """把质量分级翻译成**可执行**的补数据指引。"""
+    gaps: list[str] = []
+    run_counts = counts.get("benchmark_run", {})
+    if not runs:
+        gaps.append(
+            "benchmark_run：库中没有任何性能实测；用 import-performance 导入目标配置的"
+            "压测结果（实验清单见 docs/real_data_preparation.md §3）"
+        )
+    elif run_counts.get("complete", 0) == 0:
+        gaps.append(
+            "benchmark_run：没有任何**可直接用于生产结论**的实测"
+            f"（当前分布 {run_counts}）；需补齐部署/负载身份与 "
+            f"{list(SLA_CRITICAL_METRICS)}，并让来源属于测量类可信等级"
+        )
+    hw_counts = counts.get("hardware", {})
+    if hw_counts.get("missing_fields", 0):
+        gaps.append(
+            "hardware：有 SKU 尚未实测可用显存（usable_memory_bytes 为空）："
+            "在工作机上执行 nvidia-smi 记录实际可分配显存后再规划"
+        )
+    cost_counts = counts.get("cost_item", {})
+    if cost_counts and cost_counts.get("complete", 0) == 0:
+        gaps.append(
+            "cost_item：没有已确认价格；TCO 可以算，但成本结论会标为不完整、不能报价"
+        )
+    if not cost_items:
+        gaps.append("cost_item：成本目录为空；用 import-cost-catalog 导入")
+    if rules and all(r.status != "confirmed" for r in rules):
+        gaps.append("billing_rule：没有已确认的计费规则；正式报价必须绑定有效规则")
+    if not rules:
+        gaps.append("billing_rule：没有任何计费规则；报价门禁会直接阻断")
+    approval_counts = counts.get("approval", {})
+    if not approval_counts:
+        gaps.append(
+            "approval：没有人工审批记录。注意：本系统未接入可信审批系统，"
+            "即便导入记录也不构成生产发布授权"
+        )
+    return gaps

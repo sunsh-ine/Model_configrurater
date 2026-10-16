@@ -882,7 +882,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-16T10:46:09",
+  "generated_at": "2026-10-16T11:01:56",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -910,7 +910,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-16T10:46:11",
+  "generated_at": "2026-10-16T11:01:56",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -1998,7 +1998,41 @@ SLA 状态: observed_pass
   "group_count": 1
 }
 
-=== 33. import-cost-catalog（M27 成本目录 + 计费规则；合成示例） ===
+=== 33. data-quality（M36 数据质量分级 + 可执行补数据指引） ===
+共 14 条记录，其中 4 条字段齐备且可用于生产级结论，5 条为合成测试数据（仅用于算法验证）
+  benchmark_run: {'synthetic': 5}
+  hardware: {'not_applicable': 3, 'missing_fields': 2}
+  model: {'complete': 2}
+  server: {'complete': 2}
+补数据指引：
+  - benchmark_run：没有任何**可直接用于生产结论**的实测（当前分布 {'synthetic': 5}）；需补齐部署/负载身份与 ['ttft_p99_ms', 'tpot_p99_ms', 'output_throughput_tok_s']，并让来源属于测量类可信等级
+  - hardware：有 SKU 尚未实测可用显存（usable_memory_bytes 为空）：在工作机上执行 nvidia-smi 记录实际可分配显存后再规划
+  - cost_item：成本目录为空；用 import-cost-catalog 导入
+  - billing_rule：没有任何计费规则；报价门禁会直接阻断
+  - approval：没有人工审批记录。注意：本系统未接入可信审批系统，即便导入记录也不构成生产发布授权
+已写入 data/exports/data_quality.json
+{
+  "summary": "共 14 条记录，其中 4 条字段齐备且可用于生产级结论，5 条为合成测试数据（仅用于算法验证）",
+  "counts": {
+    "model": {
+      "complete": 2
+    },
+    "hardware": {
+      "not_applicable": 3,
+      "missing_fields": 2
+    },
+    "server": {
+      "complete": 2
+    },
+    "benchmark_run": {
+      "synthetic": 5
+    }
+  },
+  "gap_count": 5,
+  "notice": "本报告只读：不修改任何记录的信任等级，也不把 synthetic/未验证数据升级为生产级。补数据指引见 docs/real_data_preparation.md。"
+}
+
+=== 34. import-cost-catalog（M27 成本目录 + 计费规则；合成示例） ===
 已导入 12 个成本项、1 条计费规则
 注意：其中 11 项为合成示例价格，不得用于正式报价
 {
@@ -2009,7 +2043,7 @@ SLA 状态: observed_pass
   "currency_status": "assumed"
 }
 
-=== 34. cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项） ===
+=== 35. cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项） ===
 成本项 12 项，计费规则 1 条，人工确认 0 条
 缺单价（不得按 0 处理）：['syn-infiniband-fabric']
 {
@@ -2048,7 +2082,7 @@ SLA 状态: observed_pass
   "synthetic_disclaimer": "本仓库中的第四阶段成本/计费数据为**合成示例**（synthetic_example 或 pending_business_confirmation），不是任何真实报价；真实商务数据不入版本库。"
 }
 
-=== 35. tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解） ===
+=== 36. tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解） ===
 TCO：一次性 1680000，年现金 101747.0720，全周期 1985241.2160（owned）
 成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项']
 {
@@ -2064,7 +2098,7 @@ TCO：一次性 1680000，年现金 101747.0720，全周期 1985241.2160（owned
   "excluded_items": []
 }
 
-=== 36. tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除） ===
+=== 37. tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除） ===
 TCO：一次性 None，年现金 701747.0720，全周期 2105241.2160（leased）
 成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项']
 {
@@ -2082,7 +2116,7 @@ TCO：一次性 None，年现金 701747.0720，全周期 2105241.2160（leased�
   ]
 }
 
-=== 37. tco（M28 断言：缺价项 -> incomplete，未知不等于零） ===
+=== 38. tco（M28 断言：缺价项 -> incomplete，未知不等于零） ===
 TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned）
 成本不完整（不得用于正式报价）：['contains_synthetic_prices: 使用了合成示例价格，不得用于正式口径', 'coverage_gap:maintenance,network,operations,software_license（类别未选入且未显式排除：不选它不等于它不存在）', 'coverage_policy_not_authorized:draft（策略未经批准：可以计算，但不得声称完整口径）', 'currency_not_confirmed: 存在未确认币种的成本项', 'unknown_cost_items:network/syn-infiniband-fabric（缺价格或缺假设：未知不等于零，总额不完整）']
 {
@@ -2100,7 +2134,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "excluded_items": []
 }
 
-=== 38. revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证） ===
+=== 39. revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证） ===
 年度收入 683980.80 CNY（容量比对：unknown_no_measurement）
 容量未验证：该收入仅作情景分析，不得作为产能承诺
 {
@@ -2112,7 +2146,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "period_revenue_total": "1873.92"
 }
 
-=== 39. record-sla-evidence（F4.1 断言：synthetic 曲线不得成为 observed_pass） ===
+=== 40. record-sla-evidence（F4.1 断言：synthetic 曲线不得成为 observed_pass） ===
 已生成 SLA 证据 sla::demo-owned::req-phase4（status=not_evaluable match_level=None）
 该证据不是 observed_pass + exact_match：报价门禁不会据此放行性能承诺
 {
@@ -2124,13 +2158,13 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "data_trust": null,
   "algorithm_validation_only": false,
   "allow_synthetic_used": false,
-  "run_pool_hash": "4c35af31f43acc2fd3b4adf840a2c085d76a71b0e3f8b0a78a0f71646672503a",
+  "run_pool_hash": "90ec1d1cc3cbb74bbbc9faf82ac8a6fd83e674c04db0ae6f198db6e505d917e9",
   "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
   "production_grade": false,
   "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
 }
 
-=== 40. import-commercial-confirmations（人工确认记录，示例占位） ===
+=== 41. import-commercial-confirmations（人工确认记录，示例占位） ===
 已导入 1 条商务确认记录
 {
   "file": "data/examples/phase4_commercial_confirmation.example.yaml",
@@ -2140,7 +2174,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   }
 }
 
-=== 41. import-quote-approvals（F4.1 人工审批记录，示例占位） ===
+=== 42. import-quote-approvals（F4.1 人工审批记录，示例占位） ===
 已导入 2 条审批记录
 {
   "file": "data/examples/phase4_approvals.example.yaml",
@@ -2152,7 +2186,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "notice": "审批记录由人工提供；Agent 无任何接口可生成审批。"
 }
 
-=== 42. quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因） ===
+=== 43. quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因） ===
 正式报价不可发布
   - approval_billing_rule_stale: 审批绑定的计费规则内容与当前不一致（审批 000000000000… vs 当前 09cb05b87211…）
   - billing_rule_currency_unconfirmed:assumed
@@ -2194,7 +2228,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   ]
 }
 
-=== 43. quote-eligibility（F4.1 断言：不接受调用方状态字符串，必须要求证据 ID） ===
+=== 44. quote-eligibility（F4.1 断言：不接受调用方状态字符串，必须要求证据 ID） ===
 Usage: python -m llm_capacity_pricing.cli quote-eligibility 
            [OPTIONS]
 Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
@@ -2202,7 +2236,7 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 │ Missing option '--sla-evaluation-id'.                                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
-=== 44. 反向场景断言（F4.1：伪造声明 / 未核验证据 / 失配快照全部阻断） ===
+=== 45. 反向场景断言（F4.1：伪造声明 / 未核验证据 / 失配快照全部阻断） ===
 [ok]   成本侧确实「完整」（否则这个反向场景不成立）
 [ok]   声明式入口不得发布报价
 [ok]   声明式入口必须打 claims_only 标记
@@ -2223,7 +2257,7 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 
 反向场景检查通过 17/17：伪造声明、缺证据引用、未核验证据与失配成本快照全部被阻断。
 
-=== 45. phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路） ===
+=== 46. phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路） ===
 候选分桶: {'requires_benchmark': 2, 'excluded': 1}
 可发布正式报价的候选: 无
 已写入 data/exports/phase4_decision.json
@@ -2277,21 +2311,22 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
   ]
 }
 
-=== 46. phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明） ===
+=== 47. phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明） ===
 报告已写入 data/exports/phase4_report.md（27866 字节）
 {
   "report": "data/exports/phase4_report.md",
   "quote_publishable": false
 }
 
-=== 47. plan（S1 断言：仅有资源数据 -> partial 且资源领域已计算） ===
+=== 48. plan（S1 断言：仅有资源数据 -> partial 且资源领域已计算） ===
 整体状态: partial（领域: input=computed, sizing=computed, performance=not_configured, governance=not_configured, economics=not_configured）
 候选数: 3
-可发布正式报价的候选: 无
+报价技术资格（四维门禁）通过: 无
+生产发布授权: 未授权（未接入可信审批系统；正式报价须人工签发）
   缺少输入: sla: 未给出 SLA 需求，无法评价性能是否达标
   缺少输入: cost: 未给出成本方案模板，无法计算 TCO
   缺少输入: governance: 未给出 SLA 证据与审批引用，因此不生成报价资格结论
-报告已写入 data/exports/plan_minimal.md（3900 字节）
+报告已写入 data/exports/plan_minimal.md（4167 字节）
 {
   "status": "partial",
   "domains": {
@@ -2322,11 +2357,12 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
   }
 }
 
-=== 48. plan（S1 完整配置：四领域贯通，报价仍不可发布） ===
+=== 49. plan（S1 完整配置：四领域贯通，报价仍不可发布） ===
 整体状态: ok（领域: input=computed, sizing=computed, performance=computed, governance=computed, economics=computed）
 候选数: 3
-可发布正式报价的候选: 无
-报告已写入 data/exports/plan_full.md（5036 字节）
+报价技术资格（四维门禁）通过: 无
+生产发布授权: 未授权（未接入可信审批系统；正式报价须人工签发）
+报告已写入 data/exports/plan_full.md（5409 字节）
 结果已写入 data/exports/plan_full.json
 {
   "status": "ok",
@@ -2355,47 +2391,48 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
   }
 }
 
-=== 49. S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误） ===
+=== 50. S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误） ===
 ...........                                                              [100%]
-11 passed in 4.14s
+11 passed in 2.52s
 
-=== 50. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
+=== 51. 敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件） ===
 已跟踪文件中未发现内部定价数值（按本地特征表扫描 9 个特征串）
 忽略规则校验通过：data/exports 与 data/private 已排除，data/examples 可提交
 
-=== 51. pytest（全量，离线） ===
+=== 52. pytest（全量，离线） ===
 ........................................................................ [ 10%]
-........................................................................ [ 21%]
-........................................................................ [ 31%]
-........................................................................ [ 42%]
-........................................................................ [ 52%]
-........................................................................ [ 63%]
-........................................................................ [ 73%]
-........................................................................ [ 84%]
-........................................................................ [ 94%]
-...................................                                      [100%]
-683 passed in 91.68s (0:01:31)
+........................................................................ [ 20%]
+........................................................................ [ 30%]
+........................................................................ [ 40%]
+........................................................................ [ 50%]
+........................................................................ [ 60%]
+........................................................................ [ 71%]
+........................................................................ [ 81%]
+........................................................................ [ 91%]
+.............................................................            [100%]
+709 passed in 54.29s
 
-=== 52. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1340
-drwxrwxr-x  2 ssa ssa   4096 10月 16 10:47 .
-drwxrwxr-x 11 ssa ssa   4096 10月 16 10:46 ..
--rw-rw-r--  1 ssa ssa  21022 10月 16 10:46 deployment_plan.json
--rw-rw-r--  1 ssa ssa 153526 10月 16 10:46 legacy_results.json
--rw-rw-r--  1 ssa ssa 168877 10月 16 10:46 legacy_results_with_tests.json
--rw-rw-r--  1 ssa ssa  68122 10月 16 10:46 overview.md
--rw-rw-r--  1 ssa ssa   2821 10月 16 10:46 performance_report.md
--rw-rw-r--  1 ssa ssa 112127 10月 16 10:47 phase4_decision.json
--rw-rw-r--  1 ssa ssa  27866 10月 16 10:47 phase4_report.md
--rw-rw-r--  1 ssa ssa  10618 10月 16 10:47 plan_full.json
--rw-rw-r--  1 ssa ssa   5036 10月 16 10:47 plan_full.md
--rw-rw-r--  1 ssa ssa   3900 10月 16 10:47 plan_minimal.md
--rw-rw-r--  1 ssa ssa   7149 10月 16 10:46 scenario.json
--rw-rw-r--  1 ssa ssa 738349 10月 16 10:46 scenarios_sensitivity.json
--rw-rw-r--  1 ssa ssa  16845 10月 16 10:46 sizing_report.md
+=== 53. 产物清单（内部目录不入库，仅本地查看） ===
+总计 1356
+drwxrwxr-x  2 ssa ssa   4096 10月 16 11:02 .
+drwxrwxr-x 11 ssa ssa   4096 10月 16 11:02 ..
+-rw-rw-r--  1 ssa ssa   8208 10月 16 11:02 data_quality.json
+-rw-rw-r--  1 ssa ssa  21022 10月 16 11:02 deployment_plan.json
+-rw-rw-r--  1 ssa ssa 153526 10月 16 11:01 legacy_results.json
+-rw-rw-r--  1 ssa ssa 168877 10月 16 11:01 legacy_results_with_tests.json
+-rw-rw-r--  1 ssa ssa  68122 10月 16 11:02 overview.md
+-rw-rw-r--  1 ssa ssa   2821 10月 16 11:02 performance_report.md
+-rw-rw-r--  1 ssa ssa 112127 10月 16 11:02 phase4_decision.json
+-rw-rw-r--  1 ssa ssa  27866 10月 16 11:02 phase4_report.md
+-rw-rw-r--  1 ssa ssa  10807 10月 16 11:02 plan_full.json
+-rw-rw-r--  1 ssa ssa   5409 10月 16 11:02 plan_full.md
+-rw-rw-r--  1 ssa ssa   4167 10月 16 11:02 plan_minimal.md
+-rw-rw-r--  1 ssa ssa   7149 10月 16 11:01 scenario.json
+-rw-rw-r--  1 ssa ssa 738349 10月 16 11:01 scenarios_sensitivity.json
+-rw-rw-r--  1 ssa ssa  16845 10月 16 11:02 sizing_report.md
 
 ==== 汇总 ====
-步骤 53 项：通过 53，失败 0
-完成时间: 2026-10-16T10:48:51+08:00
+步骤 54 项：通过 54，失败 0
+完成时间: 2026-10-16T11:03:29+08:00
 环境: Python 3.12.3
 全部步骤通过。

@@ -224,6 +224,8 @@ class PlanCandidate(BaseModel):
     plan_id: str | None = None
     cost_basis: str | None = None
     currency: str | None = None
+    #: 成本计算周期（年）：跨周期不可直接比较全周期总额
+    horizon_years: int | None = None
     capex_one_time: Decimal | None = None
     annual_cash_opex: Decimal | None = None
     annual_total_cost: Decimal | None = None

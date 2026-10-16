@@ -429,8 +429,12 @@ step_plan_minimal() { # 仅有资源数据时必须出部分结果，而不是�
   if ! printf '%s' "$out" | grep -q 'sizing=computed'; then
     printf '断言失败：资源规划领域必须算出结论\n'; return 1
   fi
-  if ! printf '%s' "$out" | grep -q '可发布正式报价的候选: 无'; then
+  if ! printf '%s' "$out" | grep -q '报价技术资格（四维门禁）通过: 无'; then
     printf '断言失败：未配置治理时不得出现可发布候选\n'; return 1
+  fi
+  # M35：技术资格与生产发布授权必须分开陈述
+  if ! printf '%s' "$out" | grep -q '生产发布授权: 未授权'; then
+    printf '断言失败：必须明确生产发布授权仍未授权\n'; return 1
   fi
 }
 
@@ -563,45 +567,48 @@ run_step 32 "performance-report（M25 第三阶段报告）" 1 '^报告已写入
 # 第四阶段（M26-M33）：TCO、业务收益、报价门禁与部署决策
 # ---------------------------------------------------------------------------
 
-run_step 33 "import-cost-catalog（M27 成本目录 + 计费规则；合成示例）" 1 '^(已导入 [0-9]+ 个成本项|注意：)' \
+run_step 33 "data-quality（M36 数据质量分级 + 可执行补数据指引）" 1 '^  "(counts|gap_count|summary)"' \
+  $CLI data-quality --out "$OUT_DIR/data_quality.json" --db "$DB"
+
+run_step 34 "import-cost-catalog（M27 成本目录 + 计费规则；合成示例）" 1 '^(已导入 [0-9]+ 个成本项|注意：)' \
   $CLI import-cost-catalog --file "$P4_CATALOG" --db "$DB"
 
-run_step 34 "cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项）" 1 '^  "(item_count|billing_rule_count|items_missing_price|contains_synthetic)"' \
+run_step 35 "cost-catalog（M27 库存：类别 / 口径 / 状态 / 缺价项）" 1 '^  "(item_count|billing_rule_count|items_missing_price|contains_synthetic)"' \
   $CLI cost-catalog --db "$DB"
 
-run_step 35 "tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解）" 1 '^TCO：一次性|^  "(capex_one_time|annual_cash_opex|annual_depreciation|total_cash_over_horizon|incomplete)"' \
+run_step 36 "tco（M28 买断：一次性 / 年现金 / 折旧分开，含成本分解）" 1 '^TCO：一次性|^  "(capex_one_time|annual_cash_opex|annual_depreciation|total_cash_over_horizon|incomplete)"' \
   $CLI tco --plan-file "$P4_PLAN" --template syn-owned-3y \
     --candidate demo-owned --hardware nvidia-h100-sxm-80gb \
     --gpu-count 8 --server-count 1 --db "$DB"
 
-run_step 36 "tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除）" 1 '^TCO：一次性' \
+run_step 37 "tco（M28 断言：租赁无一次性投入 / 无折旧，买断项被排除）" 1 '^TCO：一次性' \
   step_tco_leased
 
-run_step 37 "tco（M28 断言：缺价项 -> incomplete，未知不等于零）" 1 '^成本不完整' \
+run_step 38 "tco（M28 断言：缺价项 -> incomplete，未知不等于零）" 1 '^成本不完整' \
   step_tco_unknown
 
-run_step 38 "revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证）" 1 '^年度收入|^  "(annual_revenue|currency|capacity_check|scenario_only|period_revenue_total)"' \
+run_step 39 "revenue-scenario（M29 业务请求量收益；无实测 -> 容量未验证）" 1 '^年度收入|^  "(annual_revenue|currency|capacity_check|scenario_only|period_revenue_total)"' \
   $CLI revenue-scenario --demand-file "$P4_DEMAND" --scenario syn-demand-base --db "$DB"
 
-run_step 39 "record-sla-evidence（F4.1 断言：synthetic 曲线不得成为 observed_pass）" 1 '^(已生成 SLA 证据|该证据不是)' \
+run_step 40 "record-sla-evidence（F4.1 断言：synthetic 曲线不得成为 observed_pass）" 1 '^(已生成 SLA 证据|该证据不是)' \
   step_record_sla_evidence
 
-run_step 40 "import-commercial-confirmations（人工确认记录，示例占位）" 1 '^已导入 [0-9]+ 条商务确认记录' \
+run_step 41 "import-commercial-confirmations（人工确认记录，示例占位）" 1 '^已导入 [0-9]+ 条商务确认记录' \
   $CLI import-commercial-confirmations --file "$P4_CONFIRMATION" --db "$DB"
 
-run_step 41 "import-quote-approvals（F4.1 人工审批记录，示例占位）" 1 '^已导入 [0-9]+ 条审批记录' \
+run_step 42 "import-quote-approvals（F4.1 人工审批记录，示例占位）" 1 '^已导入 [0-9]+ 条审批记录' \
   $CLI import-quote-approvals --file "$P4_APPROVALS" --db "$DB"
 
-run_step 42 "quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因）" 1 '^正式报价不可发布' \
+run_step 43 "quote-eligibility（F4.1 断言：引用真实证据仍必须阻断，且点名原因）" 1 '^正式报价不可发布' \
   step_quote_blocked_by_evidence
 
-run_step 43 "quote-eligibility（F4.1 断言：不接受调用方状态字符串，必须要求证据 ID）" 1 '必须提供|sla-evaluation-id' \
+run_step 44 "quote-eligibility（F4.1 断言：不接受调用方状态字符串，必须要求证据 ID）" 1 '必须提供|sla-evaluation-id' \
   step_quote_rejects_claims
 
-run_step 44 "反向场景断言（F4.1：伪造声明 / 未核验证据 / 失配快照全部阻断）" 1 '^反向场景检查通过' \
+run_step 45 "反向场景断言（F4.1：伪造声明 / 未核验证据 / 失配快照全部阻断）" 1 '^反向场景检查通过' \
   $PY scripts/check_forged_quote_blocked.py
 
-run_step 45 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路）" 1 '^(候选分桶:|可发布正式报价的候选:)|^  "per_candidate"' \
+run_step 46 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路）" 1 '^(候选分桶:|可发布正式报价的候选:)|^  "per_candidate"' \
   $CLI phase4-decision --model qwen3-32b --hardware nvidia-h100-sxm-80gb --server hgx-h100-8gpu \
     --plan-file "$P4_PLAN" --template syn-owned-3y \
     --demand-file "$P4_DEMAND" --scenario syn-demand-base \
@@ -611,27 +618,27 @@ run_step 45 "phase4-decision（M31/M32 资源-性能-TCO-收益-门禁全链路�
     --requirement '{"requirement_id":"req-phase4","ttft_p99_ms_max":400,"tpot_p99_ms_max":30}' \
     --out "$OUT_DIR/phase4_decision.json" --db "$DB"
 
-run_step 46 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明）" 1 '^报告已写入' \
+run_step 47 "phase4-report（M33 报告：四个独立结论 + 报价草稿阻断说明）" 1 '^报告已写入' \
   $CLI phase4-report --out "$OUT_DIR/phase4_report.md" \
     --decision-json "$OUT_DIR/phase4_decision.json" --db "$DB"
 
-run_step 47 "plan（S1 断言：仅有资源数据 -> partial 且资源领域已计算）" 1 '^整体状态:|^候选数:' \
+run_step 48 "plan（S1 断言：仅有资源数据 -> partial 且资源领域已计算）" 1 '^整体状态:|^候选数:' \
   step_plan_minimal
 
-run_step 48 "plan（S1 完整配置：四领域贯通，报价仍不可发布）" 1 '^整体状态:|^可发布正式报价的候选:' \
+run_step 49 "plan（S1 完整配置：四领域贯通，报价仍不可发布）" 1 '^整体状态:|^可发布正式报价的候选:' \
   $CLI plan --config "$S1_FULL" --out "$OUT_DIR/plan_full.md" \
     --json-out "$OUT_DIR/plan_full.json" --db "$DB"
 
-run_step 49 "S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误）" 1 '^[0-9]+ passed' \
+run_step 50 "S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误）" 1 '^[0-9]+ passed' \
   $PY -m pytest tests/test_s_phase_end_to_end.py -q
 
-run_step 50 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 51 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 51 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 52 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 52 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 53 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

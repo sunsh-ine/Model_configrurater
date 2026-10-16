@@ -365,7 +365,8 @@ def test_s1_cli_plan_full_without_governance_data(tmp_path, root):
     import_cost_catalog(CATALOG, db)
     result = runner.invoke(app, ["plan", "--config", FULL, "--db", db])
     assert result.exit_code == 0, result.stdout
-    assert "可发布正式报价的候选: 无" in result.stdout
+    assert "报价技术资格（四维门禁）通过: 无" in result.stdout
+    assert "生产发布授权: 未授权" in result.stdout
 
 
 def test_s1_cli_plan_bad_config_fails_loudly(tmp_path):

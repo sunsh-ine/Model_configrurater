@@ -515,6 +515,7 @@ def evaluate_plan(
                     plan_id=tco.plan_id if tco else None,
                     cost_basis=tco.cost_basis if tco else None,
                     currency=tco.currency if tco else None,
+                    horizon_years=tco.horizon_years if tco else None,
                     capex_one_time=tco.capex_one_time if tco else None,
                     annual_cash_opex=tco.annual_cash_opex if tco else None,
                     annual_total_cost=tco.annual_total_cost if tco else None,
@@ -639,14 +640,8 @@ def _recommendations(
         out.append(
             "在预算内的候选：" + "、".join(f"`{c.candidate_id}`" for c in affordable)
         )
-    if "economics" in domains and domains["economics"] == "computed":
-        complete = [c for c in candidates if not c.cost_incomplete]
-        if complete:
-            cheapest = min(complete, key=lambda c: c.total_cash_over_horizon or Decimal(0))
-            out.append(
-                f"成本完整且可比者中全周期成本最低：`{cheapest.candidate_id}`"
-                "—— 仅成本结论，不代表性能或可报价"
-            )
+    if domains.get("economics") == "computed":
+        out.extend(_cost_recommendations(candidates))
     buckets = {}
     for c in candidates:
         buckets[c.rank_bucket or c.performance_status] = (
@@ -662,6 +657,86 @@ def _recommendations(
     out.append(
         "本结果**不包含**跨维度综合评分：成本、性能与报价资格三者独立"
     )
+    return out
+
+
+def _cost_profile(candidate: PlanCandidate) -> Any:
+    """把候选的成本字段归约成可比性判据的输入（S3/M35：复用唯一权威规则）。"""
+    from llm_capacity_pricing.decision.comparison import CostProfile
+
+    return CostProfile(
+        currency=candidate.currency,
+        cost_basis=candidate.cost_basis,
+        horizon_years=candidate.horizon_years,
+        incomplete=candidate.cost_incomplete,
+        total_cash_over_horizon=candidate.total_cash_over_horizon,
+    )
+
+
+def _cost_recommendations(candidates: Sequence[PlanCandidate]) -> list[str]:
+    """成本高低结论（M35）。
+
+    复用第四阶段 ``cost_comparability``：**跨币种、跨买断/租赁口径、跨计算周期，
+    以及全周期金额缺失**的候选一律不参与比较 —— 尤其不得把缺失当成 0，
+    否则"最便宜"会落在根本没有成本数据的候选上。
+    """
+    from llm_capacity_pricing.decision.comparison import cost_comparability
+
+    out: list[str] = []
+    profiles = {c.candidate_id: _cost_profile(c) for c in candidates}
+
+    # 参照方案：第一个"成本完整且全周期金额已知"的候选
+    reference_id = None
+    reference_profile = None
+    for candidate in candidates:
+        profile = profiles[candidate.candidate_id]
+        if not profile.incomplete and profile.total_cash_over_horizon is not None:
+            reference_id, reference_profile = candidate.candidate_id, profile
+            break
+
+    if reference_profile is None:
+        out.append(
+            "没有任何候选具备**完整且金额已知**的成本结论："
+            "本结果不给出成本高低结论"
+        )
+        return out
+
+    comparable: list[PlanCandidate] = []
+    reasons: dict[str, str] = {}
+    for candidate in candidates:
+        kind, _notes = cost_comparability(profiles[candidate.candidate_id], reference_profile)
+        if kind == "comparable":
+            comparable.append(candidate)
+        elif candidate.candidate_id != reference_id:
+            reasons[candidate.candidate_id] = kind
+
+    if len(comparable) < 2:
+        out.append(
+            "可比且成本完整的候选不足 2 个：不给出最低成本候选"
+            f"（参照方案 `{reference_id}`"
+            f"，币种 {reference_profile.currency} / 口径 {reference_profile.cost_basis}"
+            f" / {reference_profile.horizon_years} 年）"
+        )
+        if reasons:
+            out.append(
+                "不可比候选及原因："
+                + "；".join(f"`{cid}` {kind}" for cid, kind in sorted(reasons.items()))
+            )
+        return out
+
+    cheapest = min(comparable, key=lambda c: c.total_cash_over_horizon)
+    out.append(
+        f"成本可比者中全周期成本最低：`{cheapest.candidate_id}`"
+        f"（与参照方案 `{reference_id}` 同为 {reference_profile.currency} / "
+        f"{reference_profile.cost_basis} / {reference_profile.horizon_years} 年）"
+        "—— 仅成本结论，不代表性能或可报价"
+    )
+    if reasons:
+        out.append(
+            "不可比候选及原因："
+            + "；".join(f"`{cid}` {kind}" for cid, kind in sorted(reasons.items()))
+            + "（跨币种/口径/周期或金额缺失，不参与成本排序）"
+        )
     return out
 
 

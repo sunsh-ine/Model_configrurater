@@ -50,6 +50,7 @@ from llm_capacity_pricing.services import (
     init_db,
     import_cost_catalog,
     cost_catalog_summary,
+    data_quality_report,
     import_commercial_confirmations,
     import_quote_approvals,
     record_sla_evidence_for,
@@ -141,8 +142,12 @@ def plan_cmd(
     typer.echo(f"候选数: {len(result.candidates)}")
     publishable = [c.candidate_id for c in result.candidates if c.quote_publishable]
     typer.secho(
-        f"可发布正式报价的候选: {publishable or '无'}",
+        f"报价技术资格（四维门禁）通过: {publishable or '无'}",
         fg=typer.colors.GREEN if publishable else typer.colors.YELLOW,
+    )
+    typer.secho(
+        "生产发布授权: 未授权（未接入可信审批系统；正式报价须人工签发）",
+        fg=typer.colors.YELLOW,
     )
     for b in result.blockers:
         typer.secho(f"  [{b.domain}] {b.code}: {b.message}", fg=typer.colors.RED)
@@ -971,6 +976,37 @@ def performance_report_cmd(
 # --------------------------------------------------------------------------
 # 第四阶段（M26–M33）：TCO、收益情景、报价门禁与部署决策
 # --------------------------------------------------------------------------
+
+
+@app.command("data-quality", rich_help_panel="③ 校验与库存")
+def data_quality_cmd(
+    out: Optional[str] = typer.Option(None, "--out", help="导出 JSON 路径"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """M36：按证据可用性给库内记录分级，并给出可执行的补数据指引。"""
+    info = data_quality_report(db)
+    typer.secho(info["summary"], fg=typer.colors.GREEN)
+    for domain, dist in sorted(info["counts"].items()):
+        typer.echo(f"  {domain}: {dist}")
+    if info["gaps"]:
+        typer.secho("补数据指引：", fg=typer.colors.YELLOW)
+        for gap in info["gaps"]:
+            typer.echo(f"  - {gap}")
+    if out:
+        path = Path(out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(info, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+        )
+        typer.echo(f"已写入 {out}")
+    _echo_json(
+        {
+            "summary": info["summary"],
+            "counts": info["counts"],
+            "gap_count": len(info["gaps"]),
+            "notice": info["notice"],
+        }
+    )
 
 
 @app.command("import-cost-catalog", rich_help_panel="② 数据导入")

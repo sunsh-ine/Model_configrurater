@@ -139,10 +139,17 @@ def build_plan_report(result: PlanResult) -> str:
         add(f"| {_DOMAIN_NAME[domain]} | {_DOMAIN_LABEL.get(status, status)} | |")
     add("")
     publishable = [c.candidate_id for c in result.candidates if c.quote_publishable]
+    # M35：**技术资格**与**生产发布授权**必须分开写 —— 前者是四维门禁的计算结果，
+    # 后者取决于是否接入可信审批系统，本系统当前恒为"未授权"。
     add(
-        "**正式报价资格**："
-        + ("、" .join(f"`{c}`" for c in publishable) if publishable else "无候选具备发布资格")
-        + "（默认不可发布；需要可信审批机制到位后才可能通过）"
+        "- **技术资格（四维门禁）**："
+        + ("、" .join(f"`{c}`" for c in publishable) if publishable else "无候选通过")
+        + "。这是成本/SLA/商务确认/审批四项证据计算的**计算结果**。"
+    )
+    add(
+        "- **生产发布授权**：**未授权**。本系统未接入可信审批系统，"
+        "审批记录只做持久化、不校验审批人身份与权限，因此"
+        "**不得用于生产环境的报价自动发布**（正式报价须由人工在受控流程中签发）。"
     )
     add("")
 

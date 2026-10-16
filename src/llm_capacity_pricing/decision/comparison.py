@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Mapping, Sequence
 
 from llm_capacity_pricing.schemas.commercial import QuoteEligibility, RevenueResult
@@ -57,38 +58,86 @@ def _margin_allowed(
     return True, None
 
 
+@dataclass(frozen=True)
+class CostProfile:
+    """成本可比性的**最小字段集**（S3/M35：唯一权威判据）。
+
+    统一入口（``workflow._recommendations``）只有标量字段，第四阶段比较器持有
+    ``TcoResult``；两者都先归约成 ``CostProfile``，再由 :func:`cost_comparability`
+    判定 —— 避免同一规则出现第二份实现。
+    """
+
+    currency: str | None
+    cost_basis: str | None
+    horizon_years: int | None
+    incomplete: bool
+    total_cash_over_horizon: Decimal | None
+
+    @classmethod
+    def from_tco(cls, tco: TcoResult | None) -> "CostProfile | None":
+        if tco is None:
+            return None
+        return cls(
+            currency=tco.currency,
+            cost_basis=tco.cost_basis,
+            horizon_years=tco.horizon_years,
+            incomplete=tco.incomplete,
+            total_cash_over_horizon=tco.total_cash_over_horizon,
+        )
+
+
+def cost_comparability(
+    profile: CostProfile | None,
+    reference: CostProfile | None,
+) -> tuple[str, list[str]]:
+    """两个成本能否直接比高低（唯一权威实现）。
+
+    判定顺序刻意如此：
+
+    1. 没有成本结果 / 成本不完整 —— **永远**不可比（先于"没有参照"判断，
+       否则"只有一个候选且它不完整"会被误判为可比）；
+    2. 没有参照方案 —— 本次评估不给任何"最低成本"结论；
+    3. 币种、买断/租赁口径、计算年限任一不同 —— 不可比；
+    4. 全周期金额缺失 —— 不可比（**不得按 0 排序**，否则缺失会被当成最便宜）。
+    """
+    if profile is None:
+        return "incomplete_cost", ["该候选没有成本核算结果"]
+    if profile.incomplete:
+        return "incomplete_cost", ["成本不完整（缺价格或缺假设），不参与成本高低比较"]
+    if reference is None:
+        return "incomplete_cost", ["没有可用的参照方案：不给出成本高低结论"]
+    notes: list[str] = []
+    if profile.currency != reference.currency:
+        notes.append(
+            f"币种不一致（{profile.currency} vs {reference.currency}）：不得直接比较金额"
+        )
+        return "not_comparable_currency", notes
+    if profile.cost_basis != reference.cost_basis:
+        notes.append(
+            f"口径不一致（{profile.cost_basis} vs {reference.cost_basis}）："
+            "买断的一次性投入与租赁的年支出不是同一口径"
+        )
+        return "not_comparable_basis", notes
+    if profile.horizon_years != reference.horizon_years:
+        notes.append(
+            f"周期不一致（{profile.horizon_years} 年 vs {reference.horizon_years} 年）："
+            "全周期总额不可直接比较"
+        )
+        return "not_comparable_horizon", notes
+    if profile.total_cash_over_horizon is None:
+        notes.append("全周期金额缺失：不得按 0 参与成本排序")
+        return "incomplete_cost", notes
+    return "comparable", notes
+
+
 def _comparability(
     tco: TcoResult | None,
     reference: TcoResult | None,
 ) -> tuple[str, list[str]]:
-    """相对参照方案的可比性判定。"""
-    if tco is None:
-        return "incomplete_cost", ["该候选没有成本核算结果"]
-    # 不完整的成本**永远**不可比 —— 这一条必须先于"没有参照方案"判断，
-    # 否则"只有一个候选且它不完整"会被误判为可比。
-    if tco.incomplete:
-        return "incomplete_cost", ["成本不完整（缺价格或缺假设），不参与成本高低比较"]
-    if reference is None:
-        return "comparable", []
-    notes: list[str] = []
-    if reference.currency and tco.currency and tco.currency != reference.currency:
-        notes.append(
-            f"币种不一致（{tco.currency} vs {reference.currency}）：不得直接比较金额"
-        )
-        return "not_comparable_currency", notes
-    if tco.cost_basis != reference.cost_basis:
-        notes.append(
-            f"口径不一致（{tco.cost_basis} vs {reference.cost_basis}）："
-            "买断的一次性投入与租赁的年支出不是同一口径"
-        )
-        return "not_comparable_basis", notes
-    if tco.horizon_years != reference.horizon_years:
-        notes.append(
-            f"周期不一致（{tco.horizon_years} 年 vs {reference.horizon_years} 年）："
-            "全周期总额不可直接比较"
-        )
-        return "not_comparable_horizon", notes
-    return "comparable", notes
+    """相对参照方案的可比性判定（委托给唯一权威实现）。"""
+    return cost_comparability(
+        CostProfile.from_tco(tco), CostProfile.from_tco(reference)
+    )
 
 
 def compare_deployments(
