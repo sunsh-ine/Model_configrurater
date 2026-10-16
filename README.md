@@ -229,7 +229,8 @@ DEMO_DB=/tmp/my.db bash scripts/run_demo.sh # 指定数据库（已存在则拒�
 ```
 
 用**公开发布的 Benchmark** 演示完整链路：需求 → 部署候选 → 公开实测参考 → SLA 可信度
-→ 成本估算 → 报告。共 14 条公开数据（来源逐个与归档原文核对）：
+→ 成本估算 → 报告。共 14 条公开数据，来源逐个与归档原文核对：声明的字面量必须能在原文里
+找到，**且入库值必须等于声明值**（只改一边也会被挡），任一条不过即整批拒绝入库：
 
 * SGLang 官方 Cookbook 12 条（`measured_vendor_published`，按章节锚点逐字段核对）；
 * GPUStack 性能实验室的 Qwen3-32B / 单张 H100 1 条（同模型同 GPU 型号 → 只能作**建模参考**）；
@@ -574,6 +575,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/extension_guide.md`](docs/extension_guide.md) | **S4** 三个扩展方向的开发指南（数据 / Benchmark 适配 / 计算规则） |
 | [`docs/real_data_preparation.md`](docs/real_data_preparation.md) | **M35–M38** 核心数据契约冻结 + 真实数据准备规范、质量分级与压测清单 |
 | [`docs/public_data_demo.md`](docs/public_data_demo.md) | **Demo** 公开数据驱动的部署方案评估（D1–D9，含数据来源取舍、匹配口径与报告导读） |
+| [`docs/demo_v1_1_final_validation.md`](docs/demo_v1_1_final_validation.md) | **Demo V1.1 封板**（N1 取值绑定加固 + N2 验证结果与冻结声明） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |

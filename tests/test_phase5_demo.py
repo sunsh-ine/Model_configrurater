@@ -91,40 +91,32 @@ def test_demo_public_benchmarks_import_with_source_verification(tmp_path):
         assert any(f.startswith("source_url:https://") for f in run.quality_flags)
 
 
-def test_demo_reference_claims_are_checked_against_raw_bytes(tmp_path):
-    """反例：篡改一个数值声明 -> 整批拒绝入库，不留「部分可信」的记录。
-
-    这是 D7 的诚实性底线：入库的每个数都必须在归档原文里找得到。
-    """
-    doc = json.loads(
+def _reference_doc() -> dict:
+    return json.loads(
         (ROOT / "data/incoming/public_benchmark_references_20261015.json").read_text(
             encoding="utf-8"
         )
     )
-    claim = doc["records"][0]["claims"]["metrics.output_throughput_tok_s"]
-    claim["value"] = 9999.99
-    claim["tokens"] = ["Output", "token", "throughput", "(tok/s):", "9999.99"]
-    tampered = tmp_path / "tampered.json"
-    tampered.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
 
-    db = str(tmp_path / "tampered.db")
-    init_db(db)
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(CONVERTER),
-            "--db",
-            db,
-            "--root",
-            str(ROOT),
-            "--references",
-            str(tampered),
-        ],
+
+def _run_converter_with_references(db: str, references: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(CONVERTER), "--db", db, "--root", str(ROOT),
+         "--references", str(references)],
         capture_output=True,
         text=True,
         cwd=ROOT,
     )
-    assert result.returncode != 0
+
+
+def _assert_rejected_and_nothing_imported(tmp_path: Path, doc: dict, label: str) -> None:
+    """整批拒绝：非零退出、说明是核对失败、且一条记录都不入库。"""
+    tampered = tmp_path / f"{label}.json"
+    tampered.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    db = str(tmp_path / f"{label}.db")
+    init_db(db)
+    result = _run_converter_with_references(db, tampered)
+    assert result.returncode != 0, result.stdout + result.stderr
     assert "核对失败" in (result.stdout + result.stderr)
     dbh, repo = open_db(db)
     try:
@@ -132,6 +124,69 @@ def test_demo_reference_claims_are_checked_against_raw_bytes(tmp_path):
             assert repo.list_benchmark_runs(session) == []
     finally:
         dbh.dispose()
+
+
+def test_demo_reference_claims_are_checked_against_raw_bytes(tmp_path):
+    """反例（n/a）：篡改 claim 的取值与字面量 -> 整批拒绝入库。
+
+    这是 D7 的诚实性底线：入库的每个数都必须在归档原文里找得到。
+    """
+    doc = _reference_doc()
+    claim = doc["records"][0]["claims"]["metrics.output_throughput_tok_s"]
+    claim["value"] = 9999.99
+    claim["tokens"] = ["Output", "token", "throughput", "(tok/s):", "9999.99"]
+    _assert_rejected_and_nothing_imported(tmp_path, doc, "tampered-both")
+
+
+def test_demo_recorded_value_must_equal_claim_value(tmp_path):
+    """反例（N1-1）：只改**入库字段**、保留原 claim（其字面量仍在原文里）。
+
+    字面量检查会通过（1131.55 确实在原文中），因此这条专门验证
+    "入库值必须等于声明值" 这道绑定约束。
+    """
+    doc = _reference_doc()
+    record = doc["records"][0]
+    assert record["claims"]["metrics.output_throughput_tok_s"]["value"] == 1131.55
+    record["metrics"]["output_throughput_tok_s"] = 9999.99
+    _assert_rejected_and_nothing_imported(tmp_path, doc, "tampered-record-only")
+
+
+def test_demo_claim_value_must_equal_recorded_value(tmp_path):
+    """反例（N1-2）：只改 **claim.value**，记录与 tokens 保持不变。
+
+    记录里仍是 1131.55、tokens 也仍是 1131.55（原文找得到），
+    因此同样只有"取值绑定"这道约束能挡住它。
+    """
+    doc = _reference_doc()
+    claim = doc["records"][0]["claims"]["metrics.output_throughput_tok_s"]
+    claim["value"] = 9999.99  # tokens 不动
+    _assert_rejected_and_nothing_imported(tmp_path, doc, "tampered-claim-only")
+
+
+def test_demo_derived_value_must_match_recorded_field(tmp_path):
+    """反例（N1）：derived 字段的声明值也不能与入库值脱钩。"""
+    doc = _reference_doc()
+    record = doc["records"][1]
+    assert record["metrics"]["error_rate"] == 0
+    record["metrics"]["error_rate"] = 0.5  # derived 里仍写着 0
+    _assert_rejected_and_nothing_imported(tmp_path, doc, "tampered-derived")
+
+
+def test_demo_unmodified_references_all_import(tmp_path):
+    """正向：未经改动时 14 条全部正常入库（N1-3）。"""
+    db = str(tmp_path / "clean.db")
+    init_db(db)
+    result = _run_converter_with_references(
+        db, ROOT / "data/incoming/public_benchmark_references_20261015.json"
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    dbh, repo = open_db(db)
+    try:
+        with dbh.session() as session:
+            runs = repo.list_benchmark_runs(session)
+    finally:
+        dbh.dispose()
+    assert len(runs) == 14
 
 
 def test_demo_no_fabricated_fields(tmp_path):

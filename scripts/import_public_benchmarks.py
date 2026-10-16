@@ -27,7 +27,7 @@ import re
 import sys
 from decimal import Decimal
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -241,8 +241,52 @@ def _claim_for(record: Mapping, group: str, key: str) -> Mapping | None:
     return claims.get(f"{group}.{key}") or claims.get(key)
 
 
+def _derived_for(record: Mapping, group: str, key: str) -> Mapping | None:
+    """derived_fields 的键规则与 claims 相同。"""
+    derived = record.get("derived_fields") or {}
+    return derived.get(f"{group}.{key}") or derived.get(key)
+
+
+def _resolve_record_value(record: Mapping, path: str) -> tuple[bool, Any]:
+    """把 claim / derived 的路径解析成**实际入库**的取值。
+
+    显式路径 ``metrics.output_throughput_tok_s`` 直接定位；
+    裸字段名（``model_name``）依次在 deployment / workload / metrics 里找。
+    找不到就返回 ``(False, None)`` —— 意思是"声明了但记录里根本没这个字段"。
+    """
+    groups = ("deployment", "workload", "metrics")
+    if "." in path:
+        group, _, key = path.partition(".")
+        if group not in groups:
+            return False, None
+        section = record.get(group) or {}
+        return (True, section[key]) if key in section else (False, None)
+    for group in groups:
+        section = record.get(group) or {}
+        if path in section:
+            return True, section[path]
+    return False, None
+
+
+def _values_equal(record_value: Any, claimed_value: Any) -> bool:
+    """数值按精确数值语义比较（Decimal），避免浮点表示差异造成误判。"""
+    if isinstance(record_value, bool) or isinstance(claimed_value, bool):
+        return record_value is claimed_value
+    if isinstance(record_value, (int, float)) and isinstance(claimed_value, (int, float)):
+        return Decimal(str(record_value)) == Decimal(str(claimed_value))
+    return record_value == claimed_value
+
+
 def _check_claims(record: Mapping, source: Mapping, text: str) -> list[str]:
-    """逐字段核对并检查覆盖率；返回问题清单（空表示通过）。"""
+    """逐字段核对并检查覆盖率；返回问题清单（空表示通过）。
+
+    三道约束，任一不满足即整批拒绝：
+
+    1. **字面量**：claim 声明的词序列要能在归档原文里按顺序找到；
+    2. **取值绑定**：实际入库的字段值必须**等于** ``claim.value`` ——
+       否则"原文里有 1131.55"和"入库写 9999.99"可以同时成立；
+    3. **覆盖率**：有值就必须能追溯到 claim 或显式 derived，不留静默采信的字段。
+    """
     problems: list[str] = []
     record_id = record.get("record_id", "<no-record-id>")
     claims = record.get("claims") or {}
@@ -259,6 +303,43 @@ def _check_claims(record: Mapping, source: Mapping, text: str) -> list[str]:
                 f"{record_id}: `{path}` 未在 {source['evidence_file']} 中找到字面量"
                 f"「{' '.join(tokens)}」"
             )
+        # 取值绑定：声明与入库必须是同一个数
+        found, actual = _resolve_record_value(record, path)
+        if not found:
+            problems.append(
+                f"{record_id}: `{path}` 有 claim，但记录里没有这个字段"
+                f"（声明了却不入库，等于凭空放行）"
+            )
+            continue
+        if "value" not in claim:
+            problems.append(f"{record_id}: claim `{path}` 未给出 value")
+            continue
+        if not _values_equal(actual, claim["value"]):
+            problems.append(
+                f"{record_id}: `{path}` 入库值 {actual!r} 与声明值 "
+                f"{claim['value']!r} 不一致（不得只改一边）"
+            )
+
+    # derived 与 claim 不得同时声明同一字段（口径会打架）
+    for path in claims:
+        if path in derived:
+            problems.append(f"{record_id}: `{path}` 同时声明了 claim 与 derived")
+
+    # derived 字段：结论也不能改，声明的取值必须与入库一致
+    for path, spec in derived.items():
+        if path in claims:
+            continue
+        found, actual = _resolve_record_value(record, path)
+        if not found:
+            continue  # 例如 arrival_mode 只在 derived 里，不落到记录字段上
+        if "value" not in (spec or {}):
+            problems.append(f"{record_id}: derived `{path}` 未给出 value")
+            continue
+        if not _values_equal(actual, spec["value"]):
+            problems.append(
+                f"{record_id}: `{path}` 入库值 {actual!r} 与 derived 声明 "
+                f"{spec['value']!r} 不一致"
+            )
 
     # 覆盖率：有值就必须能追溯（claim 或显式 derived），不留"静默采信"的字段
     for group in ("deployment", "workload", "metrics"):
@@ -267,7 +348,7 @@ def _check_claims(record: Mapping, source: Mapping, text: str) -> list[str]:
                 continue
             if _claim_for(record, group, key) is not None:
                 continue
-            if derived.get(f"{group}.{key}") or derived.get(key):
+            if _derived_for(record, group, key) is not None:
                 continue
             problems.append(
                 f"{record_id}: `{group}.{key}` 有值但既无 claim 也无 derived 说明"

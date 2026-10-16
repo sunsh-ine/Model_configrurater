@@ -104,13 +104,23 @@ python scripts/import_public_benchmarks.py --db data/local.db
 2. **公开参考**（2 条，D7）：`--references` 指定
    `data/incoming/public_benchmark_references_20261015.json`，按**逐字段字面量核对**
    （claims）接入 —— 每个入库取值都要声明一段词序列，能在归档原文里按顺序找到才收。
-   没声明、核对不上、或"有值但既无 claim 也无 derived 说明"→ **拒绝整批入库**。
+
+三条约束，任一不满足即**整批拒绝入库**：
+
+| 约束 | 挡住的错误 |
+|---|---|
+| **字面量**：claim 的 tokens 必须能在归档原文里按顺序找到 | 把来源里没有的数字写进来 |
+| **取值绑定**：入库字段值必须 **等于** `claim.value`（数值按 Decimal 精确比较） | 只在一边动手脚："原文里有 1131.55，入库写 9999.99" |
+| **覆盖率**：有值就必须有 claim 或显式 derived | 静默采信某个字段 |
+
+`derived_fields` 同样受绑定约束：声明的取值必须与入库值一致，
+且一个字段不允许同时出现 `claim` 与 `derived`（口径会打架）。
+**derived 不会因为写了说明就升级成原文实测** —— 它只会带上
+`derived:<字段>:<理由>` 质量标记。
 
 两条路径共同遵守：
 
 * 缺失字段一律留空（如 `model_revision`、GPUStack 的 TP/DP），并登记 `missing:<字段>` 标记；
-* 无法用字面量核对但确实要记的取值（如由 `Request Rate ∞` 推出的 `arrival_mode`）
-  必须写进 `derived_fields` 并给理由，导入后带 `derived:<字段>:<理由>` 标记；
 * 可信等级按发布方判定：官方项目/厂商 → `measured_vendor_published`；
   第三方社区报告 → `measured_third_party`（低于厂商）。两者都与
   `internal_measurement`（自我声明、需 `attest-run` 核验）是不同路径。
@@ -119,17 +129,29 @@ python scripts/import_public_benchmarks.py --db data/local.db
 
 * `test_demo_public_benchmarks_import_with_source_verification`：14 条入库，
   每条都有 `raw_file` + `raw_sha256` + 来源链接；git 托管的来源有上游 blob sha；
-* `test_demo_reference_claims_are_checked_against_raw_bytes`：**篡改一个数值声明就整批拒绝**；
+* `test_demo_recorded_value_must_equal_claim_value`：**只改入库字段**（claim 与字面量都是真值）→ 拒绝；
+* `test_demo_claim_value_must_equal_recorded_value`：**只改 `claim.value`**（记录与 tokens 不动）→ 拒绝；
+* `test_demo_derived_value_must_match_recorded_field`：derived 声明值与入库值脱钩 → 拒绝；
+* `test_demo_reference_claims_are_checked_against_raw_bytes`：取值与字面量一起改 → 拒绝；
+* `test_demo_unmodified_references_all_import`：未改动时 14 条全部正常入库；
 * `test_demo_no_fabricated_fields`：**字段值与 `missing:` 标记必须一致** ——
   写了的就是来源写了的，没写的一律为空（这条断言专门用来抓"补造缺失值"）；
 * `test_reference_records_keep_unknown_fields_empty`：未声明的 TP/DP/长度/并发保持为空，
   且观测并发不写进配置并发。
+
+前四条互相隔离：第 1、2 条篡改后**字面量检查仍会通过**，因此它们专门验证"取值绑定"
+这道约束确实在起作用（摘掉该检查后这两条用例会失败，已实测）。
+`scripts/check_reference_tamper_blocked.sh` 把这三类篡改放进一键验证链。
 
 ### 3.1 已知限制（不假装更强）
 
 字面量核对验证的是"该取值与标签**确实在原文中出现且相邻**"，
 **不**证明它出现在表格里的正确位置，也**不**证明原文数据本身可信。
 它挡住的是"把数字写错、写多、写少"，挡不住"原文自己就错"。
+
+取值绑定（N1）补上的是另一个洞：**"原文里有这个数"和"入库的是这个数"曾经是两件事**，
+只校验前者时，把 `record.metrics.X` 改成别的值、claim 原样保留就能通过。
+现在两侧必须一致，三种改法（只改入库值 / 只改声明值 / 两者都改）都会整批拒绝。
 
 ---
 
