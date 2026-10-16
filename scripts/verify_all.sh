@@ -655,13 +655,17 @@ run_step 53 "validate-site（M39 现场性能与 SLA 可信度：容量/匹配/�
 run_step 54 "M42 四场景端到端验收（A 仅资源 / B 导入实测 / C Synthetic / D 不匹配）" 1 '^[0-9]+ passed' \
   $PY -m pytest tests/test_phase5_m42_end_to_end.py -q
 
-run_step 55 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 55 "attest-run（P0-2：未核验模板不得自动获得生产级可信度）" 1 '^核验流程检查通过' \
+  $PY scripts/check_attest_flow.py --db "$DB" \
+    --metadata "$(ls "$OUT_DIR"/metadata/*.yaml | head -1)"
+
+run_step 56 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 56 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 57 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 57 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 58 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

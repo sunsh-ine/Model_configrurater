@@ -3409,25 +3409,58 @@ def data_quality_report(db_path: str | Path = "data/local.db") -> dict[str, Any]
                 )
             )
         elif trust not in PHASE4_TRUSTED_LEVELS:
+            reasons = [
+                f"来源可信等级为 {trust!r}，不属于可用于生产结论的等级"
+                f"（{list(PHASE4_TRUSTED_LEVELS)}）"
+            ]
+            if any(
+                f.startswith("source_verification_required:") for f in run.quality_flags
+            ):
+                reasons.append(
+                    "来源声明尚未核验：校验原始文件与配置后运行 "
+                    "`attest-run --run-id ... --confirmed-by ... --raw-sha256 ...` "
+                    "才会获得测量类可信等级"
+                )
             items.append(
                 DataQualityItem(
                     domain="benchmark_run", record_id=run.run_id, status="unverified",
-                    reasons=[
-                        f"来源可信等级为 {trust!r}，不属于可用于生产结论的等级"
-                        f"（{list(PHASE4_TRUSTED_LEVELS)}）"
-                    ],
+                    reasons=reasons,
                     usable_for=["reference", "modeling"],
                     details=details,
                 )
             )
         else:
-            items.append(
-                DataQualityItem(
-                    domain="benchmark_run", record_id=run.run_id, status="complete",
-                    production_grade=True, usable_for=["sla_proof", "capacity_analysis"],
-                    details=details,
-                )
+            # 复用一致性校验：字段齐备但**自相矛盾**的数据不得声明为生产级
+            # （避免出现第二套质量规则）
+            from llm_capacity_pricing.perf.import_consistency import (
+                check_run_consistency,
             )
+
+            blockers = [
+                i for i in check_run_consistency(run) if i.severity == "blocker"
+            ]
+            details["consistency_blockers"] = [i.code for i in blockers]
+            if blockers:
+                items.append(
+                    DataQualityItem(
+                        domain="benchmark_run", record_id=run.run_id,
+                        status="complete",
+                        reasons=[
+                            f"一致性校验未通过：{i.code}（{i.message}）" for i in blockers
+                        ],
+                        production_grade=False,
+                        usable_for=["reference"],
+                        details=details,
+                    )
+                )
+            else:
+                items.append(
+                    DataQualityItem(
+                        domain="benchmark_run", record_id=run.run_id, status="complete",
+                        production_grade=True, usable_for=["sla_proof", "capacity_analysis"],
+                        details=details,
+                    )
+                )
 
     # ---- 成本目录 ----
     for item in cost_items:
@@ -3712,14 +3745,14 @@ def export_benchmark_experiments(
         folder = Path(metadata_dir)
         folder.mkdir(parents=True, exist_ok=True)
         for point in info["points"]:
-            path = folder / f"{point['point_id']}.yaml"
-            path.write_text(
-                yaml.safe_dump(
-                    point["metadata_template"], allow_unicode=True, sort_keys=False
-                ),
-                encoding="utf-8",
-            )
-            written.append(str(path))
+            # 每次独立执行一份模板：各自带独立 record_id（P0-1）
+            for template in point["metadata_templates"]:
+                path = folder / f"{template['record_id']}.yaml"
+                path.write_text(
+                    yaml.safe_dump(template, allow_unicode=True, sort_keys=False),
+                    encoding="utf-8",
+                )
+                written.append(str(path))
     return {
         "plan_json": str(out),
         "point_count": len(info["points"]),
@@ -3876,3 +3909,131 @@ def validate_site_performance_for(
         "synthetic 数据即使算出结论也只能用于算法验证。"
     )
     return payload
+
+
+# --------------------------------------------------------------------------
+# 第五阶段加固 P0-2：Run 来源的显式核验
+# --------------------------------------------------------------------------
+
+
+#: 允许被核验升级的来源类型（官方发布的数据不归本流程管）
+ATTESTABLE_SOURCE_KINDS = ("internal_measurement",)
+
+
+def attest_benchmark_run(
+    db_path: str | Path,
+    *,
+    run_id: str,
+    confirmed_by: str,
+    raw_sha256: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """对一条已导入的 Run 做**显式核验**，通过后才赋予测量类可信等级。
+
+    复用既有机制，不新建审批系统：核验结果写在 ``quality_flags`` 里
+    （``source_verified`` / ``verified_by`` / ``verified_at`` / ``verified_raw_sha256``）。
+
+    校验规则：
+
+    * Run 必须存在；
+    * 来源类型必须是现场实测（``ATTESTABLE_SOURCE_KINDS``）；
+    * 若给定 ``raw_sha256``，必须与导入时记录的哈希一致 ——
+      这是"原始文件没被换过"的最小凭据；
+    * 必须记录核验人。
+    """
+    from datetime import datetime, timezone
+
+    if not confirmed_by.strip():
+        raise ServiceError("必须记录核验人（--confirmed-by）")
+    db, repo = open_db(db_path)
+    try:
+        with db.session() as session:
+            run = repo.get_benchmark_run(session, run_id)
+            if run is None:
+                raise ServiceError(f"性能记录不存在: {run_id}")
+
+            source_kind = run.signature.source_kind
+            declared_kind = _declared_source_kind(run)
+            if declared_kind not in ATTESTABLE_SOURCE_KINDS:
+                raise ServiceError(
+                    f"该 Run 的来源类型为 {declared_kind!r}，不属于可核验升级的范围"
+                    f"（允许：{list(ATTESTABLE_SOURCE_KINDS)}）"
+                )
+            if raw_sha256 is not None and run.raw_sha256 is not None:
+                if raw_sha256 != run.raw_sha256:
+                    raise ServiceError(
+                        "原始文件哈希与导入时记录的不一致："
+                        f"提交 {raw_sha256[:12]}… vs 记录 {run.raw_sha256[:12]}…；"
+                        "核验失败，不得升级可信等级"
+                    )
+            if raw_sha256 is None:
+                raise ServiceError(
+                    "必须提供 --raw-sha256（原始文件哈希）："
+                    "没有哈希凭据的核验不成立"
+                )
+
+            now = datetime.now(timezone.utc)
+            flags = [
+                f
+                for f in run.quality_flags
+                if not f.startswith("source_verification_required")
+            ]
+            flags += [
+                "source_verified",
+                f"verified_by:{confirmed_by}",
+                f"verified_at:{now.isoformat(timespec='seconds')}",
+                f"verified_raw_sha256:{raw_sha256}",
+            ]
+            if note:
+                flags.append(f"verified_note:{note}")
+
+            signature = run.signature.model_copy(update={"data_trust": "measured_internal"})
+            updated = run.model_copy(
+                update={
+                    "signature": signature,
+                    "data_trust": "measured_internal",
+                    "quality_flags": flags,
+                }
+            )
+            repo.upsert_benchmark_runs(session, [updated])
+            session.commit()
+
+            quality = data_quality_report(db_path)
+    finally:
+        db.dispose()
+
+    item = next(
+        (
+            i
+            for i in quality["items"]
+            if i["domain"] == "benchmark_run" and i["record_id"] == run_id
+        ),
+        None,
+    )
+    return {
+        "run_id": run_id,
+        "confirmed_by": confirmed_by,
+        "raw_sha256": raw_sha256,
+        "data_trust": "measured_internal",
+        "quality_flags": flags,
+        "quality_status": item["status"] if item else None,
+        "production_grade": item["production_grade"] if item else None,
+        "notice": (
+            "核验结果写入 quality_flags（可追溯核验人与时间）。"
+            "该操作只升级**这一条 Run**，不改变其它记录；"
+            "注意：它赋予的是数据可信等级，不是生产报价授权。"
+        ),
+    }
+
+
+def _declared_source_kind(run: Any) -> str | None:
+    """从 quality_flags 或签名里还原该 Run 声明的来源类型。"""
+    for flag in run.quality_flags:
+        if flag.startswith("source_verification_required:"):
+            return flag.split(":", 1)[1].split("/")[0]
+    # 已是测量类的 Run（核验过或直接导入）：按可信等级反推
+    return {
+        "measured_internal": "internal_measurement",
+        "measured_vendor_published": "official_benchmark",
+        "synthetic_fixture": "synthetic_fixture",
+    }.get(run.data_trust, run.signature.source_kind)

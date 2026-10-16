@@ -130,7 +130,9 @@ class ExperimentPoint(BaseModel):
     server_args: dict[str, Any] = Field(default_factory=dict)
     #: 压测客户端命令骨架（每个参数都可在归档文档中查到，见 flag_sources）
     client_command: str
-    metadata_template: dict[str, Any] = Field(default_factory=dict)
+    #: **每次独立执行一份** metadata 模板（P0-1）：重复实验各自带独立 record_id，
+    #: 否则同一实验点的多次运行会按 run_id 互相覆盖，拿不到重复观测的证据。
+    metadata_templates: list[dict[str, Any]] = Field(default_factory=list)
     flag_sources: list[str] = Field(default_factory=list)
 
     # ---- 诚实性 ----
@@ -148,8 +150,16 @@ class ExperimentPoint(BaseModel):
             raise ValueError("repeats 至少为 1")
         if not self.required_metrics:
             raise ValueError("必须声明必需指标")
-        if not self.metadata_template:
+        if not self.metadata_templates:
             raise ValueError("必须给出 metadata 模板：否则采回来的数据无法导入")
+        if len(self.metadata_templates) != self.repeats:
+            raise ValueError(
+                "metadata 模板数量必须等于 repeats（每次独立执行一份，"
+                "否则多次运行会共用 run_id 互相覆盖）"
+            )
+        run_ids = [str(m.get("record_id")) for m in self.metadata_templates]
+        if len(set(run_ids)) != len(run_ids):
+            raise ValueError("同一实验点的各次执行必须使用不同的 record_id")
         return self
 
 

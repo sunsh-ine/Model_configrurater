@@ -256,7 +256,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **58 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
+> 完整链路由 **59 步**组成，其中含第四阶段门禁断言与 **S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）。
 
 ---
@@ -296,6 +296,7 @@ bash scripts/verify_all.sh
 | `data-quality --db <path> [--out <json>]` | **M36**：数据质量分级（字段完整/缺失/不适用/Synthetic/未验证）+ 可执行补数据指引 |
 | `plan-benchmarks --model <id> --hardware <sku> … [--out <json>] [--metadata-dir <dir>]` | **M37**：生成压测实验清单与 metadata 模板（不含性能数值） |
 | `check-import --db <path> [--run-ids <ids>] [--out <json>]` | **M38**：导入一致性校验（口径混用/并发语义/请求账目/缓存口径/重复 Run） |
+| `attest-run --run-id <id> --confirmed-by <人> --raw-sha256 <sha>` | **加固**：显式核验现场实测，通过后才赋予测量类可信等级 |
 | `validate-site --requirement <json> --model <名> --hardware <型号> --gpu-count N --tp N …` | **M39**：现场性能与 SLA 可信度验证（容量/匹配/逐子项/不可评价原因） |
 | `import-commercial-confirmations --file <yaml> --db <path>` | **M30**：导入**人工**商务确认记录（本命令不生成确认） |
 | `record-sla-evidence --candidate <id> --requirement <json> --model <名> --hardware <型号> --gpu-count N --tp N …` | **V4.1 F4.1**：跑一次 SLA 评估并**持久化**为可引用的证据记录 |

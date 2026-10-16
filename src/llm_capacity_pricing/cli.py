@@ -52,6 +52,7 @@ from llm_capacity_pricing.services import (
     cost_catalog_summary,
     data_quality_report,
     check_import_consistency_for,
+    attest_benchmark_run,
     validate_site_performance_for,
     import_commercial_confirmations,
     import_quote_approvals,
@@ -1148,6 +1149,47 @@ def performance_report_cmd(
 # --------------------------------------------------------------------------
 # 第四阶段（M26–M33）：TCO、收益情景、报价门禁与部署决策
 # --------------------------------------------------------------------------
+
+
+@app.command("attest-run", rich_help_panel="③ 校验与库存")
+def attest_run_cmd(
+    run_id: str = typer.Option(..., "--run-id", help="要核验的 run_id"),
+    confirmed_by: str = typer.Option(..., "--confirmed-by", help="核验人（必填）"),
+    raw_sha256: str = typer.Option(
+        ..., "--raw-sha256", help="原始文件哈希（必须与导入时记录一致）"
+    ),
+    note: Optional[str] = typer.Option(None, "--note", help="核验说明"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """P0-2：显式核验一条现场实测，通过后才赋予测量类可信等级。
+
+    导入本身**不会**自动升级可信等级：未核验的数据一律是 unknown。
+    """
+    try:
+        info = attest_benchmark_run(
+            db,
+            run_id=run_id,
+            confirmed_by=confirmed_by,
+            raw_sha256=raw_sha256,
+            note=note,
+        )
+    except ServiceError as exc:
+        _fail(str(exc))
+        return
+    typer.secho(
+        f"已核验 {info['run_id']}：可信等级 -> {info['data_trust']}"
+        f"（质量状态 {info['quality_status']}）",
+        fg=typer.colors.GREEN,
+    )
+    typer.echo(info["notice"])
+    _echo_json(
+        {
+            "run_id": info["run_id"],
+            "data_trust": info["data_trust"],
+            "quality_status": info["quality_status"],
+            "production_grade": info["production_grade"],
+        }
+    )
 
 
 @app.command("check-import", rich_help_panel="③ 校验与库存")

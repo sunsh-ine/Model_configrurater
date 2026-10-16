@@ -149,6 +149,19 @@ python -m llm_capacity_pricing.cli plan-benchmarks \
   （TP / DP / max_model_len / 前缀缓存策略）。
 * metadata 模板里的 `launch_command` / `benchmark_command` 是占位符，
   请把现场实际命令粘进去 —— 它们是**证据溯源**的一部分。
+* **每个实验点会生成多份模板**（等于 `repeats`），分别对应一次**独立执行**：
+  每份模板的 `record_id` 都不同（含配置指纹与重复序号），
+  **务必每次执行用自己那份** —— 共用同一份会按 run_id 互相覆盖，丢失重复观测证据。
+* 模板的核验状态默认是 `unverified_parse`：导入后可信等级是 `unknown`，
+  **不会**自动成为生产级证据。现场核验原始输出文件后执行：
+
+  ```bash
+  python -m llm_capacity_pricing.cli attest-run \
+    --run-id <record_id> --confirmed-by <核验人> --raw-sha256 <原始文件 sha256> \
+    --db data/local.db
+  ```
+
+  哈希必须与导入时记录的一致；synthetic 等来源不在可核验范围内。
 
 下面的矩阵是默认取值（可覆盖）：
 

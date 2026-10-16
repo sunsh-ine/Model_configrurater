@@ -94,9 +94,37 @@ def _client_command(
     )
 
 
-def _metadata_template(
+def _config_fingerprint(
+    *,
+    model_revision: str | None,
+    framework: str,
+    framework_version: str | None,
+    weight_precision: str | None,
+    kv_precision: str | None,
+    prefix_cache: str,
+) -> str:
+    """实验**配置**指纹（8 位十六进制）。
+
+    让 Run 身份区分"同一张卡、同一个并发，但模型版本/框架版本/缓存策略不同"的实验 ——
+    否则不同实验配置会复用同一个 record_id，互相覆盖（P0-1）。
+    """
+    import hashlib
+
+    blob = "|".join(
+        str(x)
+        for x in (
+            model_revision, framework, framework_version,
+            weight_precision, kv_precision, prefix_cache,
+        )
+    )
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:8]
+
+
+def _metadata_templates(
     *,
     point_id: str,
+    config_fingerprint: str,
+    repeats: int,
     model_name: str,
     model_revision: str | None,
     weight_precision: str | None,
@@ -111,42 +139,70 @@ def _metadata_template(
     concurrency: int,
     arrival_mode: str,
     dataset_name: str,
-) -> dict[str, Any]:
-    """与现有适配器一一对应的 metadata 模板（照着填即可导入）。"""
-    return {
-        "evidence_id": f"{point_id}_evidence",
-        "record_id": point_id,
-        "format_version": (
-            "vllm-bench-serve-json/v1"
-            if framework == "vllm"
-            else "sglang-bench-serving-jsonl/v1"
-        ),
-        # 真实实测：由现场运行产生，因此是 internal_measurement
-        "performance_source_kind": "internal_measurement",
-        "verification_status": "verified",
-        "model_name": model_name,
-        "model_revision": model_revision,
-        "weight_precision": weight_precision,
-        "hardware_model": hardware_model,
-        "deployment_gpu_count": gpu_count,
-        "tp_size": tp_size,
-        "dp_size": dp_size,
-        "framework": framework,
-        "framework_version": framework_version,
-        "input_len_target": input_len,
-        "output_len_target": output_len,
-        "configured_concurrency": concurrency,
-        "arrival_mode": arrival_mode,
-        "dataset_name": dataset_name,
-        "launch_command": "<SERVER_LAUNCH_COMMAND>",
-        "benchmark_command": "<CLIENT_BENCHMARK_COMMAND>",
-        "evidence": {
-            "publisher": "<你的团队/机构>",
-            "source_url": None,
-            "source_version": None,
-            "notes": "现场实测结果；请保留原始输出文件并记录 sha256",
-        },
-    }
+    prefix_cache: str,
+) -> list[dict[str, Any]]:
+    """**每次独立执行一份** metadata 模板（P0-1）。
+
+    * ``experiment_point_id`` 标识实验配置（同一配置的多次执行相同）；
+    * ``record_id`` 标识**一次独立执行**（含配置指纹与重复序号），
+      导入后即为该次 Run 的 run_id —— 不同执行不会互相覆盖，
+      重复导入同一份**原始执行**仍然幂等。
+
+    **可信度默认不给**（P0-2）：``verification_status: unverified_parse``，
+    适配器据此把可信等级降为 ``unknown``；核验原始文件后用 ``attest-run`` 显式升级。
+    """
+    templates: list[dict[str, Any]] = []
+    for index in range(1, repeats + 1):
+        record_id = f"{point_id}-{config_fingerprint}-r{index}"
+        templates.append(
+            {
+                # ---- 身份与溯源 ----
+                "evidence_id": f"{record_id}_evidence",
+                "record_id": record_id,
+                "experiment_point_id": point_id,
+                "config_fingerprint": config_fingerprint,
+                "repeat_index": index,
+                "format_version": (
+                    "vllm-bench-serve-json/v1"
+                    if framework == "vllm"
+                    else "sglang-bench-serving-jsonl/v1"
+                ),
+                # 意图声明为现场实测，但**核验状态默认未通过** ——
+                # 声明不等于证据，未核验时可信等级会被降为 unknown
+                "performance_source_kind": "internal_measurement",
+                "verification_status": "unverified_parse",
+                # ---- 部署身份 ----
+                "model_name": model_name,
+                "model_revision": model_revision,
+                "weight_precision": weight_precision,
+                "hardware_model": hardware_model,
+                "deployment_gpu_count": gpu_count,
+                "tp_size": tp_size,
+                "dp_size": dp_size,
+                "framework": framework,
+                "framework_version": framework_version,
+                "prefix_cache": prefix_cache,
+                # ---- 负载身份 ----
+                "input_len_target": input_len,
+                "output_len_target": output_len,
+                "configured_concurrency": concurrency,
+                "arrival_mode": arrival_mode,
+                "dataset_name": dataset_name,
+                # ---- 现场填写 ----
+                "launch_command": "<SERVER_LAUNCH_COMMAND>",
+                "benchmark_command": "<CLIENT_BENCHMARK_COMMAND>",
+                "evidence": {
+                    "publisher": "<你的团队/机构>",
+                    "source_url": None,
+                    "source_version": None,
+                    "notes": (
+                        f"第 {index}/{repeats} 次独立执行；请保留原始输出文件并记录 sha256。"
+                        "导入后需用 attest-run 核验原始文件，才能获得测量类可信等级。"
+                    ),
+                },
+            }
+        )
+    return templates
 
 
 def _point_id(
@@ -220,6 +276,12 @@ def plan_benchmarks(
                     c=concurrency,
                 )
                 max_model_len = max(grid_point.input_len + grid_point.output_len, grid_point.input_len)
+                config_fingerprint = _config_fingerprint(
+                    model_revision=model_revision, framework=framework,
+                    framework_version=framework_version,
+                    weight_precision=weight_precision, kv_precision=kv_precision,
+                    prefix_cache=prefix_cache,
+                )
                 server_args, server_notes = _server_args(
                     framework=framework, tp_size=tp, dp_size=dp,
                     max_model_len=max_model_len, prefix_cache=prefix_cache,
@@ -269,8 +331,10 @@ def plan_benchmarks(
                             arrival_mode="unbounded",
                             request_rate=None,
                         ),
-                        metadata_template=_metadata_template(
+                        metadata_templates=_metadata_templates(
                             point_id=point_id,
+                            config_fingerprint=config_fingerprint,
+                            repeats=repeats,
                             model_name=model_name,
                             model_revision=model_revision,
                             weight_precision=weight_precision,
@@ -285,6 +349,7 @@ def plan_benchmarks(
                             concurrency=concurrency,
                             arrival_mode="unbounded",
                             dataset_name="random",
+                            prefix_cache=prefix_cache,
                         ),
                         # 只列**客户端**文档：本点的命令参数全部出自这里
                         flag_sources=[FLAG_SOURCES[framework]],
@@ -302,6 +367,7 @@ def plan_benchmarks(
         "**不提供**服务端启动命令：其参数名与现场部署方式强相关，"
         "本仓库未归档服务端启动文档，不予背书",
         "**没有真实现场运行，就没有真实性能验收** —— 清单本身不构成任何性能结论",
+        "metadata 模板的可信状态默认为**未核验**：导入后需用 attest-run 核验原始文件，才会获得测量类可信等级",
     ]
     return BenchmarkExperimentPlan(
         plan_id=f"bench-exp::{model_id}::{hardware_id}",

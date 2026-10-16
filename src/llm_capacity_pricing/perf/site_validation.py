@@ -42,6 +42,10 @@ class ValidationPoint:
     success_count: int | None
     #: 是否满足"可持续"的证据门槛（时长/失败率/样本）
     sustainable: bool
+    #: 计划要求的单次时长门槛（来自 SustainabilityCriteria，与实验清单同源）
+    required_duration_s: Decimal | None = None
+    #: 实测时长是否达到计划要求
+    duration_meets_requirement: bool | None = None
     reasons: list[str] = field(default_factory=list)
 
 
@@ -52,8 +56,11 @@ class SitePerformanceValidation:
     # ---- 数据集身份 ----
     group_key: str
     run_count: int
-    data_trust: str | None
-    synthetic_included: bool
+    #: 参与 Run 的可信等级集合（**全部**列出，不取"最乐观的那个"）
+    data_trusts: list[str] = field(default_factory=list)
+    #: 可信等级唯一时给出该值；混合时保持 None（不能声称单一可信度）
+    data_trust: str | None = None
+    synthetic_included: bool = False
 
     # ---- 容量 ----
     points: list[ValidationPoint] = field(default_factory=list)
@@ -83,14 +90,36 @@ class SitePerformanceValidation:
 
     @property
     def can_claim_sla(self) -> bool:
-        """只有 `observed_pass` / `observed_fail` 是"有实测依据"的结论。"""
-        return self.sla_status in ("observed_pass", "observed_fail")
+        """能否把这条结论**对外当作实测依据**（M39 收紧）。
+
+        必须在 `observed_pass` / `observed_fail` 之外同时满足：
+
+        * 匹配等级是 `exact_match`（严格匹配）；
+        * 参与 Run 的可信等级属于生产允许的测量类（复用
+          ``PRODUCTION_TRUST_LEVELS``，不另立一套）；
+        * 不含 synthetic 数据（算法验证结论不能冒充实测结论）。
+
+        注意与报价门禁的分工：这里管的是**报告里的布尔值**，
+        报价门禁另有自己的生产可信度检查；两者结论必须一致，不得相互放宽。
+        """
+        from llm_capacity_pricing.schemas.performance import PRODUCTION_TRUST_LEVELS
+
+        if self.sla_status not in ("observed_pass", "observed_fail"):
+            return False
+        if self.synthetic_included:
+            return False
+        if self.match_level != "exact_match":
+            return False
+        if self.data_trust is None or self.data_trust not in PRODUCTION_TRUST_LEVELS:
+            return False
+        return True
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "group_key": self.group_key,
             "run_count": self.run_count,
             "data_trust": self.data_trust,
+            "data_trusts": self.data_trusts,
             "synthetic_included": self.synthetic_included,
             "points": [
                 {
@@ -108,6 +137,12 @@ class SitePerformanceValidation:
                     "num_requests": p.num_requests,
                     "success_count": p.success_count,
                     "sustainable": p.sustainable,
+                    "required_duration_s": (
+                        str(p.required_duration_s)
+                        if p.required_duration_s is not None
+                        else None
+                    ),
+                    "duration_meets_requirement": p.duration_meets_requirement,
                     "reasons": p.reasons,
                 }
                 for p in self.points
@@ -210,9 +245,16 @@ def _point_from_run(run: BenchmarkRun, *, criteria: Any) -> ValidationPoint:
         )
     if profile.success_count is None:
         reasons.append("未记录成功请求数：样本代表性无法确认")
+    meets = (
+        profile.duration_s >= criteria.min_duration_s
+        if profile.duration_s is not None
+        else None
+    )
     return ValidationPoint(
         concurrency=profile.configured_concurrency,
         run_id=run.run_id,
+        required_duration_s=criteria.min_duration_s,
+        duration_meets_requirement=meets,
         ttft_p99_ms=profile.ttft_p99_ms,
         tpot_p99_ms=profile.tpot_p99_ms,
         output_throughput_tok_s=profile.output_throughput_tok_s,
@@ -252,11 +294,13 @@ def validate_site_performance(
     criteria = SustainabilityCriteria()
     group_key = grouping_key(runs[0])
 
+    trusts = sorted({r.data_trust for r in runs})
     validation = SitePerformanceValidation(
         group_key=group_key,
         run_count=len(runs),
-        data_trust=sorted({r.data_trust for r in runs})[0] if runs else None,
-        synthetic_included=any(r.data_trust == "synthetic_fixture" for r in runs),
+        data_trusts=trusts,
+        data_trust=trusts[0] if len(trusts) == 1 else None,
+        synthetic_included="synthetic_fixture" in trusts,
     )
 
     # ---- 1. 容量：曲线、峰值、可持续容量 ----
@@ -332,9 +376,15 @@ def validate_site_performance(
             "不能替代真实依据"
         )
 
+    if any(p.duration_meets_requirement is False for p in validation.points):
+        validation.not_evaluable_reasons.append(
+            "有实测的单次时长低于计划要求：不满足可持续容量的证据门槛"
+        )
     notes = [
         "容量、匹配、SLA 三条结论相互独立：容量曲线好不代表配置匹配，"
         "配置匹配也不代表时延达标",
+        f"单次时长门槛 {criteria.min_duration_s}s 与实验清单同源"
+        "（清单里的 duration_s 是**计划值**，这里比对的是**实测值**）",
         "本验证只读：不修改任何记录的信任等级",
     ]
     if not validation.can_claim_sla:

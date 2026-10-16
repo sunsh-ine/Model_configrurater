@@ -3,7 +3,7 @@
 **基线**：`92944e3`（S 阶段封板）
 **阶段定位**：真实数据接入、性能验证与方案交付 MVP ——
 把**真实数据流**接到现有工作流上，而不是再造一套系统。
-**文档状态**：M35–M42 全部完成（封板）。
+**文档状态**：M35–M42 全部完成（封板），并含封板前的三项证据加固。
 
 ---
 
@@ -318,7 +318,93 @@ SLA 是面向用户体验的承诺，只能用客户端口径支撑。这是**�
 
 ---
 
-## 十、封板结论
+## 十、封板前的证据加固（评审三项反向用例）✅
+
+复审在封板前发现三处"新输出可能被当成生产级证据"的漏洞，已全部修复并配反向用例。
+
+### 10.1 P0-1 重复压测会被同一个 Run ID 覆盖
+
+**问题**：`_metadata_template()` 用 `record_id = point_id`，同一实验点的多次重复运行
+共用同一个 ID；而 `upsert_benchmark_runs()` 按 run_id `merge`，
+于是第二次、第三次独立执行会**覆盖**第一次 —— 最终只剩一条 Run，
+拿不到"重复观测"的证据。
+
+**修复**：
+
+* **区分实验点与执行**：metadata 模板改为**每次独立执行一份**（`metadata_templates`），
+  各自带 `experiment_point_id`（实验配置）、`repeat_index`（第几次）与独立 `record_id`；
+* **Run 身份纳入配置指纹**：`record_id = <point_id>-<config_fingerprint>-r<i>`，
+  指纹覆盖模型版本 / 框架 / 框架版本 / 权重精度 / KV 精度 / **前缀缓存策略** ——
+  不同实验配置不会复用同一个 ID；
+* schema 校验"模板数量必须等于 repeats 且 record_id 互不相同"。
+
+**反向用例**：`test_hardening_independent_runs_are_kept_and_retry_is_idempotent`
+（两次独立执行 → 2 条 Run；重试同一执行 → 不新增）、
+`test_hardening_different_experiment_configs_do_not_share_run_ids`。
+
+### 10.2 P0-2 实验模板默认声明"已验证实测"
+
+**问题**：模板在生成时就写死 `performance_source_kind: internal_measurement` +
+`verification_status: verified`；`run_from_adapter()` 据此把可信等级映射为
+`measured_internal` —— 一份**计划**模板只要配上格式完整的数据，
+就能不经验证获得生产级可信度。
+
+**修复**（复用既有质量与信任机制，未新建审批系统）：
+
+1. 模板默认 `verification_status: unverified_parse`；
+2. `run_from_adapter()` 新增降级规则：**自我声明的内部实测**
+   （`internal_measurement`）在 `verification_status != "verified"` 时，
+   可信等级降为 `unknown`，并写入 `source_verification_required:<kind>/<status>` 标记；
+   刻意**不**波及 `official_benchmark` —— 厂商发布是另一条溯源路径，
+   其字段完整性由 M9 适用性门禁与 SLA 门禁分别把关；
+3. 新增显式核验步骤 `attest-run --run-id ... --confirmed-by ... --raw-sha256 ...`：
+   只升级**这一条** Run，核验人/时间/哈希写入 `quality_flags`；
+   哈希与导入时记录不一致则**拒绝**核验；
+   synthetic 等不可核验来源直接拒绝。
+4. `data-quality` 对未核验记录给出可执行理由（点名 `attest-run` 命令）。
+
+**反向用例**：`test_hardening_unverified_template_import_is_not_production_evidence`、
+`test_hardening_attest_requires_matching_raw_hash_and_upgrades_once`、
+`test_hardening_attest_rejects_non_attestable_sources`；
+全链路第 55 步 `scripts/check_attest_flow.py`（9 项检查）。
+
+### 10.3 P1 现场验证的 `can_claim_sla` 不够严格
+
+**问题**：只判断 `sla_status in ("observed_pass","observed_fail")`。
+第三阶段允许显式 `allow_synthetic=True` 的算法验证路径，此时 synthetic 数据也能产出
+`observed_pass` —— 报告里会给出一个误导性的"可对外声称"布尔值。
+
+**修复**：`can_claim_sla` 现在同时要求：`essential_match` 严格匹配、
+可信等级属于 `PRODUCTION_TRUST_LEVELS`（复用同一份权威定义）、且不含 synthetic 数据。
+`data_trust` 也改为：混合可信等级时保持 `None`（不再取"最乐观的那个"）。
+
+**反向用例**：`test_hardening_algorithm_validation_observed_pass_cannot_claim_sla`
+（算法验证确实拿到 `observed_pass`，但 `can_claim_sla` 为 False）、
+`test_hardening_can_claim_sla_requires_all_three_conditions`（三条件逐项对照）。
+
+### 10.4 两项非阻塞改进
+
+* **数据质量复用一致性校验**：一条 Run 被声明为 `production_grade` 之前，
+  会先跑 `check_run_consistency()`；有 blocker 即降为"仅参考"，并逐条列出原因码
+  （不再有第二套质量规则）。用例：
+  `test_hardening_data_quality_declines_production_grade_on_consistency_blocker`。
+* **实测时长与计划要求比对**：现场验证的每个并发点新增
+  `required_duration_s`（与实验清单同源）与 `duration_meets_requirement`；
+  有实测低于门槛时，结论里明确写出"不满足可持续容量的证据门槛"。
+  清单里的 `duration_s` 是**计划值**，比对的是**实测值**。
+
+### 10.5 加固后的回归
+
+| 项 | 结果 |
+|---|---|
+| 全量测试 | **757 passed**（新增 8 个加固用例） |
+| 全链路 | **59 / 59**（新增 attest-run 流程断言，9 项检查） |
+| 第一阶段回归 | 160 / 192 / 0 超容差不变 |
+| 报价反向场景 | 17 / 17 |
+
+---
+
+## 十一、封板结论
 
 M35–M42 全部完成。**工程验收通过**：接口、数据导入、质量检查、报告与回归
 都有明确标记的测试数据支撑。
@@ -341,7 +427,7 @@ M35–M42 全部完成。**工程验收通过**：接口、数据导入、质量
 
 ---
 
-## 十一、回归记录
+## 十二、回归记录
 
 | 轮次 | 全量测试 | 全链路步骤 | 第一阶段回归 | 反向场景 |
 |---|---|---|---|---|
@@ -349,11 +435,12 @@ M35–M42 全部完成。**工程验收通过**：接口、数据导入、质量
 | M35 + M36 | 709 passed | 54 / 54 | 160 / 192 / 0 | 17 / 17 |
 | M35–M38 | 727 passed | 56 / 56 | 160 / 192 / 0 | 17 / 17 |
 | M35–M40 | 740 passed | 57 / 57 | 160 / 192 / 0 | 17 / 17 |
-| M35–M42（封板） | **749 passed** | **58 / 58** | **160 / 192 / 0** | **17 / 17** |
+| M35–M42（封板） | 749 passed | 58 / 58 | 160 / 192 / 0 | 17 / 17 |
+| 封板前证据加固 | **757 passed** | **59 / 59** | **160 / 192 / 0** | **17 / 17** |
 
 ---
 
-## 十二、未闭环事项（与前几阶段一致）
+## 十三、未闭环事项（与前几阶段一致）
 
 1. **真实性能验收未验证** —— 缺少目标模型 / GPU / 配置的真实压测记录；
 2. **商业报价不可发布** —— 未接入可信审批系统，且无已确认真实价格；

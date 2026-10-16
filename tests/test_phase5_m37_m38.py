@@ -143,9 +143,12 @@ def test_m37_metadata_template_reaches_exact_match(tmp_path, root):
 
     db = _db(tmp_path, root)
     point = _plan(db, tmp_path)["points"][0]
-    meta = point["metadata_template"]
+    assert len(point["metadata_templates"]) == point["repeats"]
+    meta = point["metadata_templates"][0]
 
     # 模拟"照模板采回来的结果"：字段名与适配器一致
+    # 模板默认是未核验；本用例验证"核验通过后能与部署对齐"，
+    # 因此在这里显式把核验状态置为 verified（默认状态的行为由加固用例覆盖）
     record = BenchmarkRecord(
         record_id=meta["record_id"],
         model_name=meta["model_name"],
@@ -168,7 +171,7 @@ def test_m37_metadata_template_reaches_exact_match(tmp_path, root):
         num_requests=200,
         success_count=200,
         performance_source_kind=meta["performance_source_kind"],
-        verification_status=meta["verification_status"],
+        verification_status="verified",
         evidence_id=meta["evidence_id"],
     )
     raw = tmp_path / "raw.json"
@@ -218,7 +221,7 @@ def test_m37_missing_identity_conditions_are_declared(tmp_path, root):
     assert any(p["model_revision"] for p in info["points"])
 
     # 缺 revision / 框架版本的数据，对完整目标只能落在参考级
-    meta = dict(info["points"][0]["metadata_template"])
+    meta = dict(info["points"][0]["metadata_templates"][0])
     meta["model_revision"] = None
     meta["framework_version"] = None  # 现场没记框架版本 -> 达不到 exact_match
     record = BenchmarkRecord(
@@ -296,9 +299,21 @@ def test_m37_cli_exports_plan_and_metadata_templates(tmp_path, root):
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["points"]
     files = {p.stem: p for p in meta_dir.glob("*.yaml")}
-    assert set(files) == {p["point_id"] for p in payload["points"]}
-    loaded = yaml.safe_load(files[payload["points"][0]["point_id"]].read_text(encoding="utf-8"))
-    assert loaded["record_id"] == payload["points"][0]["point_id"]
+    expected = {
+        tpl["record_id"]
+        for point in payload["points"]
+        for tpl in point["metadata_templates"]
+    }
+    assert set(files) == expected
+    # 每次独立执行一份：同一实验点的多份模板 record_id 互不相同
+    first_point = payload["points"][0]
+    assert len({tpl["record_id"] for tpl in first_point["metadata_templates"]}) == len(
+        first_point["metadata_templates"]
+    )
+    loaded = yaml.safe_load(
+        files[first_point["metadata_templates"][0]["record_id"]].read_text(encoding="utf-8")
+    )
+    assert loaded["experiment_point_id"] == first_point["point_id"]
 
 
 # ==========================================================================
