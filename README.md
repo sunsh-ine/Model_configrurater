@@ -243,6 +243,34 @@ DEMO_DB=/tmp/my.db bash scripts/run_demo.sh # 指定数据库（已存在则拒�
 
 详见 [`docs/public_data_demo.md`](docs/public_data_demo.md)。
 
+### 一键系统 Demo（S2：一份需求 → 一份方案文档）
+
+```bash
+bash scripts/run_system_demo.sh                     # 模式 A：离线（默认，无需 GPU/工具）
+bash scripts/run_system_demo.sh --mode core         # 模式 C：不带模拟
+AISIMULATE_PYTHON=/opt/aisim/bin/python \
+  bash scripts/run_system_demo.sh --mode live       # 模式 B：真调 AISimulate 搜索 + P99 回放
+```
+
+一次运行完成：建库 → 资源规划 → 模拟/实测 → 成本与预算 → 推荐资格 → 两份报告。
+产物写到**独立目录** `data/exports/system_demo/<UTC 时间戳>/`：
+
+* `deployment_proposal.md` —— 7 段式方案文档（需求 / 资源 / 候选 / 性能 / 成本 / 推荐 / 风险）
+* `technical_report.md` —— 技术版报告（保留 Run ID、匹配等级、sha256）
+* `result.json` —— 结构化结果
+
+可传 `--model/--hardware/--gpu/--isl/--osl/--concurrency/--ttft/--tpot/--budget` 改需求。
+
+### 单页界面（S3，可选）
+
+```bash
+.venv/bin/pip install -r requirements-app.txt     # 只有界面需要，不并入主 lock
+PYTHONPATH=src .venv/bin/streamlit run app/streamlit_app.py
+```
+
+界面只负责**输入、展示、触发**；所有计算仍走 `evaluate_plan()`，
+前端没有任何 Sizing / SLA / TCO 公式。没有账号、多租户或审批后台。
+
 ### 可选：模拟预测（P1–P4，默认关闭）
 
 在配置里加一段 `simulation`，就能让报告多出一节
@@ -320,7 +348,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **65 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
+> 完整链路由 **66 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）、**Demo（D1–D9）**
 > 与两条反例断言（篡改公开参考声明必须整批拒绝、`DEMO_DB` 指向已有库必须拒绝覆盖）。
 
@@ -433,8 +461,8 @@ llm-capacity-pricing/
 │   │   ├── estimator.py                   # M22 受限估算与留出验证
 │   │   ├── sla_evaluator.py               # M23 SLA 判定
 │   │   └── ranker.py                      # M24 候选比较
-├── tests/                                 # 867 个用例（1 个需要真实工具，缺则 skip）
-├── scripts/verify_all.sh                  # 一键复现（65 步，含门禁断言、Demo、自动模拟与敏感扫描）
+├── tests/                                 # 886 个用例（2 个需要可选依赖，缺则 skip）
+├── scripts/verify_all.sh                  # 一键复现（66 步，含门禁断言、Demo、系统 Demo 与敏感扫描）
 ├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
@@ -622,6 +650,9 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md) | **P1–P4 封板** 模拟预测接入（口径纠正、数据契约、可选适配器、反向测试与准确性边界） |
 | [`docs/v7_r1_r2_validation.md`](docs/v7_r1_r2_validation.md) | **V7.0** 推荐正确性加固（R1）+ 自动搜索与 P99 回放（R2）验收 |
 | [`docs/v7_final_validation.md`](docs/v7_final_validation.md) | **V7.0 封板**（F6-1 币种门禁、F6-2 运行目录隔离、全量回归与冻结结论） |
+| [`docs/system_architecture.md`](docs/system_architecture.md) | **S1** 系统总体架构（组件职责、边界、已实现/未实现对照） |
+| [`docs/system_design.md`](docs/system_design.md) | **S1** 契约、状态、失败处理与运行方式 |
+| [`docs/system_demo_validation.md`](docs/system_demo_validation.md) | **S2–S5** 一键 Demo、单页界面与验收记录 |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

@@ -636,6 +636,27 @@ def evaluate_plan(
             "server_id": request.server_id,
             "workload": request.workload.model_dump(mode="json"),
             "sla_requirement_id": request.sla.requirement_id if request.sla else None,
+            # 报告要如实展示"客户要的是什么"，不能只留一个 ID
+            "sla": (
+                {
+                    "requirement_id": request.sla.requirement_id,
+                    "ttft_p99_ms_max": request.sla.ttft_p99_ms_max,
+                    "tpot_p99_ms_max": request.sla.tpot_p99_ms_max,
+                }
+                if request.sla
+                else None
+            ),
+            "budget": (
+                {
+                    "budget_id": request.budget.budget_id,
+                    "amount": request.budget.amount,
+                    "kind": request.budget.kind,
+                    "currency": request.budget.currency,
+                }
+                if request.budget
+                else None
+            ),
+            "max_total_gpus": request.max_total_gpus,
             "cost_template": (
                 f"{request.cost.plan_file}#{request.cost.template_id}"
                 if request.cost
