@@ -622,7 +622,8 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md) | **P1–P4 封板** 模拟预测接入（口径纠正、数据契约、可选适配器、反向测试与准确性边界） |
 | [`docs/v7_r1_r2_validation.md`](docs/v7_r1_r2_validation.md) | **V7.0** 推荐正确性加固（R1）+ 自动搜索与 P99 回放（R2）验收 |
 | [`docs/v7_final_validation.md`](docs/v7_final_validation.md) | **V7.0 封板**（F6-1 币种门禁、F6-2 运行目录隔离、全量回归与冻结结论） |
-| [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收测试包（任务单 + 反馈表 + 判定标准；需真人执行） |
+| [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
+| [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |
