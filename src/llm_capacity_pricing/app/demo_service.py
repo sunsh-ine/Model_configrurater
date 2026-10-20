@@ -60,7 +60,8 @@ class DemoInputs:
 
     model_id: str = "qwen3-32b"
     hardware_id: str = "nvidia-h100-sxm-80gb"
-    server_id: str | None = "hgx-h100-8gpu"
+    #: 默认 None = 按 hardware_id 自动匹配机箱（避免选 H200 却用 H100 机箱）
+    server_id: str | None = None
     gpu_count: int = 8
     input_len: int = 8192
     output_len: int = 256
@@ -98,6 +99,30 @@ class DemoOutcome:
     stages: list[tuple[str, str, str]] = field(default_factory=list)
 
 
+def server_for_hardware(hardware_id: str | None) -> str | None:
+    """从硬件目录里找与该 GPU 匹配的机箱；找不到返回 ``None``（不猜）。
+
+    不匹配的 server_id 会让 Sizing 把每个候选判成 ``server_gpu_sku_mismatch``，
+    所以这里按 GPU 反查，而不是写死某一个机箱。
+    """
+    if not hardware_id:
+        return None
+    try:
+        import yaml
+
+        doc = yaml.safe_load(
+            (ROOT / "data/hardware/hardware_catalog.yaml").read_text(encoding="utf-8")
+        )
+    except Exception:  # noqa: BLE001 - 目录读不到就让 Sizing 自己报缺
+        return None
+    for entry in (doc or {}).get("servers") or []:
+        if isinstance(entry, dict) and entry.get("gpu_hardware_id") == hardware_id:
+            server_id = entry.get("server_id")
+            if server_id:
+                return str(server_id)
+    return None
+
+
 def build_plan_request(inputs: DemoInputs) -> PlanRequest:
     """把表单值转成 ``PlanRequest``（纯函数，便于测试与复用）。"""
     sla = None
@@ -109,7 +134,9 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
         )
     simulation: PlanSimulationInput | None = None
     if inputs.mode == "offline":
-        simulation = PlanSimulationInput(**OFFLINE_SIM, top_n=inputs.top_n)
+        simulation = PlanSimulationInput(
+            **OFFLINE_SIM, top_n=inputs.top_n, ranking=inputs.ranking
+        )
     elif inputs.mode == "live":
         simulation = PlanSimulationInput(
             enable_external=True,
@@ -126,7 +153,7 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
         request_id=inputs.request_id,
         model_id=inputs.model_id,
         hardware_ids=[inputs.hardware_id],
-        server_id=inputs.server_id,
+        server_id=inputs.server_id or server_for_hardware(inputs.hardware_id),
         max_total_gpus=inputs.gpu_count,
         workload=PlanWorkload(
             input_len=inputs.input_len,
@@ -226,8 +253,18 @@ def run_demo(
 ) -> DemoOutcome:
     """执行一次完整演示：建库 → 评估 → 生成两份报告。"""
     run_dir = Path(out_dir) if out_dir is not None else new_run_dir()
+    if run_dir.exists() and any(run_dir.iterdir()):
+        raise FileExistsError(
+            f"{run_dir} 非空：Demo 不会覆盖已有产物，请换一个目录（或让它自动分配）"
+        )
     run_dir.mkdir(parents=True, exist_ok=True)
     db_path = run_dir / "demo.db"
+
+    if inputs.mode == "live" and inputs.work_dir is None:
+        # 实时模拟的搜索/回放产物也收进本次运行目录，避免多个 Demo 共用同一目录
+        from dataclasses import replace as _replace
+
+        inputs = _replace(inputs, work_dir=str(run_dir / "sim_work"))
 
     stages: list[tuple[str, str, str]] = []
     try:

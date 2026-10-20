@@ -259,3 +259,92 @@ def test_streamlit_app_runs_headlessly():
     # 只读控件：模型/GPU/负载/SLA/预算
     assert len(app.selectbox) >= 3
     assert len(app.number_input) >= 6
+
+
+# --------------------------------------------------------------------------
+# codex 复审指出的 4 个问题（P2）的反向用例
+# --------------------------------------------------------------------------
+
+
+def test_server_is_matched_to_the_selected_gpu():
+    """选 H200 时不能用 H100 机箱：否则候选会被判 server_gpu_sku_mismatch。"""
+    from llm_capacity_pricing.app.demo_service import server_for_hardware
+
+    assert server_for_hardware("nvidia-h100-sxm-80gb") == "hgx-h100-8gpu"
+    assert server_for_hardware("nvidia-h200-sxm-141gb") == "hgx-h200-8gpu"
+    assert server_for_hardware("unknown-gpu") is None  # 不猜
+
+    request = build_plan_request(DemoInputs(hardware_id="nvidia-h200-sxm-141gb"))
+    assert request.server_id == "hgx-h200-8gpu"
+
+
+def test_h200_demo_does_not_fail_on_server_mismatch(tmp_path):
+    outcome = run_demo(
+        DemoInputs(mode="offline", hardware_id="nvidia-h200-sxm-141gb"),
+        out_dir=tmp_path / "h200",
+    )
+    assert outcome.result.domains["sizing"] == "computed"
+    assert not any(
+        "server_gpu_sku_mismatch" in " ".join(c.static_reasons)
+        for c in outcome.result.candidates
+    )
+
+
+def test_zero_budget_is_a_real_constraint_not_unknown(monkeypatch):
+    """预算 0 与"未给预算"必须区分（未知 ≠ 0）。"""
+    request = build_plan_request(DemoInputs(budget_amount=Decimal("0")))
+    assert request.budget is not None
+    assert request.budget.amount == Decimal("0")
+
+    request = build_plan_request(DemoInputs(budget_amount=None))
+    assert request.budget is None
+
+
+def test_offline_mode_honours_the_ranking_objective(tmp_path):
+    """离线模式也要把 ranking 传下去，否则 --ranking cost 会被静默忽略。"""
+    request = build_plan_request(DemoInputs(mode="offline", ranking="cost"))
+    assert request.simulation is not None
+    assert request.simulation.ranking == "cost"
+
+    outcome = run_demo(
+        DemoInputs(mode="offline", ranking="cost"), out_dir=tmp_path / "costrank"
+    )
+    assert outcome.result_json["simulation"]["ranking"] == "cost"
+
+
+def test_existing_nonempty_out_dir_is_refused(tmp_path):
+    """--out 指向已有产物目录时不得覆盖（历史结果要保留）。"""
+    out = tmp_path / "used"
+    out.mkdir()
+    marker = out / "deployment_proposal.md"
+    marker.write_text("old result", encoding="utf-8")
+
+    with pytest.raises(FileExistsError) as excinfo:
+        run_demo(DemoInputs(mode="offline"), out_dir=out)
+    assert "非空" in str(excinfo.value)
+    assert marker.read_text(encoding="utf-8") == "old result"
+
+
+def test_live_work_dir_stays_inside_the_run_dir(tmp_path):
+    """实时模式的搜索/回放产物必须落在本次运行目录下。"""
+    from llm_capacity_pricing.app.demo_service import DemoInputs as DI
+
+    out = tmp_path / "live"
+    captured = {}
+
+    import llm_capacity_pricing.app.demo_service as svc
+
+    original = svc.evaluate_plan
+
+    def spy(request, *, db_path):
+        captured["work_dir"] = request.simulation.work_dir if request.simulation else None
+        return original(request, db_path=db_path)
+
+    svc.evaluate_plan = spy
+    try:
+        run_demo(DI(mode="live", ttft_p99_ms_max=None, tpot_p99_ms_max=None), out_dir=out)
+    finally:
+        svc.evaluate_plan = original
+
+    assert captured["work_dir"] is not None
+    assert str(out) in captured["work_dir"]

@@ -115,7 +115,8 @@ if submitted:
         concurrency=int(concurrency),
         ttft_p99_ms_max=Decimal(str(ttft)),
         tpot_p99_ms_max=Decimal(str(tpot)),
-        budget_amount=Decimal(str(budget)) if budget else None,
+        # 0 是真实约束（"不给预算"是另一回事），因此只在取不到值时置空
+        budget_amount=Decimal(str(budget)) if budget is not None else None,
         weight_precision=precision,
         framework="vllm",
         framework_version="0.24.0",
