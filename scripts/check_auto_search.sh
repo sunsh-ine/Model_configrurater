@@ -29,7 +29,6 @@ if [ ! -f "$DB" ]; then
 fi
 
 mkdir -p "$OUT"
-rm -rf "$OUT/auto_sim"
 # 把示例里的 work_dir 改写到本次输出目录，保证可重复运行且不污染仓库路径
 RUNTIME_CONFIG="$OUT/auto_config.yaml"
 $PY - "$CONFIG" "$RUNTIME_CONFIG" "$OUT/auto_sim" <<'PYEOF'
@@ -59,5 +58,8 @@ if grep -q '"status": "error"' "$OUT/auto_result.json"; then
 fi
 [ "$fail" -eq 0 ] || exit 1
 
-printf '自动搜索检查通过：由需求自动生成搜索输入并完成 P99 回放（工作目录 %s）\n' "$OUT/auto_sim"
+RUN_DIR="$(ls -d "$OUT"/auto_sim/runs/run_* 2>/dev/null | tail -1)"
+[ -n "$RUN_DIR" ] || { printf '缺少运行目录（应为 <work_dir>/runs/run_*）\n'; exit 1; }
+[ -f "$RUN_DIR/manifest.json" ] || { printf '缺少本次运行的 manifest.json\n'; exit 1; }
+printf '自动搜索检查通过：由需求自动生成搜索输入并完成 P99 回放（本次运行目录 %s）\n' "$RUN_DIR"
 exit 0

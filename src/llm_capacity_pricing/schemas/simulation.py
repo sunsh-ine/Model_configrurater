@@ -285,20 +285,25 @@ class SimulationResult(BaseModel):
         return [c for c in self.candidates if not self.rejection_reasons(c)]
 
     @staticmethod
-    def _cost_group(candidate: SimulationCandidate) -> tuple[str | None, str | None, int | None] | None:
-        """该候选的可比成本口径；成本不完整/金额缺失时返回 ``None``。"""
+    def _cost_complete(candidate: SimulationCandidate) -> bool:
         cost = candidate.cost
-        if cost is None or cost.incomplete or cost.total_cash_over_horizon is None:
-            return None
-        return (cost.currency, cost.cost_basis, cost.horizon_years)
+        return bool(
+            cost is not None
+            and not cost.incomplete
+            and cost.total_cash_over_horizon is not None
+        )
 
     def cost_ranking_available(
         self, *, only_predicted_pass: bool = True
     ) -> tuple[bool, list[str]]:
-        """成本排序是否成立：**所有参与排序的候选**都必须有可比成本。
+        """成本排序是否成立。
 
-        只要求"池子里存在一条完整成本"是不够的 —— 那样拿 ``100 万`` 与 ``None``
-        比较会直接抛异常，也可能把缺成本的候选当成"最便宜"（F1）。
+        四个条件**同时**满足才算成立（F6-1）：
+
+        1. 参与排序的候选成本完整、金额明确；
+        2. **币种已确认**（未确认的金额不能互相比大小）；
+        3. 币种 / 成本口径 / 计算年限完全一致；
+        4. 参与排序的**全部**预测达标候选都满足以上条件（不能只满足一部分）。
         """
         pool = [
             c
@@ -307,17 +312,42 @@ class SimulationResult(BaseModel):
         ]
         if not pool:
             return False, ["没有可参与成本排序的候选"]
-        groups = {g for g in (self._cost_group(c) for c in pool) if g is not None}
-        missing = [c for c in pool if self._cost_group(c) is None]
-        if len(groups) > 1:
-            return False, ["候选的币种/成本口径/年限不一致：不得直接比较成本"]
-        if missing:
-            names = "、".join(c.candidate_id for c in missing[:3])
-            return False, [
-                f"{len(missing)} 个候选的成本不完整或金额缺失（如 {names}）："
+
+        reasons: list[str] = []
+
+        no_amount = [c for c in pool if not self._cost_complete(c)]
+        if no_amount:
+            names = "、".join(c.candidate_id for c in no_amount[:3])
+            reasons.append(
+                f"{len(no_amount)} 个候选的成本不完整或金额缺失（如 {names}）："
                 "无法与其他候选比较成本"
-            ]
-        return True, []
+            )
+
+        unconfirmed = [
+            c
+            for c in pool
+            if c.cost is not None
+            and not c.cost.currency_confirmed
+            and self._cost_complete(c)
+        ]
+        if unconfirmed:
+            names = "、".join(c.candidate_id for c in unconfirmed[:3])
+            reasons.append(
+                f"{len(unconfirmed)} 个候选的币种未确认（如 {names}）："
+                "未确认币种的金额不得用于成本排序"
+            )
+
+        groups = {
+            (c.cost.currency, c.cost.cost_basis, c.cost.horizon_years)
+            for c in pool
+            if self._cost_complete(c) and c.cost.currency_confirmed
+        }
+        if len(groups) > 1:
+            reasons.append(
+                "候选的币种/成本口径/计算年限不一致：不得直接比较成本"
+            )
+
+        return (not reasons), reasons
 
     def recommended(self, objective: str = "throughput") -> SimulationCandidate | None:
         """**严格推荐**：先筛预测达标，再按排序目标取一个。

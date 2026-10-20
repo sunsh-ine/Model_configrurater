@@ -522,3 +522,38 @@ def test_cost_downgrade_is_stated_in_the_report(tmp_path):
     report = build_plan_report(result)
     assert "成本排序**不可用**" in report
     assert "已降级为吞吐优先" in report
+
+
+def test_cost_ranking_rejects_unconfirmed_currency():
+    """币种未确认的金额不得用于成本排序（F6-1）。"""
+    a = _cand("sim:A", cost=_cost("100"))
+    b = _cand("sim:B", cost=_cost("50"))
+    a.cost.currency_confirmed = True
+    b.cost.currency_confirmed = False
+    result = _sim_result([a, b])
+    available, reasons = result.cost_ranking_available()
+    assert available is False
+    assert any("币种未确认" in r for r in reasons)
+    # 降级为吞吐，且仍是达标候选
+    picked = result.recommended("cost")
+    assert picked is not None and picked.verdict == "predicted_pass"
+
+
+def test_cost_ranking_rejects_mixed_horizon():
+    a = _cand("sim:A", cost=_cost("100", horizon=3))
+    b = _cand("sim:B", cost=_cost("50", horizon=5))
+    result = _sim_result([a, b])
+    available, reasons = result.cost_ranking_available()
+    assert available is False
+    assert any("年限" in r for r in reasons)
+
+
+def test_cost_ranking_allows_only_when_every_candidate_is_confirmed():
+    a = _cand("sim:A", cost=_cost("100"))
+    b = _cand("sim:B", cost=_cost("50"))
+    for candidate in (a, b):
+        candidate.cost.currency_confirmed = True
+    result = _sim_result([a, b])
+    available, reasons = result.cost_ranking_available()
+    assert available is True, reasons
+    assert result.recommended("cost").candidate_id == "sim:B"

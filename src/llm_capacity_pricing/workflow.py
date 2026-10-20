@@ -813,6 +813,8 @@ def _attach_simulated_costs(
         candidate.cost = SimulatedCost(
             hardware_id=hardware_id,
             currency=tco.currency,
+            # 从 TCO 原样透传，不另造一套币种确认机制
+            currency_confirmed=bool(tco.currency_confirmed),
             cost_basis=tco.cost_basis,
             horizon_years=tco.horizon_years,
             total_cash_over_horizon=(None if tco.incomplete else tco.total_cash_over_horizon),

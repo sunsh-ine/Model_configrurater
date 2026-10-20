@@ -184,7 +184,7 @@ def test_run_two_stage_without_tool_reports_error_and_writes_manifest(tmp_path):
     )
     assert result.status == "error"
     assert result.message
-    manifest = json.loads((tmp_path / "work" / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["errors"]
     # 搜索输入仍然被归档（即使没跑起来），便于事后复核
     assert "search_input.yaml" in manifest["inputs"]
@@ -231,7 +231,7 @@ def test_live_two_stage_search_then_replay(tmp_path):
         assert candidate.linked_search_candidate_id, "回放结果必须能回关联到搜索工作点"
         assert candidate.metrics.sim_p99_ttft_ms is not None
         assert candidate.metrics.sim_ttft_samples
-    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((_only_run_dir(work) / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["inputs"] and manifest["outputs"]
     # 所有归档的输入/输出都带 sha256
     assert all(len(v) == 64 for v in manifest["inputs"].values())
@@ -313,6 +313,16 @@ def _install_fake_tool(monkeypatch, csv_text: str, *, timeout_on_call: int | Non
     return state
 
 
+def _run_dirs(work: Path) -> list[Path]:
+    return sorted((work / "runs").glob("run_*"))
+
+
+def _only_run_dir(work: Path) -> Path:
+    dirs = _run_dirs(work)
+    assert len(dirs) == 1, f"期望恰好一个运行目录，实际 {len(dirs)}"
+    return dirs[0]
+
+
 def _fake_spec(**overrides) -> SearchSpec:
     base = dict(
         model_name="Qwen/Qwen3-32B",
@@ -342,7 +352,7 @@ def test_timeout_on_one_candidate_does_not_stop_the_others(tmp_path, monkeypatch
         _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True),
         work_dir=tmp_path / "work",
     )
-    manifest = json.loads((tmp_path / "work" / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8"))
     natives = [c for c in result.candidates if c.candidate_id.startswith("sim-native")]
     assert len(natives) == 1, "超时的那条被跳过，第二条应当成功"
     assert any("TimeoutExpired" in e for e in manifest["errors"])
@@ -391,7 +401,7 @@ def test_unaligned_candidates_do_not_consume_the_replay_quota(tmp_path, monkeypa
         _fake_spec(top_n=1), tool_config=ExternalToolConfig(python="/fake", enabled=True),
         work_dir=tmp_path / "work",
     )
-    manifest = json.loads((tmp_path / "work" / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8"))
     natives = [c for c in result.candidates if c.candidate_id.startswith("sim-native")]
     assert len(natives) == 1
     assert "tp4" in (natives[0].linked_search_candidate_id or ""), natives[0].linked_search_candidate_id
@@ -413,3 +423,96 @@ def test_context_budget_is_not_a_search_constraint_but_a_filter():
     # 搜索空间里只有 GPU/TP/PP/DP/MoE/CP 维度，没有请求并发维度
     assert not any("concurren" in key for key in entry)
     assert "decode_max_batch_size" not in entry
+
+
+# ---------------------------------------------------------------------------
+# F6-2：运行目录隔离（每次运行独立目录，不跨运行补结果）
+# ---------------------------------------------------------------------------
+
+
+def test_each_run_gets_its_own_directory(tmp_path, monkeypatch):
+    csv_text = _csv_rows([{"tp": "8"}, {"tp": "4", "num_total_gpus": "4"}])
+    _install_fake_tool(monkeypatch, csv_text)
+    work = tmp_path / "work"
+
+    first = run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+    second = run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+
+    dirs = _run_dirs(work)
+    assert len(dirs) == 2, "两次运行必须各有一个独立目录"
+    assert first.source_dir != second.source_dir
+    assert Path(first.source_dir).name.startswith("run_")
+    # 结果里的证据路径都指向本次运行目录
+    for candidate in first.candidates:
+        if candidate.source_file:
+            assert str(first.source_dir) in candidate.source_file
+
+
+def test_second_run_never_reads_the_first_runs_artifacts(tmp_path, monkeypatch):
+    """A 成功、B 失败时，B 不得拿 A 的旧预测文件伪装成功。"""
+    good_csv = _csv_rows([{"tp": "8"}])
+    _install_fake_tool(monkeypatch, good_csv)
+    work = tmp_path / "work"
+    first = run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+    assert [c for c in first.candidates if c.candidate_id.startswith("sim-native")]
+
+    # 第二次：工具在搜索阶段就失败
+    import llm_capacity_pricing.perf.aisimulate_adapter as adapter
+
+    def failing(surface, *, config_arg, save_dir=None, extra=(), config=None, environ=None):
+        raise adapter.SimulationNotAvailable("模拟工具故障")
+
+    monkeypatch.setattr(adapter, "run_external", failing)
+    second = run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+
+    assert second.status == "error"
+    assert second.candidates == []
+    assert second.source_dir != first.source_dir
+    run_b = Path(second.source_dir)
+    manifest_b = json.loads((run_b / "manifest.json").read_text(encoding="utf-8"))
+    # B 的清单里不能出现 A 目录下的任何文件
+    assert all(str(run_b) in path or not str(path).startswith("/") for path in manifest_b["inputs"])
+    assert manifest_b["outputs"] == {}
+
+
+def test_manifests_and_hashes_are_independent_per_run(tmp_path, monkeypatch):
+    csv_text = _csv_rows([{"tp": "8"}])
+    _install_fake_tool(monkeypatch, csv_text)
+    work = tmp_path / "work"
+    for _ in range(2):
+        run_two_stage(
+            _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+        )
+    first, second = _run_dirs(work)
+    m1 = json.loads((first / "manifest.json").read_text(encoding="utf-8"))
+    m2 = json.loads((second / "manifest.json").read_text(encoding="utf-8"))
+    assert m1["run_id"] != m2["run_id"]
+    assert m1["run_dir"] != m2["run_dir"]
+    # 输入内容相同（同配置），但归档路径与运行 ID 独立
+    assert set(m1["inputs"]) == set(m2["inputs"])
+    assert all(len(v) == 64 for v in m1["inputs"].values())
+    assert all(len(v) == 64 for v in m2["inputs"].values())
+
+
+def test_run_directory_is_not_created_by_deleting_old_ones(tmp_path, monkeypatch):
+    """新运行不得删除既有运行目录（不通过清空 work_dir 解决覆盖）。"""
+    _install_fake_tool(monkeypatch, _csv_rows([{"tp": "8"}]))
+    work = tmp_path / "work"
+    run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+    marker = _run_dirs(work)[0] / "keep_me.txt"
+    marker.write_text("x", encoding="utf-8")
+    run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True), work_dir=work
+    )
+    assert marker.exists(), "旧运行目录不得被删除"
+    assert len(_run_dirs(work)) == 2

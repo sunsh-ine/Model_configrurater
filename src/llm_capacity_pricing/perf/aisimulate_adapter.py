@@ -32,6 +32,7 @@ import subprocess
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence
 
 import yaml
@@ -1268,6 +1269,15 @@ def build_predict_config(
     }
 
 
+def new_run_id() -> str:
+    """生成唯一运行 ID：UTC 时间戳 + 随机后缀（不依赖目录里的既有名称）。"""
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"run_{stamp}_{uuid4().hex[:6]}"
+
+
 def _write_yaml(directory: Path, name: str, doc: Any) -> tuple[Path, str]:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / name
@@ -1363,11 +1373,19 @@ def run_two_stage(
     ``accept`` 是调用方给的资格回调（身份 + 资源校验）：只有它返回 True 的候选
     才进入 Top-N。单个候选回放失败**不影响**其它候选。
     """
-    root = Path(work_dir)
-    root.mkdir(parents=True, exist_ok=True)
+    work_root = Path(work_dir)
+    # 每次运行一个**独立**目录：work_dir/runs/<run_id>/
+    # 只读本次运行目录，**不**跨历史运行目录补结果（F6-2）。
+    run_id = new_run_id()
+    root = work_root / "runs" / run_id
+    root.mkdir(parents=True, exist_ok=False)
     manifest: dict[str, Any] = {
         "tool": "aisimulate",
         "tool_version": tool_version,
+        "run_id": run_id,
+        "run_dir": str(root),
+        "work_root": str(work_root),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "spec": {
             "model": spec.model_name,
             "precision": spec.model_precision,

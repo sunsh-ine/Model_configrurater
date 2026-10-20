@@ -433,7 +433,7 @@ llm-capacity-pricing/
 │   │   ├── estimator.py                   # M22 受限估算与留出验证
 │   │   ├── sla_evaluator.py               # M23 SLA 判定
 │   │   └── ranker.py                      # M24 候选比较
-├── tests/                                 # 849 个用例（1 个需要真实工具，缺则 skip）
+├── tests/                                 # 867 个用例（1 个需要真实工具，缺则 skip）
 ├── scripts/verify_all.sh                  # 一键复现（65 步，含门禁断言、Demo、自动模拟与敏感扫描）
 ├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
@@ -621,6 +621,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/aisimulate_poc.md`](docs/aisimulate_poc.md) | **N3/N4** NVIDIA AISimulate 独立 PoC（支持矩阵、离线实验、口径警告、字段映射与集成决策） |
 | [`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md) | **P1–P4 封板** 模拟预测接入（口径纠正、数据契约、可选适配器、反向测试与准确性边界） |
 | [`docs/v7_r1_r2_validation.md`](docs/v7_r1_r2_validation.md) | **V7.0** 推荐正确性加固（R1）+ 自动搜索与 P99 回放（R2）验收 |
+| [`docs/v7_final_validation.md`](docs/v7_final_validation.md) | **V7.0 封板**（F6-1 币种门禁、F6-2 运行目录隔离、全量回归与冻结结论） |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收测试包（任务单 + 反馈表 + 判定标准；需真人执行） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
