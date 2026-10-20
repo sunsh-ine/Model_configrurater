@@ -918,6 +918,8 @@
           "model_name": "Qwen/Qwen3-32B",
           "model_precision": "bf16",
           "system": "h100_sxm",
+          "backend": "vllm",
+          "backend_version": "0.24.0",
           "gpu_count": 8,
           "serving_mode": "agg",
           "tp_size": 8,
@@ -975,12 +977,23 @@
         "notes": [
           "模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀"
         ],
+        "resource_feasible": true,
+        "resource_reasons": [
+          "静态结论 conditional_feasible（Sizing 口径 8 卡）"
+        ],
+        "sizing_gpu_count": 8,
+        "within_gpu_budget": true,
+        "budget_status": "unknown",
+        "budget_reasons": [
+          "cost_incomplete: 成本不完整，不能据此给预算结论"
+        ],
         "source_file": "docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv",
         "source_sha256": "16d60eca102c08dadefab8491dc7d2b40963111ac88ab8a7a23ce897082340d0",
         "source_row": 24,
         "cost": {
           "hardware_id": "nvidia-h100-sxm-80gb",
           "currency": "CNY",
+          "currency_confirmed": false,
           "cost_basis": "owned",
           "horizon_years": 3,
           "total_cash_over_horizon": null,
@@ -998,6 +1011,8 @@
           "model_name": "Qwen/Qwen3-32B",
           "model_precision": "bf16",
           "system": "h100_sxm",
+          "backend": "vllm",
+          "backend_version": "0.24.0",
           "gpu_count": 8,
           "serving_mode": "agg",
           "tp_size": 8,
@@ -1055,12 +1070,23 @@
         "notes": [
           "模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀"
         ],
+        "resource_feasible": true,
+        "resource_reasons": [
+          "静态结论 conditional_feasible（Sizing 口径 8 卡）"
+        ],
+        "sizing_gpu_count": 8,
+        "within_gpu_budget": true,
+        "budget_status": "unknown",
+        "budget_reasons": [
+          "cost_incomplete: 成本不完整，不能据此给预算结论"
+        ],
         "source_file": "docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv",
         "source_sha256": "16d60eca102c08dadefab8491dc7d2b40963111ac88ab8a7a23ce897082340d0",
         "source_row": 25,
         "cost": {
           "hardware_id": "nvidia-h100-sxm-80gb",
           "currency": "CNY",
+          "currency_confirmed": false,
           "cost_basis": "owned",
           "horizon_years": 3,
           "total_cash_over_horizon": null,
@@ -1078,6 +1104,8 @@
           "model_name": "Qwen/Qwen3-32B",
           "model_precision": "bf16",
           "system": "h100_sxm",
+          "backend": "vllm",
+          "backend_version": "0.24.0",
           "gpu_count": 8,
           "serving_mode": "agg",
           "tp_size": 8,
@@ -1137,6 +1165,16 @@
         "notes": [
           "模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀"
         ],
+        "resource_feasible": true,
+        "resource_reasons": [
+          "静态结论 conditional_feasible（Sizing 口径 8 卡）"
+        ],
+        "sizing_gpu_count": 8,
+        "within_gpu_budget": true,
+        "budget_status": "unknown",
+        "budget_reasons": [
+          "该候选没有可用的成本结果（需可比较且成本模板可用）"
+        ],
         "source_file": "docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv",
         "source_sha256": "16d60eca102c08dadefab8491dc7d2b40963111ac88ab8a7a23ce897082340d0",
         "source_row": 0,
@@ -1148,6 +1186,8 @@
           "model_name": "Qwen/Qwen3-32B",
           "model_precision": "bf16",
           "system": "h100_sxm",
+          "backend": "vllm",
+          "backend_version": "0.24.0",
           "gpu_count": 8,
           "serving_mode": "agg",
           "tp_size": 8,
@@ -1160,9 +1200,7 @@
           "gpus_per_worker": null,
           "parallel": null,
           "batch_size": null,
-          "quant_modes": {
-            "__backend__": "vllm"
-          },
+          "quant_modes": {},
           "memory_gib": null,
           "balance_score": null
         },
@@ -1201,12 +1239,23 @@
         "notes": [
           "模型精度 bf16 由**输入身份**给出（原生回放输出不回显精度，它按 HF config 自行推断）"
         ],
+        "resource_feasible": true,
+        "resource_reasons": [
+          "静态结论 conditional_feasible（Sizing 口径 8 卡）"
+        ],
+        "sizing_gpu_count": 8,
+        "within_gpu_budget": true,
+        "budget_status": "unknown",
+        "budget_reasons": [
+          "cost_incomplete: 成本不完整，不能据此给预算结论"
+        ],
         "source_file": "docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json",
         "source_sha256": "39821385dd6708fbd50fc8cdbf22c51322d12c08ff4bfec050cdf14dde625d6d",
         "source_row": null,
         "cost": {
           "hardware_id": "nvidia-h100-sxm-80gb",
           "currency": "CNY",
+          "currency_confirmed": false,
           "cost_basis": "owned",
           "horizon_years": 3,
           "total_cash_over_horizon": null,
@@ -1222,6 +1271,7 @@
     "limitations": [
       "扫描器输出**不含 P99**（只有稳态单点估计，实测约等于原生回放的中位数）：因此扫描器候选一律无法给出 P99 判定，需要原生回放补测",
       "扫描器候选共 51 行，报告只展示其中的 3 行（优先展示能与目标直接比较的工作点）",
+      "同时使用了配置扫描器与原生回放两种输出：两者口径不同（扫描器=稳态单点，原生=含尾部的分布），只**分别列示**，不合并为同一结论",
       "即使 SILICON 模式也含经验算子 8 个（例如 genonly_step.generation_act_gate, genonly_step.generation_add_norm_1, genonly_step.generation_add_norm_2 ...）：不是全部来自实测",
       "搜索默认叠加了经验修正系数（非实测）：autoscale_ttft_correction_factor=1.8, decode_latency_correction=1.08, encoder_latency_correction=1.0, prefill_latency_correction=1.1, rate_match_decode_degradation=0.92, rate_match_encoder_degradation=0.9, rate_match_prefill_degradation=0.9",
       "模拟结论**不是实测**：不得写入 BenchmarkRun / CapacityPoint，不得产生 observed_pass / observed_fail"
@@ -1269,5 +1319,5 @@
     "未提供的数据一律标为未配置/缺失，不使用默认值补齐",
     "治理领域未产出结论：正式报价资格未被评估（默认不可发布）"
   ],
-  "generated_at": "2026-10-16T08:57:18.112285Z"
+  "generated_at": "2026-10-20T01:41:48.412416Z"
 }

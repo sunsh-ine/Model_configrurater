@@ -4,7 +4,7 @@
 - 模型：`qwen3-32b`
 - 候选硬件：['nvidia-h100-sxm-80gb']
 - 目标负载：输入 8192 / 输出 256 / 并发 32
-- 生成时间：2026-10-16T08:57:18+00:00
+- 生成时间：2026-10-20T01:41:48+00:00
 
 ## 1. 结论摘要
 
@@ -116,9 +116,9 @@
 - 搜索空间存档：`docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml`（sha256 `c1afd887bf591f518abf7ebb19c5c61aad20185d003539ed32af845cfe53a54a`）
 - 叠加的经验修正系数（**非实测**）：`autoscale_ttft_correction_factor=1.8`、`decode_latency_correction=1.08`、`encoder_latency_correction=1.0`、`prefill_latency_correction=1.1`、`rate_match_decode_degradation=0.92`、`rate_match_encoder_degradation=0.9`、`rate_match_prefill_degradation=0.9`
 
-**没有候选被预测为满足你的 P99 阈值**；下面给的是预测吞吐最高的可比候选，只用来说明「最好能到哪一步」，**不是**达标建议。
+**没有候选被预测为满足你的 P99 阈值**；下面给的是推荐池里预测吞吐最高的候选，只用来说明「最好能到哪一步」，**不是**达标建议。
 
-**推荐配置（模拟）**：`sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500`
+**未达标参考配置（模拟）**：`sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500`
 
 | 项 | 值 |
 |---|---|
@@ -131,11 +131,16 @@
 | 模拟 TTFT P99 | 5201.827252000001 ms（均值 548.0465038100006） |
 | 模拟 TPOT P99 | 31.45861707450993 ms（均值 30.065770863803973） |
 | 预测结论 | 预测**未**满足阈值（模拟） |
+| 静态可行性（Sizing） | 可行（8 卡） |
+| GPU 上限 | 在范围内 |
+| 预算 | 无法判定（成本不完整或币种未确认） |
 
 > 这里的 TTFT / TPOT 是**性能模拟**的预测值，不是实测，也不与第 2 节的实测证据合并。
 
 - TTFT P99 5201.827252000001ms > 阈值 400ms
 - TPOT P99 31.45861707450993ms > 阈值 30ms
+- 资源校验：静态结论 conditional_feasible（Sizing 口径 8 卡）
+- 预算：cost_incomplete: 成本不完整，不能据此给预算结论
 - 记录说明：模型精度 bf16 由**输入身份**给出（原生回放输出不回显精度，它按 HF config 自行推断）
 
 - **成本（本仓库 TCO 计算，不是模拟值）**：**不完整，不给总额**
@@ -153,6 +158,7 @@
 
 - 扫描器输出**不含 P99**（只有稳态单点估计，实测约等于原生回放的中位数）：因此扫描器候选一律无法给出 P99 判定，需要原生回放补测
 - 扫描器候选共 51 行，报告只展示其中的 3 行（优先展示能与目标直接比较的工作点）
+- 同时使用了配置扫描器与原生回放两种输出：两者口径不同（扫描器=稳态单点，原生=含尾部的分布），只**分别列示**，不合并为同一结论
 - 即使 SILICON 模式也含经验算子 8 个（例如 genonly_step.generation_act_gate, genonly_step.generation_add_norm_1, genonly_step.generation_add_norm_2 ...）：不是全部来自实测
 - 搜索默认叠加了经验修正系数（非实测）：autoscale_ttft_correction_factor=1.8, decode_latency_correction=1.08, encoder_latency_correction=1.0, prefill_latency_correction=1.1, rate_match_decode_degradation=0.92, rate_match_encoder_degradation=0.9, rate_match_prefill_degradation=0.9
 - 模拟结论**不是实测**：不得写入 BenchmarkRun / CapacityPoint，不得产生 observed_pass / observed_fail

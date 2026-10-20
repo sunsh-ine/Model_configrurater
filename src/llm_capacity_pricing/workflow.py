@@ -824,6 +824,195 @@ def _attach_simulated_costs(
         )
 
 
+#: 本系统**不建模**的拓扑：模拟可以展示，但不得宣称"可部署"
+_UNSUPPORTED_SIM_TOPOLOGY: tuple[tuple[str, str], ...] = (
+    ("serving_mode", "disagg"),
+)
+
+
+def _simulation_version_aliases(request: Any, config: Any, target: Any) -> dict[str, str]:
+    """解析后端版本槽位别名（R1.1）。
+
+    优先用配置里显式给出的别名；否则读**独立环境**里工具自带的
+    ``query_versions.yaml``（只读）。都拿不到就返回空表 —— 调用方据此判"版本不可确认"。
+    """
+    aliases = dict(config.backend_version_aliases or {})
+    if aliases:
+        return aliases
+    from llm_capacity_pricing.perf.aisimulate_adapter import (
+        aliases_for,
+        find_version_slot_file,
+        load_version_slots,
+        resolve_python,
+    )
+
+    python = config.external_python or resolve_python(None)
+    slot_file = find_version_slot_file(python)
+    if slot_file is None:
+        return {}
+    return aliases_for(
+        load_version_slots(slot_file), system=target.system, backend=target.backend
+    )
+
+
+def _simulation_resource_gate(
+    request: Any,
+    *,
+    result: Any,
+    model_repo_id: str,
+    hardware_id: str | None,
+    db_path: Any,
+) -> None:
+    """用**现有 Sizing** 校验模拟候选是否真的可部署（R1.2），并检查卡数上限。
+
+    纪律：
+
+    * PP/EP/PD/CP 等本系统不建模的拓扑 -> ``resource_feasible=False``
+      （只作模拟参考，**不宣称可部署**）；
+    * TP 未声明 -> ``False``（没法校验）；
+    * 我们用 Sizing 算出的卡数与工具报的不一致 -> ``False``（口径打架，不推荐）；
+    * 用户给了 ``max_total_gpus`` 而候选超限 -> ``within_gpu_budget=False``。
+    """
+    from dataclasses import replace as _replace
+
+    from llm_capacity_pricing.services import plan_deployment_for
+
+    limit = request.max_total_gpus
+    for candidate in result.candidates:
+        dep = candidate.deployment
+        reasons: list[str] = []
+
+        unsupported: list[str] = []
+        if dep.serving_mode == "disagg":
+            unsupported.append("PD 分离")
+        if dep.pp_size not in (None, 1):
+            unsupported.append(f"PP={dep.pp_size}")
+        if dep.moe_ep_size not in (None, 1):
+            unsupported.append(f"MoE-EP={dep.moe_ep_size}")
+        if dep.moe_tp_size not in (None, 1):
+            unsupported.append(f"MoE-TP={dep.moe_tp_size}")
+        if dep.cp_size not in (None, 1):
+            unsupported.append(f"CP={dep.cp_size}")
+
+        # GPU 上限先判（与拓扑无关，用户给的上限是硬约束）
+        if limit is not None:
+            if dep.gpu_count is None:
+                candidate.within_gpu_budget = False
+                reasons.append("模拟未给出卡数，无法确认是否在 GPU 上限内")
+            else:
+                candidate.within_gpu_budget = dep.gpu_count <= limit
+                if not candidate.within_gpu_budget:
+                    reasons.append(f"{dep.gpu_count} 卡超过用户上限 {limit} 卡")
+
+        if unsupported:
+            candidate.resource_feasible = False
+            reasons.insert(
+                0,
+                "本系统不建模 " + "、".join(unsupported) + " 拓扑：只能作模拟参考，不宣称可部署",
+            )
+            candidate.resource_reasons = reasons
+            continue
+        if dep.tp_size is None:
+            candidate.resource_feasible = False
+            reasons.insert(0, "模拟未给出 TP：无法做静态可行性校验")
+            candidate.resource_reasons = reasons
+            continue
+        if hardware_id is None:
+            candidate.resource_feasible = None
+            reasons.insert(0, "未提供硬件：跳过静态可行性校验")
+            candidate.resource_reasons = reasons
+            continue
+
+        tp = int(dep.tp_size)
+        dp = int(dep.dp_size or 1)
+        try:
+            assumptions = _replace(
+                _assumptions(request), tp_sizes=(tp,), dp_sizes=(dp,)
+            )
+            plan = plan_deployment_for(
+                db_path,
+                model_id=request.model_id,
+                hardware_id=hardware_id,
+                server_id=request.server_id,
+                assumptions=assumptions,
+                weight_precision=request.advanced.weight_precision,
+                kv_precision=request.advanced.kv_precision,
+            )
+        except Exception as exc:  # noqa: BLE001 - 校验失败不影响其它候选
+            candidate.resource_feasible = None
+            reasons.insert(0, f"静态可行性校验失败：{type(exc).__name__}: {exc}")
+            candidate.resource_reasons = reasons
+            continue
+
+        match = next(
+            (
+                item
+                for item in plan["candidates"]
+                if item.tp_size == tp and item.dp_size == dp
+            ),
+            None,
+        )
+        if match is None:
+            candidate.resource_feasible = False
+            reasons.insert(0, f"Sizing 未产出 TP{tp}×DP{dp} 组合：无法确认可部署")
+            candidate.resource_reasons = reasons
+            continue
+
+        candidate.sizing_gpu_count = match.gpu_count
+        status = match.feasibility.status
+        feasible = status in ("feasible", "conditional_feasible")
+        reasons.insert(0, f"静态结论 {status}（Sizing 口径 {match.gpu_count} 卡）")
+        reasons.extend(list(match.feasibility.reasons)[:3])
+        if dep.gpu_count is not None and match.gpu_count != dep.gpu_count:
+            feasible = False
+            reasons.append(
+                f"卡数口径不一致：工具报 {dep.gpu_count} 卡，Sizing 为 {match.gpu_count} 卡"
+            )
+        candidate.resource_feasible = feasible
+        candidate.resource_reasons = reasons
+
+
+def _simulation_budget_gate(request: Any, *, result: Any) -> None:
+    """把预算比对挂到模拟候选上（R2.3）。
+
+    复用既有的 ``check_budget``：金额缺失 / 币种未确认 / 成本不完整一律 ``unknown``，
+    **不得**把"算不出来"当成"没超预算"。
+    """
+    from llm_capacity_pricing.decision.sensitivity import check_budget
+
+    budget = request.budget
+    for candidate in result.candidates:
+        cost = candidate.cost
+        if budget is None:
+            candidate.budget_status = "not_configured"
+            continue
+        if cost is None:
+            candidate.budget_status = "unknown"
+            candidate.budget_reasons = ["该候选没有可用的成本结果（需可比较且成本模板可用）"]
+            continue
+        if cost.incomplete:
+            # 不完整成本没有可比金额：直接给 unknown，别让下游读成"没超预算"
+            candidate.budget_status = "unknown"
+            candidate.budget_reasons = ["cost_incomplete: 成本不完整，不能据此给预算结论"]
+            continue
+        compared = {
+            "one_time_capex": cost.capex_one_time,
+            "annual_opex": cost.annual_cash_opex,
+            "total_horizon": cost.total_cash_over_horizon,
+        }.get(budget.kind)
+        check = check_budget(
+            budget_id=budget.budget_id,
+            budget_amount=budget.amount,
+            budget_kind=budget.kind,
+            compared_value=compared,
+            currency=budget.currency or cost.currency,
+            currency_confirmed=cost.currency_confirmed,
+            compared_currency=cost.currency,
+        )
+        candidate.budget_status = check.status
+        candidate.budget_reasons = list(check.reasons)
+
+
 def _simulate(
     request: Any,
     *,
@@ -893,6 +1082,7 @@ def _simulate(
             native_model_precision=config.native_model_precision,
             tool_version=config.tool_version,
             default_backend=config.default_backend,
+            version_aliases=_simulation_version_aliases(request, config, target),
             target=target,
             top_n=config.top_n,
         )
@@ -906,9 +1096,17 @@ def _simulate(
             status="error", message=f"模拟结果解析异常：{type(exc).__name__}: {exc}"
         )
 
+    _simulation_resource_gate(
+        request,
+        result=result,
+        model_repo_id=model_repo_id,
+        hardware_id=hardware_id,
+        db_path=db_path,
+    )
     _attach_simulated_costs(
         result, request=request, cost_items=cost_items, db_path=db_path
     )
+    _simulation_budget_gate(request, result=result)
     return result
 
 

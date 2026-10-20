@@ -43,6 +43,8 @@ SIM_BLOCK = {
     "exp_config": "docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml",
     "per_ops_source": "docs/poc/aisimulate/artifacts/per_ops_source.json",
     "native_model_precision": "bf16",
+    # 归档输入写的是 backend_version: current；必须解析成实际版本才算身份明确
+    "backend_version_aliases": {"current": "0.24.0"},
     "tool_version": "0.12.1",
     "top_n": 3,
 }

@@ -95,6 +95,10 @@ class SimulationDeployment(BaseModel):
     model_name: str | None = None
     model_precision: str | None = None
     system: str | None = None
+    #: 该候选**自己**的后端与后端版本（扫描器 CSV 有 backend/version 列）。
+    #: 不能用一个全局身份覆盖多后端结果 —— 那会让不同版本的结果看起来可比较。
+    backend: str | None = None
+    backend_version: str | None = None
     gpu_count: int | None = None
     serving_mode: ServingMode = "unknown"
     tp_size: int | None = None
@@ -163,6 +167,8 @@ class SimulatedCost(BaseModel):
 
     hardware_id: str | None = None
     currency: str | None = None
+    #: 币种是否已确认（未确认不得给预算结论，与既有预算规则一致）
+    currency_confirmed: bool = False
     cost_basis: str | None = None
     horizon_years: int | None = None
     total_cash_over_horizon: Decimal | None = None
@@ -195,6 +201,19 @@ class SimulationCandidate(BaseModel):
     comparability_reasons: list[str] = Field(default_factory=list)
     #: 解析期的来源备注（例如"精度由量化列推断"）—— 与可比性原因分开存，不被覆盖
     notes: list[str] = Field(default_factory=list)
+
+    # ---- 资源与预算门槛（R1.2 / R2.3）----
+    #: 本仓库 Sizing 是否确认该并行配置**静态可行**。
+    #: ``None`` = 未校验（不能进正式推荐池）；``False`` = 明确不可行。
+    resource_feasible: bool | None = None
+    resource_reasons: list[str] = Field(default_factory=list)
+    #: 该配置在我们 Sizing 口径下的卡数（可能与工具报的不同，需一致才推荐）
+    sizing_gpu_count: int | None = None
+    #: 是否在用户给出的 GPU 上限内；``None`` = 用户没给上限
+    within_gpu_budget: bool | None = None
+    #: 预算比对：within / over / unknown / not_configured
+    budget_status: str | None = None
+    budget_reasons: list[str] = Field(default_factory=list)
     #: 原始证据（保存的输出文件），用于回溯到具体一行
     source_file: str | None = None
     source_sha256: str | None = None
@@ -232,28 +251,54 @@ class SimulationResult(BaseModel):
             if c.comparable and c.verdict in ("predicted_pass", "predicted_fail")
         ]
 
-    def recommended(self) -> SimulationCandidate | None:
-        """**严格推荐**：只在预测为满足阈值的候选里，取吞吐最高者。
+    def rejection_reasons(self, candidate: SimulationCandidate) -> list[str]:
+        """这个候选为什么不能进**正式推荐池**（空表示可以进）。"""
+        reasons: list[str] = []
+        if not candidate.comparable:
+            reasons.extend(candidate.comparability_reasons or ["与目标不可比较"])
+        if candidate.verdict not in ("predicted_pass", "predicted_fail"):
+            reasons.extend(
+                candidate.verdict_reasons or ["没有可用的 P99 预测结论"]
+            )
+        if candidate.resource_feasible is not True or candidate.within_gpu_budget is False:
+            reasons.extend(
+                candidate.resource_reasons
+                or ["未通过本仓库 Sizing 的静态可行性校验（或拓扑本系统不建模）"]
+            )
+        if candidate.budget_status == "exceeds_budget":
+            reasons.extend(candidate.budget_reasons or ["超出预算"])
+        return reasons
 
-        一组候选全部预测不达标时返回 ``None``，由报告如实说明 —— 不硬凑"最优"。
+    def eligible(self) -> list[SimulationCandidate]:
+        """**正式推荐池**：身份明确 + 资源可行 + P99 完整 + 不超预算。
+
+        这是 R1.3 的门槛。``judged()`` 只表示"有 P99 结论"，进不了推荐池。
+        """
+        return [c for c in self.candidates if not self.rejection_reasons(c)]
+
+    def recommended(self) -> SimulationCandidate | None:
+        """**严格推荐**：推荐池里预测为满足阈值、吞吐最高者。
+
+        没有候选达标时返回 ``None`` —— 报告必须如实说明，不硬凑"最优"。
         """
         pool = [
             c
-            for c in self.judged()
-            if c.verdict == "predicted_pass" and c.metrics.sim_output_throughput_tok_s is not None
+            for c in self.eligible()
+            if c.verdict == "predicted_pass"
+            and c.metrics.sim_output_throughput_tok_s is not None
         ]
         if not pool:
             return None
         return max(pool, key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0))
 
     def best_effort(self) -> SimulationCandidate | None:
-        """**退一步看**：即使全部不达标，也给出预测吞吐最高的可比候选。
+        """**未达标参考配置**：推荐池里即使不达标也吞吐最高的那个。
 
-        用途是回答"在现有模型/硬件下最好的情况是什么、还差多少"，
-        因此它的 ``verdict`` 多半是 ``predicted_fail`` —— 报告必须原样展示该结论。
+        用于回答"在现有模型/硬件下最好能到哪一步、还差多少"。
+        它的 ``verdict`` 多半是 ``predicted_fail``，报告**不得**称其为"推荐配置"。
         """
         pool = [
-            c for c in self.judged() if c.metrics.sim_output_throughput_tok_s is not None
+            c for c in self.eligible() if c.metrics.sim_output_throughput_tok_s is not None
         ]
         if not pool:
             return None

@@ -57,6 +57,9 @@ def _load_bf16(target: SimulationTarget = TARGET):
         native_prediction=POC / "17_matched_native_result_tp8_conc32_bf16.json",
         native_input=POC / "16_matched_native_input_tp8_conc32_bf16.yaml",
         native_model_precision="bf16",
+        # 归档输入写的是 backend_version: current；槽位别名必须解析成实际版本，
+        # 否则身份不明确、不可比较（R1.1）。0.24.0 来自工具自带 query_versions.yaml。
+        version_aliases={"current": "0.24.0"},
         exp_config=ARTIFACTS / "matched_exp_config_vllm_bf16.yaml",
         per_ops_source=ARTIFACTS / "per_ops_source.json",
         tool_version="0.12.1",
@@ -223,6 +226,8 @@ def test_mean_passes_but_p99_fails_must_be_predicted_fail():
     assert native.metrics.sim_p99_ttft_ms > Decimal("600")  # TTFT 的 P99 超限
     assert native.metrics.sim_p99_tpot_ms <= Decimal("32")  # TPOT 均值与 P99 都在界内
     assert native.verdict == "predicted_fail", native.verdict_reasons
+    # 纯适配器路径没有 Sizing 校验 -> 不进推荐池（R1.3）
+    assert result.eligible() == []
     assert any("口径提示" in r and "P99 超限" in r for r in native.verdict_reasons)
 
 
@@ -240,6 +245,10 @@ def test_predicted_pass_only_when_p99_within_both_bounds():
     result = _load_bf16(target)
     native = result.judged()[0]
     assert native.verdict == "predicted_pass"
+    # 适配器本身不做 Sizing 校验；按 R1.3，资源未校验的候选不进正式推荐池。
+    # 这里显式声明"已校验"，用于验证判定逻辑本身。
+    assert result.recommended() is None
+    native.resource_feasible = True
     assert result.recommended() is native
 
 

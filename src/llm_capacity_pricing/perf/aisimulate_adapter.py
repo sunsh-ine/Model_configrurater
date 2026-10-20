@@ -60,6 +60,8 @@ _SWEEPER_DEPLOYMENT_COLUMNS: dict[str, str] = {
     "replicas": "replicas",
     "gpus_per_worker": "gpus_per_worker",
     "parallel": "parallel",
+    "backend": "backend",
+    "version": "backend_version",
     "bs": "batch_size",
     "memory": "memory_gib",
     "balance_score": "balance_score",
@@ -256,6 +258,95 @@ class SimulationTarget:
     backend_version: str | None = None
 
 
+def resolve_backend_version(
+    value: str | None, aliases: Mapping[str, str] | None = None
+) -> str | None:
+    """把版本取值解析成**实际版本**。
+
+    AISimulate 允许用槽位别名（``current`` / ``previous`` / ``next``）指定后端版本。
+    别名本身不是版本号：**解析不出来就不能认为身份匹配**（R1.1）。
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    table = aliases or {}
+    if text in table:
+        return str(table[text])
+    if text[:1].isdigit():
+        return text
+    if text[:1].lower() == "v" and text[1:2].isdigit():
+        return text
+    return None
+
+
+def load_version_slots(path: str | Path) -> dict[tuple[str, str], dict[str, str]]:
+    """读取 AISimulate 的 ``query_versions.yaml``（system, backend -> slot -> version）。
+
+    槽位别名（current / previous / next）本身**不是**版本号；能解析成实际版本才算身份明确。
+    该文件由工具随包提供，解析失败时本函数返回空表（调用方据此判"不可确认"）。
+    """
+    try:
+        doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return {}
+    out: dict[tuple[str, str], dict[str, str]] = {}
+    defaults = doc.get("defaults") or {}
+    for backend, slots in defaults.items():
+        if isinstance(slots, dict):
+            out[("*", str(backend))] = {
+                str(k): str(v) for k, v in slots.items() if v is not None
+            }
+    for system, backends in (doc.get("overrides") or {}).items():
+        if not isinstance(backends, dict):
+            continue
+        for backend, slots in backends.items():
+            if isinstance(slots, dict):
+                out[(str(system), str(backend))] = {
+                    str(k): str(v) for k, v in slots.items() if v is not None
+                }
+    return out
+
+
+def aliases_for(
+    slots: Mapping[tuple[str, str], Mapping[str, str]],
+    *,
+    system: str | None,
+    backend: str | None,
+) -> dict[str, str]:
+    """取某个 (system, backend) 的槽位别名表；没有就退回默认值。"""
+    if not backend:
+        return {}
+    table = slots.get((str(system), str(backend))) if system else None
+    return dict(table or slots.get(("*", str(backend))) or {})
+
+
+def find_version_slot_file(python: str | None) -> Path | None:
+    """在**独立环境**里定位 ``query_versions.yaml``（只读；不 import 任何东西）。
+
+    找不到就返回 ``None`` —— 调用方只能用配置里显式给出的别名。
+    """
+    if not python:
+        return None
+    try:
+        probe = subprocess.run(
+            [python, "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if probe.returncode != 0:
+        return None
+    candidate = (
+        Path(probe.stdout.strip()) / "aiconfigurator_core" / "systems" / "query_versions.yaml"
+    )
+    return candidate if candidate.exists() else None
+
+
 def _same_name(left: str | None, right: str | None) -> bool | None:
     """规范化后比较名字；任一侧缺失返回 ``None``（未知 ≠ 相同）。"""
     if not left or not right:
@@ -294,6 +385,22 @@ def check_comparability(candidate: SimulationCandidate, target: SimulationTarget
         reasons.append("模拟未声明 system：无法确认与目标硬件一致")
     elif not system_same:
         reasons.append(f"硬件不同：目标 {target.system}，模拟 {dep.system}")
+
+    # 后端与后端版本属于**证据身份**：性能数据是按版本标定的。
+    if not dep.backend:
+        reasons.append("模拟未声明后端：无法确认与目标的框架一致")
+    elif target.backend is not None and dep.backend != target.backend:
+        reasons.append(f"后端不同：目标 {target.backend}，模拟 {dep.backend}")
+
+    if not dep.backend_version:
+        reasons.append(
+            "模拟的后端版本不可确认（槽位别名未解析或未声明）："
+            "性能数据按版本标定，缺版本无法判为可比较"
+        )
+    elif target.backend_version is not None and dep.backend_version != target.backend_version:
+        reasons.append(
+            f"后端版本不同：目标 {target.backend_version}，模拟 {dep.backend_version}"
+        )
 
     for label, want, got in (
         ("输入长度", target.input_len, wl.input_len),
@@ -447,7 +554,7 @@ def parse_sweeper_row(
     dep_kwargs: dict[str, Any] = {}
     for column, attr in _SWEEPER_DEPLOYMENT_COLUMNS.items():
         raw = row.get(column)
-        if attr in ("model_name", "system", "parallel"):
+        if attr in ("model_name", "system", "parallel", "backend", "backend_version"):
             value: Any = (str(raw).strip() or None) if raw is not None else None
         elif attr in ("memory_gib", "balance_score"):
             value = _dec(raw)
@@ -553,7 +660,10 @@ def parse_sweeper_csv(
 
 
 def parse_native_input_yaml(
-    path: str | Path, *, model_precision: str | None = None
+    path: str | Path,
+    *,
+    model_precision: str | None = None,
+    version_aliases: Mapping[str, str] | None = None,
 ) -> tuple[SimulationDeployment, SimulationWorkload]:
     """从原生预测的输入 YAML 取回身份与负载（``prediction.json`` 里没有身份）。
 
@@ -579,7 +689,10 @@ def parse_native_input_yaml(
             precision_from_model_name(engine.get("model")) or model_precision
         ),
         system=engine.get("hardware"),
-        serving_mode="agg" if engine.get("mode") == "aggregated" else "unknown",
+        serving_mode={
+            "aggregated": "agg",
+            "disaggregated": "disagg",
+        }.get(str(engine.get("mode")), "unknown"),  # type: ignore[arg-type]
         tp_size=parallel.get("tensor"),
         pp_size=parallel.get("pipeline"),
         dp_size=None,  # 原生 schema 的 replicas ≠ 数据并行，不混为一谈
@@ -587,7 +700,11 @@ def parse_native_input_yaml(
         moe_ep_size=parallel.get("moe_expert"),
         replicas=parallel.get("replicas"),
         gpu_count=None,
-        quant_modes={"__backend__": backend} if backend else {},
+        backend=str(backend) if backend else None,
+        backend_version=resolve_backend_version(
+            engine.get("backend_version"), version_aliases
+        ),
+        quant_modes={},
     )
     workload = SimulationWorkload(
         input_len=source.get("input_tokens"),
@@ -831,6 +948,7 @@ def load_archived(
     native_prediction: str | Path | None = None,
     native_input: str | Path | None = None,
     native_model_precision: str | None = None,
+    version_aliases: Mapping[str, str] | None = None,
     exp_config: str | Path | None = None,
     per_ops_source: str | Path | None = None,
     tool_version: str | None = None,
@@ -877,7 +995,9 @@ def load_archived(
         if native_input is None:
             raise ValueError("解析原生回放结果必须同时给出它的输入 YAML（身份不在结果里）")
         deployment, workload = parse_native_input_yaml(
-            native_input, model_precision=native_model_precision
+            native_input,
+            model_precision=native_model_precision,
+            version_aliases=version_aliases,
         )
         native_candidate = parse_native_prediction(
             native_prediction, deployment=deployment, workload=workload
@@ -929,6 +1049,11 @@ def load_archived(
     for problem in check_tool_identity(tool, expected_tool):
         limitations.append(problem)
 
+    if tool.surface == "mixed":
+        limitations.append(
+            "同时使用了配置扫描器与原生回放两种输出：两者口径不同"
+            "（扫描器=稳态单点，原生=含尾部的分布），只**分别列示**，不合并为同一结论"
+        )
     if tool.database_mode and tool.database_mode.upper() != "SILICON":
         limitations.append(
             f"数据库模式为 {tool.database_mode}：官方声明只有 SILICON 的结果可复现，"

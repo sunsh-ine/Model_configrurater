@@ -173,6 +173,9 @@ class PlanSimulationInput(BaseModel):
     default_backend: str | None = None
     #: 扫描器候选的短名单上限（避免无界展示；原生候选不受限）
     top_n: int = 3
+    #: 后端版本槽位别名 -> 实际版本（例如 ``{"current": "0.24.0"}``）。
+    #: 槽位别名本身不是版本号：解析不出来就**不能**认为身份匹配（R1.1）。
+    backend_version_aliases: dict[str, str] = Field(default_factory=dict)
 
     # ---- 外部执行（第二阶段，默认关闭）----
     enable_external: bool = False
@@ -212,6 +215,9 @@ class PlanRequest(BaseModel):
     model_id: str
     #: 候选硬件（可多个，逐一出候选方案）
     hardware_ids: list[str]
+    #: 用户实际可用的 GPU 总数上限（可选）。**未给出时不假设等于单机卡数** ——
+    #: 拿不到上限就不做"卡数是否超限"的判断，也不据此推荐。
+    max_total_gpus: int | None = None
     server_id: str | None = None
     workload: PlanWorkload
     resources: PlanResourceAssumptions = Field(default_factory=PlanResourceAssumptions)
@@ -228,6 +234,13 @@ class PlanRequest(BaseModel):
     advanced: PlanAdvanced = Field(default_factory=PlanAdvanced)
     #: 结果中是否包含未验证/未配置领域的说明（默认包含，如实输出）
     include_gaps: bool = True
+
+    @field_validator("max_total_gpus")
+    @classmethod
+    def _max_gpus_positive(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("max_total_gpus 至少为 1")
+        return v
 
     @field_validator("hardware_ids")
     @classmethod

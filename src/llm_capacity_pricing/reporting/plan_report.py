@@ -524,10 +524,11 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
     best_effort = simulation.best_effort()
     headline = recommended or best_effort
     if headline is None:
-        add("**没有模拟候选能与你的需求直接比较（或缺 P99 预测）**，因此不给推荐配置。")
+        add("**无符合条件的模拟候选**（身份/资源/P99/预算任一不满足即不进推荐池），"
+            "因此不给出模拟推荐。")
         add("")
         for candidate in simulation.candidates[:limit]:
-            reasons = candidate.comparability_reasons or candidate.verdict_reasons
+            reasons = simulation.rejection_reasons(candidate)
             add(f"- `{candidate.candidate_id}`：" + "；".join(reasons))
         add("")
     else:
@@ -535,11 +536,14 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         metrics = headline.metrics
         if recommended is None:
             add(
-                "**没有候选被预测为满足你的 P99 阈值**；下面给的是预测吞吐最高的可比候选，"
-                "只用来说明「最好能到哪一步」，**不是**达标建议。"
+                "**没有候选被预测为满足你的 P99 阈值**；下面给的是推荐池里预测吞吐最高的"
+                "候选，只用来说明「最好能到哪一步」，**不是**达标建议。"
             )
             add("")
-        add(f"**推荐配置（模拟）**：`{headline.candidate_id}`")
+            heading = "**未达标参考配置（模拟）**"
+        else:
+            heading = "**推荐配置（模拟）**"
+        add(f"{heading}：`{headline.candidate_id}`")
         add("")
         add("| 项 | 值 |")
         add("|---|---|")
@@ -569,6 +573,33 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             f"（均值 {_fmt(metrics.sim_mean_tpot_ms)}） |"
         )
         add(f"| 预测结论 | {_VERDICT_LABEL.get(headline.verdict, headline.verdict)} |")
+        add(
+            "| 静态可行性（Sizing） | "
+            + {
+                True: "可行",
+                False: "**不可行**",
+                None: "未校验",
+            }[headline.resource_feasible]
+            + (f"（{headline.sizing_gpu_count} 卡）" if headline.sizing_gpu_count else "")
+            + " |"
+        )
+        if headline.within_gpu_budget is not None:
+            add(
+                "| GPU 上限 | "
+                + ("在范围内" if headline.within_gpu_budget else "**超限**")
+                + " |"
+            )
+        if headline.budget_status:
+            add(
+                "| 预算 | "
+                + {
+                    "within_budget": "在预算内",
+                    "exceeds_budget": "**超预算**",
+                    "unknown": "无法判定（成本不完整或币种未确认）",
+                    "not_configured": "未给出预算",
+                }.get(headline.budget_status, headline.budget_status)
+                + " |"
+            )
         add("")
         add(
             "> 这里的 TTFT / TPOT 是**性能模拟**的预测值，不是实测，"
@@ -577,6 +608,10 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         add("")
         for reason in headline.verdict_reasons:
             add(f"- {reason}")
+        for reason in headline.resource_reasons:
+            add(f"- 资源校验：{reason}")
+        for reason in headline.budget_reasons:
+            add(f"- 预算：{reason}")
         for note in headline.notes:
             add(f"- 记录说明：{note}")
         add("")

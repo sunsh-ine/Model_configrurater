@@ -50,6 +50,10 @@ budget:
   amount: "3000000"
   kind: total_horizon
 
+# 用户可用的 GPU 总数上限（可选）。不写就不做"卡数是否超限"的判断，
+# 也**不会**默认取 server_id 对应服务器的卡数。
+max_total_gpus: 8
+
 advanced:
   tp_sizes: [2, 4, 8]
   dp_sizes: [1]
@@ -71,6 +75,13 @@ simulation:
   per_ops_source: docs/poc/aisimulate/artifacts/per_ops_source.json
   # 原生回放不回显精度；模型名（Qwen/Qwen3-32B）不带后缀，故在此声明"我们要求模拟的精度"
   native_model_precision: bf16
+  # 后端版本槽位别名 -> 实际版本。归档的输入写的是 `backend_version: current`，
+  # 而槽位别名本身不是版本号；不解析出来就不能认为身份匹配（R1.1）。
+  # 这里的 0.24.0 来自工具自带的 query_versions.yaml：
+  #   defaults.vllm.current = "0.24.0"（h100_sxm 无 override，走默认值）
+  # 装了工具时会自动读该文件；离线时用这段显式声明，二者都要求"解析得到实际版本"。
+  backend_version_aliases:
+    current: "0.24.0"
   tool_version: "0.12.1"
   # 扫描器候选的短名单上限（避免无界展示；原生候选不受限）
   top_n: 3
