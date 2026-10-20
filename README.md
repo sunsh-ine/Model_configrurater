@@ -257,6 +257,14 @@ python -m llm_capacity_pricing.cli plan \
   --db data/exports/demo/demo.db
 ```
 
+两种用法：
+
+* **离线（默认）**：读仓库里归档的模拟输出，不需要 GPU、不需要安装 AISimulate；
+* **自动（需工具）**：见 `data/examples/scenario_simulation_auto.example.yaml` ——
+  你只填一份需求 YAML，系统自己生成搜索输入、跑扫描器、按资源过滤取 Top-N、
+  再逐个生成回放输入拿到 P99，并把每步的输入/输出与 sha256 归档到 `work_dir`。
+  需要 `AISIMULATE_PYTHON` 指向装了 `aisimulate` 的独立环境。
+
 三条设计约束：
 
 * **默认关闭**：不写 `simulation` 段时，行为与输出**逐字节不变**，也不会调用任何外部工具；
@@ -265,6 +273,11 @@ python -m llm_capacity_pricing.cli plan \
 * **与实测严格隔离**：模拟指标一律 `sim_` 前缀，结论只有
   `predicted_pass / predicted_fail / insufficient_prediction`，
   **永不**写入 `BenchmarkRun` / `CapacityPoint`，**永不**产生 `observed_pass`。
+
+推荐资格也是硬的（R1）：只有**身份明确**（模型/精度/system/后端/后端版本/工作点）、
+**资源可行**（用它自己的 TP/DP 走一遍现有 Sizing）、**P99 完整**、**不超预算**的候选
+才进推荐池。可用卡数上限写 `max_total_gpus`（不写就不做超限判断，也不假设等于单机卡数）；
+PP/EP/PD 分离等本系统不建模的拓扑只作参考，不宣称可部署。
 
 ⚠️ 两条必须知道的边界：扫描器的单点估计**≈ 原生回放的中位数**（不是 P99，P99 可达其 13.9 倍），
 而官方 SLA 过滤是**均值口径**；所以达标与否**由我们用 P99 自己判**，不采纳工具的结论。
@@ -307,7 +320,7 @@ bash scripts/verify_all.sh
 脚本会串起建库 → 导入 → 校验 → 计算 → 情景 → 报告 → 测试，任一失败即非零退出。
 一次真实执行日志见 `docs/test_run_log.txt`。
 
-> 完整链路由 **64 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
+> 完整链路由 **65 步**组成，其中含第四阶段门禁断言、**S6 四场景端到端验收**
 > （仅资源 / 有实测无价格 / 完整合成 / 输入错误）、**Demo（D1–D9）**
 > 与两条反例断言（篡改公开参考声明必须整批拒绝、`DEMO_DB` 指向已有库必须拒绝覆盖）。
 
@@ -420,8 +433,8 @@ llm-capacity-pricing/
 │   │   ├── estimator.py                   # M22 受限估算与留出验证
 │   │   ├── sla_evaluator.py               # M23 SLA 判定
 │   │   └── ranker.py                      # M24 候选比较
-├── tests/                                 # 822 个用例，全部通过
-├── scripts/verify_all.sh                  # 一键复现（64 步，含门禁断言、Demo、模拟与敏感扫描）
+├── tests/                                 # 849 个用例（1 个需要真实工具，缺则 skip）
+├── scripts/verify_all.sh                  # 一键复现（65 步，含门禁断言、Demo、自动模拟与敏感扫描）
 ├── scripts/make_synthetic_perf_fixture.py # 生成合成性能曲线（仅算法验证）
 ├── scripts/make_public_sample.py          # 生成脱敏公开样本（V1.2 F1）
 └── docs/
@@ -607,6 +620,7 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/demo_v1_1_final_validation.md`](docs/demo_v1_1_final_validation.md) | **Demo V1.1 封板**（N1 取值绑定加固 + N2 验证结果与冻结声明） |
 | [`docs/aisimulate_poc.md`](docs/aisimulate_poc.md) | **N3/N4** NVIDIA AISimulate 独立 PoC（支持矩阵、离线实验、口径警告、字段映射与集成决策） |
 | [`docs/p_simulation_final_validation.md`](docs/p_simulation_final_validation.md) | **P1–P4 封板** 模拟预测接入（口径纠正、数据契约、可选适配器、反向测试与准确性边界） |
+| [`docs/v7_r1_r2_validation.md`](docs/v7_r1_r2_validation.md) | **V7.0** 推荐正确性加固（R1）+ 自动搜索与 P99 回放（R2）验收 |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |
 | [`docs/simple_architecture_validation.md`](docs/simple_architecture_validation.md) | **S 阶段**架构收敛进度与封板清单 |
 | [`docs/phase4_baseline.md`](docs/phase4_baseline.md) | **M26** 第三阶段接口冻结与第四阶段基线 |

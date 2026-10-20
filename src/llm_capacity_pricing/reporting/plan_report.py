@@ -520,7 +520,22 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         )
     add("")
 
-    recommended = simulation.recommended()
+    objective = getattr(simulation, "ranking", "throughput")
+    add(
+        "- 排序目标：**"
+        + ("吞吐优先" if objective != "cost" else "成本优先")
+        + "**（多候选都满足时按此目标取一个，不提供含糊的「全局最优」）"
+    )
+    cost_ok, cost_reasons = simulation.cost_ranking_available()
+    if objective == "cost" and not cost_ok:
+        add(
+            "- 成本排序**不可用**："
+            + "；".join(cost_reasons)
+            + "。以下按吞吐给出，且**不得**称为成本最优"
+        )
+    add("")
+
+    recommended = simulation.recommended(objective)
     best_effort = simulation.best_effort()
     headline = recommended or best_effort
     if headline is None:

@@ -221,6 +221,12 @@ class SimulationCandidate(BaseModel):
     #: 该配置的**成本**（来自本仓库的 TCO，不是模拟量）；未算出则 None
     cost: SimulatedCost | None = None
 
+    # ---- R2：与搜索工作点的关联 ----
+    #: 原生回放候选来自哪一条搜索结果（``None`` = 独立来源，无法对齐）
+    linked_search_candidate_id: str | None = None
+    #: 若无法对齐，写明原因（不同工作点只能分别展示，不能合并）
+    link_reasons: list[str] = Field(default_factory=list)
+
 
 class SimulationResult(BaseModel):
     """一次模拟的整体结果。"""
@@ -236,8 +242,10 @@ class SimulationResult(BaseModel):
     limitations: list[str] = Field(default_factory=list)
     #: 出错/缺数据时的可读说明
     message: str | None = None
-    #: 读取的归档目录（离线模式）
+    #: 读取的归档目录（离线模式）或自动搜索的工作目录
     source_dir: str | None = None
+    #: 采用的排序目标（多候选都满足时用哪个）：throughput / cost
+    ranking: str = "throughput"
 
     def judged(self) -> list[SimulationCandidate]:
         """可比、且**已经能给出 P99 结论**的候选（pass 或 fail 都算）。
@@ -276,16 +284,48 @@ class SimulationResult(BaseModel):
         """
         return [c for c in self.candidates if not self.rejection_reasons(c)]
 
-    def recommended(self) -> SimulationCandidate | None:
+    def cost_ranking_available(self) -> tuple[bool, list[str]]:
+        """成本排序是否成立：只比"币种/口径/年限完全一致且金额已知"的候选。
+
+        口径不一致时**不排序** —— 那会拿不同口径的金额直接比大小（R2.3）。
+        """
+        pool = [c for c in self.eligible() if c.cost is not None]
+        if not pool:
+            return False, ["推荐池里没有带成本的候选"]
+        complete = [
+            c
+            for c in pool
+            if not c.cost.incomplete and c.cost.total_cash_over_horizon is not None
+        ]
+        if not complete:
+            return False, ["候选成本不完整（含未确认/缺失项）：只能给性能优先建议"]
+        groups = {
+            (c.cost.currency, c.cost.cost_basis, c.cost.horizon_years) for c in complete
+        }
+        if len(groups) > 1:
+            return False, [
+                "候选的币种/成本口径/年限不一致：不得直接比较成本"
+            ]
+        return True, []
+
+    def recommended(self, objective: str = "throughput") -> SimulationCandidate | None:
         """**严格推荐**：推荐池里预测为满足阈值、吞吐最高者。
 
         没有候选达标时返回 ``None`` —— 报告必须如实说明，不硬凑"最优"。
         """
+        passed = [c for c in self.eligible() if c.verdict == "predicted_pass"]
+        if not passed:
+            return None
+        if objective == "cost":
+            ok, _reasons = self.cost_ranking_available()
+            if not ok:
+                return None
+            return min(
+                passed,
+                key=lambda c: c.cost.total_cash_over_horizon,  # type: ignore[union-attr]
+            )
         pool = [
-            c
-            for c in self.eligible()
-            if c.verdict == "predicted_pass"
-            and c.metrics.sim_output_throughput_tok_s is not None
+            c for c in passed if c.metrics.sim_output_throughput_tok_s is not None
         ]
         if not pool:
             return None

@@ -855,76 +855,73 @@ def _simulation_version_aliases(request: Any, config: Any, target: Any) -> dict[
     )
 
 
-def _simulation_resource_gate(
+def _check_simulation_candidate_resources(
     request: Any,
+    candidate: Any,
     *,
-    result: Any,
-    model_repo_id: str,
     hardware_id: str | None,
     db_path: Any,
-) -> None:
-    """用**现有 Sizing** 校验模拟候选是否真的可部署（R1.2），并检查卡数上限。
+    cache: dict | None = None,
+) -> bool:
+    """就地填资源门槛字段；返回"资源上是否可推荐"。
 
-    纪律：
-
-    * PP/EP/PD/CP 等本系统不建模的拓扑 -> ``resource_feasible=False``
-      （只作模拟参考，**不宣称可部署**）；
-    * TP 未声明 -> ``False``（没法校验）；
-    * 我们用 Sizing 算出的卡数与工具报的不一致 -> ``False``（口径打架，不推荐）；
-    * 用户给了 ``max_total_gpus`` 而候选超限 -> ``within_gpu_budget=False``。
+    复用**现有 Sizing**：以候选自己的 TP/DP 调 plan_deployment_for，取静态结论与卡数。
+    本系统不建模的拓扑（PP>1 / EP / PD / CP）一律判不可部署。
     """
     from dataclasses import replace as _replace
 
     from llm_capacity_pricing.services import plan_deployment_for
 
+    memo = cache if cache is not None else {}
+    dep = candidate.deployment
     limit = request.max_total_gpus
-    for candidate in result.candidates:
-        dep = candidate.deployment
-        reasons: list[str] = []
+    reasons: list[str] = []
 
-        unsupported: list[str] = []
-        if dep.serving_mode == "disagg":
-            unsupported.append("PD 分离")
-        if dep.pp_size not in (None, 1):
-            unsupported.append(f"PP={dep.pp_size}")
-        if dep.moe_ep_size not in (None, 1):
-            unsupported.append(f"MoE-EP={dep.moe_ep_size}")
-        if dep.moe_tp_size not in (None, 1):
-            unsupported.append(f"MoE-TP={dep.moe_tp_size}")
-        if dep.cp_size not in (None, 1):
-            unsupported.append(f"CP={dep.cp_size}")
+    if limit is not None:
+        if dep.gpu_count is None:
+            candidate.within_gpu_budget = False
+            reasons.append("模拟未给出卡数，无法确认是否在 GPU 上限内")
+        else:
+            candidate.within_gpu_budget = dep.gpu_count <= limit
+            if not candidate.within_gpu_budget:
+                reasons.append(f"{dep.gpu_count} 卡超过用户上限 {limit} 卡")
+    else:
+        candidate.within_gpu_budget = None
 
-        # GPU 上限先判（与拓扑无关，用户给的上限是硬约束）
-        if limit is not None:
-            if dep.gpu_count is None:
-                candidate.within_gpu_budget = False
-                reasons.append("模拟未给出卡数，无法确认是否在 GPU 上限内")
-            else:
-                candidate.within_gpu_budget = dep.gpu_count <= limit
-                if not candidate.within_gpu_budget:
-                    reasons.append(f"{dep.gpu_count} 卡超过用户上限 {limit} 卡")
+    unsupported: list[str] = []
+    if dep.serving_mode == "disagg":
+        unsupported.append("PD 分离")
+    if dep.pp_size not in (None, 1):
+        unsupported.append(f"PP={dep.pp_size}")
+    if dep.moe_ep_size not in (None, 1):
+        unsupported.append(f"MoE-EP={dep.moe_ep_size}")
+    if dep.moe_tp_size not in (None, 1):
+        unsupported.append(f"MoE-TP={dep.moe_tp_size}")
+    if dep.cp_size not in (None, 1):
+        unsupported.append(f"CP={dep.cp_size}")
+    if unsupported:
+        candidate.resource_feasible = False
+        reasons.insert(
+            0,
+            "本系统不建模 " + "、".join(unsupported) + " 拓扑：只能作模拟参考，不宣称可部署",
+        )
+        candidate.resource_reasons = reasons
+        return False
+    if dep.tp_size is None:
+        candidate.resource_feasible = False
+        reasons.insert(0, "模拟未给出 TP：无法做静态可行性校验")
+        candidate.resource_reasons = reasons
+        return False
+    if hardware_id is None:
+        candidate.resource_feasible = None
+        reasons.insert(0, "未提供硬件：跳过静态可行性校验")
+        candidate.resource_reasons = reasons
+        return False
 
-        if unsupported:
-            candidate.resource_feasible = False
-            reasons.insert(
-                0,
-                "本系统不建模 " + "、".join(unsupported) + " 拓扑：只能作模拟参考，不宣称可部署",
-            )
-            candidate.resource_reasons = reasons
-            continue
-        if dep.tp_size is None:
-            candidate.resource_feasible = False
-            reasons.insert(0, "模拟未给出 TP：无法做静态可行性校验")
-            candidate.resource_reasons = reasons
-            continue
-        if hardware_id is None:
-            candidate.resource_feasible = None
-            reasons.insert(0, "未提供硬件：跳过静态可行性校验")
-            candidate.resource_reasons = reasons
-            continue
-
-        tp = int(dep.tp_size)
-        dp = int(dep.dp_size or 1)
+    tp = int(dep.tp_size)
+    dp = int(dep.dp_size or 1)
+    key = (tp, dp)
+    if key not in memo:
         try:
             assumptions = _replace(
                 _assumptions(request), tp_sizes=(tp,), dp_sizes=(dp,)
@@ -938,38 +935,59 @@ def _simulation_resource_gate(
                 weight_precision=request.advanced.weight_precision,
                 kv_precision=request.advanced.kv_precision,
             )
-        except Exception as exc:  # noqa: BLE001 - 校验失败不影响其它候选
-            candidate.resource_feasible = None
-            reasons.insert(0, f"静态可行性校验失败：{type(exc).__name__}: {exc}")
-            candidate.resource_reasons = reasons
-            continue
-
-        match = next(
-            (
-                item
-                for item in plan["candidates"]
-                if item.tp_size == tp and item.dp_size == dp
-            ),
-            None,
-        )
-        if match is None:
-            candidate.resource_feasible = False
-            reasons.insert(0, f"Sizing 未产出 TP{tp}×DP{dp} 组合：无法确认可部署")
-            candidate.resource_reasons = reasons
-            continue
-
-        candidate.sizing_gpu_count = match.gpu_count
-        status = match.feasibility.status
-        feasible = status in ("feasible", "conditional_feasible")
-        reasons.insert(0, f"静态结论 {status}（Sizing 口径 {match.gpu_count} 卡）")
-        reasons.extend(list(match.feasibility.reasons)[:3])
-        if dep.gpu_count is not None and match.gpu_count != dep.gpu_count:
-            feasible = False
-            reasons.append(
-                f"卡数口径不一致：工具报 {dep.gpu_count} 卡，Sizing 为 {match.gpu_count} 卡"
+            match = next(
+                (
+                    item
+                    for item in plan["candidates"]
+                    if item.tp_size == tp and item.dp_size == dp
+                ),
+                None,
             )
-        candidate.resource_feasible = feasible
-        candidate.resource_reasons = reasons
+            memo[key] = (
+                ("missing", None, [f"Sizing 未产出 TP{tp}×DP{dp} 组合：无法确认可部署"])
+                if match is None
+                else (
+                    match.feasibility.status,
+                    match.gpu_count,
+                    list(match.feasibility.reasons)[:3],
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - 校验失败不影响其它候选
+            memo[key] = ("error", None, [f"静态可行性校验失败：{type(exc).__name__}: {exc}"])
+
+    status, sizing_gpus, detail = memo[key]
+    candidate.sizing_gpu_count = sizing_gpus
+    feasible = status in ("feasible", "conditional_feasible")
+    reasons.insert(0, f"静态结论 {status}（Sizing 口径 {sizing_gpus} 卡）")
+    reasons.extend(detail)
+    if dep.gpu_count is not None and sizing_gpus is not None and sizing_gpus != dep.gpu_count:
+        feasible = False
+        reasons.append(
+            f"卡数口径不一致：工具报 {dep.gpu_count} 卡，Sizing 为 {sizing_gpus} 卡"
+        )
+    candidate.resource_feasible = feasible
+    candidate.resource_reasons = reasons
+    return feasible and candidate.within_gpu_budget is not False
+
+
+def _simulation_resource_gate(
+    request: Any,
+    *,
+    result: Any,
+    model_repo_id: str,
+    hardware_id: str | None,
+    db_path: Any,
+) -> None:
+    """对全部模拟候选跑一遍资源门槛（复用现有 Sizing；同一 TP/DP 只算一次）。"""
+    cache: dict = {}
+    for candidate in result.candidates:
+        _check_simulation_candidate_resources(
+            request,
+            candidate,
+            hardware_id=hardware_id,
+            db_path=db_path,
+            cache=cache,
+        )
 
 
 def _simulation_budget_gate(request: Any, *, result: Any) -> None:
@@ -1013,6 +1031,94 @@ def _simulation_budget_gate(request: Any, *, result: Any) -> None:
         candidate.budget_reasons = list(check.reasons)
 
 
+def _simulate_auto(
+    request: Any,
+    *,
+    config: Any,
+    target: Any,
+    model_repo_id: str,
+    hardware_id: str | None,
+    db_path: Any,
+    cost_items: Any,
+) -> Any:
+    """R2 自动模式：按需求生成搜索输入 -> 搜索 -> 资源过滤 -> Top-N -> 原生 P99。"""
+    from llm_capacity_pricing.perf.aisimulate_adapter import (
+        ExternalToolConfig,
+        SearchSpec,
+        check_comparability,
+        run_two_stage,
+    )
+    from llm_capacity_pricing.schemas.simulation import SimulationResult
+
+    if target.system is None:
+        return SimulationResult(
+            status="blocked",
+            message=(
+                "无法映射出 AISimulate 的 system（硬件不在已登记的系统表里）："
+                "自动搜索需要明确的 GPU 型号"
+            ),
+        )
+    spec = SearchSpec(
+        model_name=model_repo_id,
+        model_precision=request.advanced.weight_precision,
+        system=target.system,
+        input_len=request.workload.input_len,
+        output_len=request.workload.output_len,
+        concurrency=request.workload.concurrency,
+        backend=request.advanced.framework,
+        backend_version=request.advanced.framework_version,
+        max_total_gpus=request.max_total_gpus,
+        top_n=config.top_n,
+        ttft_p99_ms_max=target.ttft_p99_ms_max,
+        tpot_p99_ms_max=target.tpot_p99_ms_max,
+    )
+    resource_cache: dict = {}
+
+    def accept(candidate: Any) -> bool:
+        check_comparability(candidate, target)
+        _check_simulation_candidate_resources(
+            request,
+            candidate,
+            hardware_id=hardware_id,
+            db_path=db_path,
+            cache=resource_cache,
+        )
+        return (
+            candidate.comparable
+            and candidate.resource_feasible is True
+            and candidate.within_gpu_budget is not False
+        )
+
+    result = run_two_stage(
+        spec,
+        tool_config=ExternalToolConfig(
+            python=config.external_python, enabled=True, timeout_s=config.external_timeout_s
+        ),
+        work_dir=config.work_dir,
+        target=target,
+        accept=accept,
+        predict_requests=config.predict_requests,
+        tool_version=config.tool_version,
+        version_aliases=_simulation_version_aliases(request, config, target),
+    )
+    if result.status not in ("computed",):
+        return result
+
+    _simulation_resource_gate(
+        request,
+        result=result,
+        model_repo_id=model_repo_id,
+        hardware_id=hardware_id,
+        db_path=db_path,
+    )
+    _attach_simulated_costs(
+        result, request=request, cost_items=cost_items, db_path=db_path
+    )
+    _simulation_budget_gate(request, result=result)
+    result.ranking = config.ranking
+    return result
+
+
 def _simulate(
     request: Any,
     *,
@@ -1042,6 +1148,17 @@ def _simulate(
         "exp_config": config.exp_config,
         "per_ops_source": config.per_ops_source,
     }
+
+    if config.auto_search:
+        return _simulate_auto(
+            request,
+            config=config,
+            target=target,
+            model_repo_id=model_repo_id,
+            hardware_id=hardware_id,
+            db_path=db_path,
+            cost_items=cost_items,
+        )
 
     if config.enable_external:
         try:

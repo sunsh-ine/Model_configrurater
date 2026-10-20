@@ -29,6 +29,7 @@ from llm_capacity_pricing.perf.aisimulate_adapter import (
     parse_native_prediction,
     parse_sweeper_csv,
     resolve_python,
+    resolve_executable,
     run_external,
 )
 from llm_capacity_pricing.schemas.simulation import (
@@ -409,7 +410,7 @@ def test_resolve_python_returns_none_when_tool_absent():
     assert resolve_python(ExternalToolConfig(python="/nonexistent/python"), environ={}) is None
 
 
-def test_build_command_is_argv_and_never_a_shell_string():
+def test_build_command_is_argv_and_never_a_shell_string(monkeypatch):
     """命令用 argv 列表构造；带 shell 元字符的路径只是**一个参数**，不会被解释。"""
     nasty = "out; rm -rf /tmp/x && echo pwned"
     argv = build_command("sweeper", config_arg=nasty, save_dir=nasty)
@@ -417,8 +418,14 @@ def test_build_command_is_argv_and_never_a_shell_string():
     assert all(isinstance(part, str) for part in argv)
     assert nasty in argv  # 原样作为一个元素
     native = build_command("native_replay", config_arg="p.yaml", save_dir="o")
-    assert native[:3] == ["-m", "aisimulate", "predict"]
+    # 可执行文件由 resolve_executable 单独解析（console script，不用 python -m）
+    assert native[0] == "predict"
     assert "--stack" in native and "engine" in native
+    # 找不到可执行文件时必须明确报错，而不是退化成 python -m 的假设
+    # （用 monkeypatch 保证与机器上是否装了 aisimulate 无关）
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(SimulationNotAvailable):
+        resolve_executable("native_replay", "/nonexistent/python")
     with pytest.raises(ValueError):
         build_command("nope", config_arg="x")
 

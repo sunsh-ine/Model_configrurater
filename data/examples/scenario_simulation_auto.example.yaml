@@ -1,0 +1,78 @@
+# 示例：**自动**模拟选型（V7-R2）
+#
+# 与 scenario_simulation.example.yaml 的区别：这里不提供任何模拟输出文件，
+# 系统会自己按需求生成 AISimulate 的搜索输入，做「搜索 -> 资源过滤 -> Top-N ->
+# 原生 P99 回放」，你只需要填这一份需求 YAML。
+#
+# 前置条件（只有这个模式需要）：
+#   1) 独立环境里装好 AISimulate：python3 -m venv /opt/aisim && /opt/aisim/bin/pip install aisimulate
+#   2) 设置 AISIMULATE_PYTHON=/opt/aisim/bin/python（或在 simulation.external_python 里写死）
+#   3) 磁盘预留约 2 GB（venv + 自带性能库）
+# 没装工具时请改用 scenario_simulation.example.yaml（离线读归档，无需安装）。
+#
+# 运行：
+#   AISIMULATE_PYTHON=/opt/aisim/bin/python \
+#   python -m llm_capacity_pricing.cli plan \
+#     --config data/examples/scenario_simulation_auto.example.yaml \
+#     --out data/exports/auto_report.md --json-out data/exports/auto_result.json \
+#     --db data/exports/demo/demo.db
+
+request_id: demo-qwen3-32b-h100-auto
+
+model_id: qwen3-32b
+hardware_ids: [nvidia-h100-sxm-80gb]
+server_id: hgx-h100-8gpu
+
+# 用户实际可用的 GPU 总数上限（可选）。不写就不做"是否超限"的判断。
+max_total_gpus: 8
+
+workload:
+  input_len: 8192
+  output_len: 256
+  concurrency: 32
+  dataset: random
+  arrival_mode: unbounded
+
+resources:
+  usable_fraction: "0.9"
+  usable_source_kind: synthetic_example
+  runtime_reserve_fraction: "0.1"
+
+sla:
+  requirement_id: demo-sla-8k
+  ttft_p99_ms_max: 400
+  tpot_p99_ms_max: 30
+
+cost:
+  plan_file: data/examples/phase4_cost_plan.example.yaml
+  template_id: syn-owned-3y
+
+budget:
+  budget_id: demo-budget
+  amount: "3000000"
+  kind: total_horizon
+
+advanced:
+  tp_sizes: [2, 4, 8]
+  dp_sizes: [1]
+  #: 必须明确：模拟结果要与之同精度才可比较
+  weight_precision: bf16
+  #: 明确后端与版本 —— 性能数据按版本标定，缺版本会被判为不可比较
+  framework: vllm
+  framework_version: "0.24.0"
+
+simulation:
+  enable_external: true
+  auto_search: true
+  #: 自动生成的搜索输入、回放输入与工具输出都归档到这里
+  work_dir: data/exports/auto_sim
+  #: 独立环境的解释器（也可用环境变量 AISIMULATE_PYTHON）
+  external_python: null
+  predict_requests: 500
+  #: Top-N（默认 ≤ 3）：只对能与回放精确对齐的少数候选做 P99 回放
+  top_n: 2
+  #: 多候选都满足时按什么排序：throughput / cost
+  ranking: throughput
+  #: 扫描器每行自带 backend/version；原生输入的槽位别名在这里兜底解析
+  backend_version_aliases:
+    current: "0.24.0"

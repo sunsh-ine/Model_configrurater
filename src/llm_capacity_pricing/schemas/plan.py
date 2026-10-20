@@ -179,6 +179,15 @@ class PlanSimulationInput(BaseModel):
 
     # ---- 外部执行（第二阶段，默认关闭）----
     enable_external: bool = False
+    #: 自动模式：由本系统按需求生成搜索输入（不再要求用户手写第二份模拟 YAML）。
+    #: 需要 ``enable_external: true``。
+    auto_search: bool = False
+    #: 自动搜索的工作目录（输入/输出/清单都写在这里）
+    work_dir: str | None = None
+    #: 多候选都满足条件时的排序目标。不提供"全局最优"的含糊说法。
+    ranking: Literal["throughput", "cost"] = "throughput"
+    #: 每个候选做原生回放时的请求数（决定 P99 的样本窗口）
+    predict_requests: int = 500
     external_python: str | None = None
     external_surface: Literal["sweeper", "native_replay"] = "sweeper"
     external_config: str | None = None
@@ -187,7 +196,11 @@ class PlanSimulationInput(BaseModel):
 
     @model_validator(mode="after")
     def _guard(self) -> "PlanSimulationInput":
-        if self.enable_external:
+        if self.auto_search and not self.enable_external:
+            raise ValueError("auto_search 需要同时设置 enable_external: true")
+        if self.auto_search and not self.work_dir:
+            raise ValueError("auto_search 需要给出 work_dir（存放自动生成的输入与输出）")
+        if self.enable_external and not self.auto_search:
             if not self.external_config:
                 raise ValueError(
                     "enable_external 需要同时给出 external_config（要运行的输入 YAML）"
@@ -196,7 +209,10 @@ class PlanSimulationInput(BaseModel):
                 raise ValueError(
                     "enable_external 需要同时给出 external_out_dir（外部输出写到哪）"
                 )
-        if not self.enable_external and not (self.sweeper_csv or self.native_prediction):
+        if (
+            not self.enable_external
+            and not (self.sweeper_csv or self.native_prediction)
+        ):
             raise ValueError(
                 "simulation 至少要给出 sweeper_csv 或 native_prediction（离线归档）；"
                 "如果要现场调用外部工具，请显式设置 enable_external: true"

@@ -674,13 +674,16 @@ run_step 59 "反例：DEMO_DB 指向已有数据库 -> 拒绝运行且不删除�
 run_step 60 "模拟预测接入（P4：离线可复现的模拟报告 + 与实测隔离）" 1 '^模拟报告检查通过' \
   bash scripts/check_simulation_report.sh "$OUT_DIR/demo/demo.db" "$OUT_DIR/simulation"
 
-run_step 61 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
+run_step 61 "自动搜索 -> P99 回放（V7-R2；未装工具则跳过并说明）" 1 '^(自动搜索检查通过|跳过：)' \
+  bash scripts/check_auto_search.sh "$OUT_DIR/demo/demo.db" "$OUT_DIR/auto_sim_check"
+
+run_step 62 "敏感数据扫描（V1.2 F1/F8：内部定价不得进入已跟踪文件）" 1 '^(已跟踪文件中未发现内部定价数值|未找到本地特征表|忽略规则校验通过|发现内部定价数据|应被 )' \
   step_sensitive_scan
 
-run_step 62 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
+run_step 63 "pytest（全量，离线）" 1 '^[0-9]+ (passed|failed|error)|^(FAILED|ERROR)' \
   $PY -m pytest -q
 
-run_step 63 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
+run_step 64 "产物清单（内部目录不入库，仅本地查看）" 1 '\.(json|md)$' \
   ls -la "$OUT_DIR"
 
 finish

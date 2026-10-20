@@ -830,10 +830,12 @@ def tool_identity_from_archives(
 # 外部命令（P2 第二阶段：**默认关闭**）
 # ---------------------------------------------------------------------------
 
-#: 允许的入口；不做任意命令执行
+#: 允许的入口（**console script 名** + 子命令）；不做任意命令执行。
+#: 注意 ``python -m aiconfigurator.cli`` 不是有效入口（它是包，没有 __main__），
+#: 必须直接用 wheel 装的 console script。
 _EXTERNAL_ENTRYPOINTS: dict[str, tuple[str, ...]] = {
-    "sweeper": ("-m", "aiconfigurator.cli", "exp"),
-    "native_replay": ("-m", "aisimulate", "predict"),
+    "sweeper": ("aiconfigurator", "cli", "exp"),
+    "native_replay": ("aisimulate", "predict"),
 }
 
 
@@ -880,6 +882,28 @@ def external_tool_available(config: ExternalToolConfig | None, *, environ: Mappi
     return probe.returncode == 0
 
 
+def resolve_executable(surface: str, python: str | None = None) -> list[str]:
+    """定位 console script（优先用独立环境自己的 bin 目录）。
+
+    找不到就明确报错 —— 不退化成 ``python -m``（那个入口不存在）。
+    """
+    entry = _EXTERNAL_ENTRYPOINTS.get(surface)
+    if entry is None:
+        raise ValueError(f"不支持的外部入口：{surface}")
+    name = entry[0]
+    if python:
+        candidate = Path(python).parent / name
+        if candidate.exists():
+            return [str(candidate)]
+    found = shutil.which(name)
+    if found:
+        return [found]
+    raise SimulationNotAvailable(
+        f"找不到可执行文件 {name}：请在独立环境里安装 aisimulate，"
+        "并用 AISIMULATE_PYTHON 指向该环境的解释器"
+    )
+
+
 def build_command(
     surface: str,
     *,
@@ -887,14 +911,16 @@ def build_command(
     save_dir: str | Path | None = None,
     extra: Sequence[str] = (),
 ) -> list[str]:
-    """构造 argv 列表（**不做 shell 解析**）。"""
+    """构造**参数**列表（不含可执行文件；**不做 shell 解析**）。"""
     entry = _EXTERNAL_ENTRYPOINTS.get(surface)
     if entry is None:
         raise ValueError(f"不支持的外部入口：{surface}")
-    argv: list[str] = list(entry)
+    argv: list[str] = list(entry[1:])
     argv += ["--config" if surface == "native_replay" else "--yaml-path", str(config_arg)]
     if surface == "native_replay":
         argv += ["--stack", "engine"]
+        # 输出目录归我们所有：重复运行同一配置时，工具默认拒绝写非空目录，这里显式覆盖
+        argv += ["--overwrite"]
     if save_dir is not None:
         argv += ["--output-dir" if surface == "native_replay" else "--save-dir", str(save_dir)]
     argv += list(extra)
@@ -920,7 +946,10 @@ def run_external(
         raise SimulationNotAvailable(
             "找不到 AISimulate 独立环境；请设置 AISIMULATE_PYTHON 指向该环境的解释器"
         )
-    argv = [python, *build_command(surface, config_arg=config_arg, save_dir=save_dir, extra=extra)]
+    argv = [
+        *resolve_executable(surface, python),
+        *build_command(surface, config_arg=config_arg, save_dir=save_dir, extra=extra),
+    ]
     result = subprocess.run(
         argv,
         capture_output=True,
@@ -1085,4 +1114,362 @@ def load_archived(
         candidates=candidates,
         limitations=limitations,
         source_dir=str(Path(sweeper_csv or native_prediction).parent),
+    )
+
+
+# ---------------------------------------------------------------------------
+# R2：自动两段式（搜索 -> 资源过滤 -> Top-N -> 原生 P99 回放）
+# ---------------------------------------------------------------------------
+
+#: 搜索阶段刻意给一个**很松**的 SLA 边界：工具自带的过滤是**聚合均值**口径，
+#: 我们不用它做判断（官方原文：It is not a p99 constraint）。松边界 = 不筛。
+_LOOSE_BOUND = Decimal("1000000")
+
+
+@dataclass(frozen=True)
+class SearchSpec:
+    """自动搜索所需的输入（从 PlanRequest 提取，不引入第二份用户 YAML）。"""
+
+    model_name: str
+    model_precision: str | None
+    system: str
+    input_len: int
+    output_len: int
+    concurrency: int
+    backend: str | None = None
+    backend_version: str | None = None
+    max_total_gpus: int | None = None
+    database_mode: str = "SILICON"
+    top_n: int = 3
+    ttft_p99_ms_max: Decimal | None = None
+    tpot_p99_ms_max: Decimal | None = None
+
+
+def _gpu_candidates(limit: int | None) -> list[int]:
+    sizes = [1, 2, 4, 8, 16, 32]
+    if limit is None:
+        return [1, 2, 4, 8]
+    return [size for size in sizes if size <= limit] or [1]
+
+
+def build_search_config(spec: SearchSpec) -> dict[str, Any]:
+    """生成扫描器的 exp YAML（**由需求推导**，不让用户再写一份模拟配置）。"""
+    if not spec.model_name:
+        raise ValueError("自动搜索需要模型名")
+    if not spec.system:
+        raise ValueError("自动搜索需要 system（由 hardware_id 映射而来）")
+    gpus = _gpu_candidates(spec.max_total_gpus)
+    backend = spec.backend or "trtllm"
+    entry: dict[str, Any] = {
+        "serving_mode": "agg",
+        "model_path": spec.model_name,
+        "system_name": spec.system,
+        "backend_name": backend,
+        "isl": spec.input_len,
+        "osl": spec.output_len,
+        "ttft": float(_LOOSE_BOUND),
+        "tpot": float(_LOOSE_BOUND),
+        "total_gpus": max(gpus),
+        "database_mode": spec.database_mode,
+        "agg_num_gpu_candidates": gpus,
+        "agg_tp_candidates": [size for size in gpus if size <= 8] or [1],
+        "agg_pp_candidates": [1],
+        "agg_dp_candidates": [1],
+        "agg_moe_tp_candidates": [1],
+        "agg_moe_ep_candidates": [1],
+        "agg_cp_candidates": [1],
+    }
+    if spec.backend_version:
+        entry["backend_version"] = spec.backend_version
+    return {f"auto_{spec.model_name.replace('/', '_')}": entry}
+
+
+def native_alignment_reasons(
+    candidate: SimulationCandidate, spec: SearchSpec
+) -> list[str]:
+    """这条搜索结果能否用原生回放**精确对齐**；不能就写明原因。
+
+    对齐的前提是"同一个部署 + 同一个工作点"。以下任一不满足都只能分别展示：
+
+    * DP ≠ 1：原生配置的 parallelism 没有 dp 维度；
+    * ``ctx_tokens`` ≠ ISL：扫描器的每步上下文预算与原生"整段 prefill"不同；
+    * 后端/版本不一致：性能数据按版本标定；
+    * 并发/长度与需求不一致。
+    """
+    reasons: list[str] = []
+    dep, wl = candidate.deployment, candidate.workload
+    if dep.dp_size not in (None, 1):
+        reasons.append(f"DP={dep.dp_size}：原生回放的并行配置无法表达 data parallel")
+    if wl.ctx_tokens is not None and wl.input_len is not None and wl.ctx_tokens != wl.input_len:
+        reasons.append(
+            f"每步上下文预算 ctx_tokens={wl.ctx_tokens} ≠ ISL={wl.input_len}："
+            "与原生回放的整段 prefill 不是同一口径"
+        )
+    if not dep.backend or not dep.backend_version:
+        reasons.append("后端或版本未声明：无法保证回放与搜索用的是同一份性能数据")
+    if spec.backend and dep.backend and spec.backend != dep.backend:
+        reasons.append(f"后端不同：搜索用 {dep.backend}，要求 {spec.backend}")
+    if spec.backend_version and dep.backend_version and spec.backend_version != dep.backend_version:
+        reasons.append(
+            f"后端版本不同：搜索用 {dep.backend_version}，要求 {spec.backend_version}"
+        )
+    if dep.tp_size is None:
+        reasons.append("搜索未给出 TP：无法构造回放配置")
+    return reasons
+
+
+def build_predict_config(
+    spec: SearchSpec, candidate: SimulationCandidate, *, requests: int = 500
+) -> dict[str, Any]:
+    """为一个**可对齐**的搜索候选手工生成原生回放输入。"""
+    reasons = native_alignment_reasons(candidate, spec)
+    if reasons:
+        raise ValueError("该候选无法与原生回放对齐：" + "；".join(reasons))
+    dep, wl = candidate.deployment, candidate.workload
+    return {
+        "engine": {
+            "mode": "aggregated",
+            "model": spec.model_name,
+            "hardware": spec.system,
+            "backend": dep.backend,
+            "backend_version": dep.backend_version,
+            "workers": {
+                "aggregated": {
+                    "parallelism": {
+                        "tensor": dep.tp_size,
+                        "pipeline": 1,
+                        "replicas": dep.replicas or 1,
+                    }
+                }
+            },
+        },
+        "traffic": {
+            "source": {
+                "type": "synthetic",
+                "input_tokens": wl.input_len or spec.input_len,
+                "output_tokens": wl.output_len or spec.output_len,
+            },
+            "load": {"type": "concurrency", "concurrency": wl.concurrency or spec.concurrency},
+            "stop": {"requests": int(requests)},
+        },
+    }
+
+
+def _write_yaml(directory: Path, name: str, doc: Any) -> tuple[Path, str]:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / name
+    path.write_text(yaml.safe_dump(doc, allow_unicode=True), encoding="utf-8")
+    return path, sha256_file(path)
+
+
+def discover_outputs(out_dir: str | Path, surface: str) -> dict[str, str]:
+    """在外部工具输出目录里找结果文件（新→旧）；找不到返回空。"""
+    root = Path(out_dir)
+    if not root.exists():
+        return {}
+    wanted = (
+        {"pareto.csv": "sweeper_csv", "best_config_topn.csv": "sweeper_csv"}
+        if surface == "sweeper"
+        else {"prediction.json": "native_prediction"}
+    )
+    found: dict[str, str] = {}
+    for pattern, key in wanted.items():
+        if key in found:
+            continue
+        hits = sorted(root.rglob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        if hits:
+            found[key] = str(hits[0])
+    return found
+
+
+def run_two_stage(
+    spec: SearchSpec,
+    *,
+    tool_config: ExternalToolConfig,
+    work_dir: str | Path,
+    target: SimulationTarget | None = None,
+    accept: Any = None,
+    predict_requests: int = 500,
+    tool_version: str | None = None,
+    version_aliases: Mapping[str, str] | None = None,
+) -> SimulationResult:
+    """R2 主流程：搜索 -> 过滤 -> Top-N -> 原生 P99 回放。
+
+    ``accept`` 是调用方给的资格回调（身份 + 资源校验）：只有它返回 True 的候选
+    才进入 Top-N。单个候选回放失败**不影响**其它候选。
+    """
+    root = Path(work_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, Any] = {
+        "tool": "aisimulate",
+        "tool_version": tool_version,
+        "spec": {
+            "model": spec.model_name,
+            "precision": spec.model_precision,
+            "system": spec.system,
+            "isl": spec.input_len,
+            "osl": spec.output_len,
+            "concurrency": spec.concurrency,
+            "backend": spec.backend,
+            "backend_version": spec.backend_version,
+            "max_total_gpus": spec.max_total_gpus,
+            "database_mode": spec.database_mode,
+        },
+        "inputs": {},
+        "outputs": {},
+        "errors": [],
+        "not_aligned": {},
+    }
+
+    try:
+        search_cfg = build_search_config(spec)
+    except ValueError as exc:
+        return SimulationResult(status="blocked", message=str(exc), source_dir=str(root))
+    search_path, search_sha = _write_yaml(root, "search_input.yaml", search_cfg)
+    manifest["inputs"]["search_input.yaml"] = search_sha
+
+    try:
+        search_out = run_external(
+            "sweeper", config_arg=search_path, save_dir=root / "search", config=tool_config
+        )
+    except SimulationNotAvailable as exc:
+        manifest["errors"].append(f"sweeper: {exc}")
+        (root / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return SimulationResult(
+            status="error", message=str(exc), source_dir=str(root),
+            limitations=["自动搜索未执行：外部工具不可用"],
+        )
+
+    found = discover_outputs(search_out, "sweeper")
+    if not found.get("sweeper_csv"):
+        manifest["errors"].append("sweeper: 输出目录里没有 pareto.csv / best_config_topn.csv")
+        (root / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return SimulationResult(
+            status="missing_data",
+            message=f"搜索已执行，但在 {search_out} 下没找到结果文件",
+            source_dir=str(root),
+        )
+    for path in (root / "search").rglob("*"):
+        if path.is_file():
+            manifest["outputs"][str(path.relative_to(root))] = sha256_file(path)
+
+    exp_config = next(iter((root / "search").rglob("exp_config.yaml")), None)
+    tool = tool_identity_from_archives(
+        exp_config=exp_config,
+        tool_version=tool_version,
+        surface="mixed",
+        backend=spec.backend,
+    )
+    effective_target = target or SimulationTarget(
+        model_name=spec.model_name,
+        model_precision=spec.model_precision,
+        system=spec.system,
+        input_len=spec.input_len,
+        output_len=spec.output_len,
+        concurrency=spec.concurrency,
+        ttft_p99_ms_max=spec.ttft_p99_ms_max,
+        tpot_p99_ms_max=spec.tpot_p99_ms_max,
+        backend=spec.backend,
+        backend_version=spec.backend_version,
+    )
+
+    search_candidates = parse_sweeper_csv(found["sweeper_csv"])
+    for candidate in search_candidates:
+        check_comparability(candidate, effective_target)
+        assess_verdict(candidate, effective_target)
+
+    pool = (
+        [c for c in search_candidates if accept(c)]
+        if accept is not None
+        else [c for c in search_candidates if c.comparable]
+    )
+    pool.sort(
+        key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0), reverse=True
+    )
+    shortlist = pool[: max(1, spec.top_n)]
+
+    native_candidates: list[SimulationCandidate] = []
+    for index, candidate in enumerate(shortlist, 1):
+        reasons = native_alignment_reasons(candidate, spec)
+        if reasons:
+            manifest["not_aligned"][candidate.candidate_id] = reasons
+            candidate.link_reasons = reasons
+            continue
+        try:
+            predict_cfg = build_predict_config(spec, candidate, requests=predict_requests)
+        except ValueError as exc:  # 理论上与上面同源，防御性处理
+            manifest["not_aligned"][candidate.candidate_id] = [str(exc)]
+            candidate.link_reasons = [str(exc)]
+            continue
+        predict_path, predict_sha = _write_yaml(
+            root / "predict", f"predict_{index}.yaml", predict_cfg
+        )
+        manifest["inputs"][str(predict_path.relative_to(root))] = predict_sha
+        try:
+            predict_out = run_external(
+                "native_replay",
+                config_arg=predict_path,
+                save_dir=root / "predict" / f"out_{index}",
+                config=tool_config,
+            )
+        except SimulationNotAvailable as exc:
+            manifest["errors"].append(f"{candidate.candidate_id}: {exc}")
+            continue
+        produced = discover_outputs(predict_out, "native_replay")
+        if not produced.get("native_prediction"):
+            manifest["errors"].append(
+                f"{candidate.candidate_id}: 回放输出里没有 prediction.json"
+            )
+            continue
+        for path in predict_out.rglob("*"):
+            if path.is_file():
+                manifest["outputs"][str(path.relative_to(root))] = sha256_file(path)
+        deployment, workload = parse_native_input_yaml(
+            predict_path,
+            model_precision=spec.model_precision,
+            version_aliases=version_aliases,
+        )
+        native_candidate = parse_native_prediction(
+            produced["native_prediction"], deployment=deployment, workload=workload
+        )
+        native_candidate.linked_search_candidate_id = candidate.candidate_id
+        native_candidate.deployment.backend = candidate.deployment.backend
+        native_candidate.deployment.backend_version = candidate.deployment.backend_version
+        native_candidate.notes.append(
+            f"回放的工作点来自搜索结果 `{candidate.candidate_id}`"
+            f"（ctx_tokens={candidate.workload.ctx_tokens}、并发={candidate.workload.concurrency}）"
+        )
+        check_comparability(native_candidate, effective_target)
+        assess_verdict(native_candidate, effective_target)
+        native_candidates.append(native_candidate)
+
+    (root / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    limitations = [
+        "自动搜索由本系统按需求生成输入 YAML；搜索阶段的 SLA 边界刻意设为极松 —— "
+        "工具自带的 SLA 过滤是**聚合均值**口径，不用于我们的判断",
+        "搜索只产出**Pareto 前沿**上的点：被支配的配置（例如某些 TP）不会出现，"
+        "这是工具的搜索口径，不是本系统的过滤",
+        "只对能与回放精确对齐的 Top-N 候选做 P99 回放；"
+        "对齐不上的（DP≠1 / ctx_tokens≠ISL / 版本不一致）只作参考，分别列示",
+        "模拟结论**不是实测**：不得写入 BenchmarkRun / CapacityPoint，不得产生 observed_pass",
+    ]
+    if manifest["errors"]:
+        limitations.append(
+            f"有 {len(manifest['errors'])} 个候选回放失败（不影响其它候选），"
+            "详见工作目录下的 manifest.json"
+        )
+    status = "computed" if (search_candidates or native_candidates) else "missing_data"
+    return SimulationResult(
+        status=status,
+        tool=tool,
+        candidates=search_candidates + native_candidates,
+        limitations=limitations,
+        source_dir=str(root),
     )
