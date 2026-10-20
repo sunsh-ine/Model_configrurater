@@ -527,15 +527,17 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         + "**（多候选都满足时按此目标取一个，不提供含糊的「全局最优」）"
     )
     cost_ok, cost_reasons = simulation.cost_ranking_available()
-    if objective == "cost" and not cost_ok:
+    cost_downgraded = objective == "cost" and not cost_ok
+    if cost_downgraded:
         add(
             "- 成本排序**不可用**："
             + "；".join(cost_reasons)
-            + "。以下按吞吐给出，且**不得**称为成本最优"
+            + "。**已降级为吞吐优先**（仍然只从预测达标的候选里选），"
+            "且**不得**称为成本最优"
         )
     add("")
 
-    recommended = simulation.recommended(objective)
+    recommended = simulation.recommended(objective if not cost_downgraded else "throughput")
     best_effort = simulation.best_effort()
     headline = recommended or best_effort
     if headline is None:

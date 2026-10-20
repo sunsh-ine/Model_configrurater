@@ -236,3 +236,180 @@ def test_live_two_stage_search_then_replay(tmp_path):
     # 所有归档的输入/输出都带 sha256
     assert all(len(v) == 64 for v in manifest["inputs"].values())
     assert all(len(v) == 64 for v in manifest["outputs"].values())
+
+
+# ---------------------------------------------------------------------------
+# F2/F3：超时隔离 + 先判对齐再取 Top-N（用假工具，不需要真装 AISimulate）
+# ---------------------------------------------------------------------------
+
+CSV_COLUMNS = (
+    "model,isl,osl,concurrency,ctx_tokens,num_total_gpus,tp,pp,dp,replicas,"
+    "parallel,ttft,tpot,tokens/s,tokens/s/gpu,tokens/s/user,seq/s,"
+    "gemm,kvcache,fmha,moe,comm,backend,version,system"
+)
+
+
+def _csv_rows(rows: list[dict]) -> str:
+    base = {
+        "model": "Qwen/Qwen3-32B",
+        "isl": "8192",
+        "osl": "256",
+        "concurrency": "32",
+        "ctx_tokens": "8192",
+        "num_total_gpus": "8",
+        "tp": "8",
+        "pp": "1",
+        "dp": "1",
+        "replicas": "1",
+        "parallel": "tp8pp1dp1",
+        "ttft": "370.0",
+        "tpot": "30.6",
+        "tokens/s": "990.0",
+        "tokens/s/gpu": "124.0",
+        "tokens/s/user": "32.0",
+        "seq/s": "3.8",
+        "gemm": "bfloat16",
+        "kvcache": "bfloat16",
+        "fmha": "bfloat16",
+        "moe": "bfloat16",
+        "comm": "half",
+        "backend": "vllm",
+        "version": "0.24.0",
+        "system": "h100_sxm",
+    }
+    lines = [CSV_COLUMNS]
+    for row in rows:
+        values = dict(base)
+        values.update({k: str(v) for k, v in row.items()})
+        lines.append(",".join(values[c] for c in CSV_COLUMNS.split(",")))
+    return "\n".join(lines) + "\n"
+
+
+def _install_fake_tool(monkeypatch, csv_text: str, *, timeout_on_call: int | None = None):
+    """替换 run_external：sweeper 直接吐 CSV，native 直接吐归档的 prediction.json。"""
+    import shutil
+    import subprocess
+
+    import llm_capacity_pricing.perf.aisimulate_adapter as adapter
+
+    state = {"predict": 0}
+
+    def fake(surface, *, config_arg, save_dir=None, extra=(), config=None, environ=None):
+        out = Path(save_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        if surface == "sweeper":
+            (out / "pareto.csv").write_text(csv_text, encoding="utf-8")
+            return out
+        state["predict"] += 1
+        if timeout_on_call is not None and state["predict"] == timeout_on_call:
+            raise subprocess.TimeoutExpired(cmd=["aisimulate"], timeout=1)
+        shutil.copy(
+            ROOT / "docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json",
+            out / "prediction.json",
+        )
+        return out
+
+    monkeypatch.setattr(adapter, "run_external", fake)
+    return state
+
+
+def _fake_spec(**overrides) -> SearchSpec:
+    base = dict(
+        model_name="Qwen/Qwen3-32B",
+        model_precision="bf16",
+        system="h100_sxm",
+        input_len=8192,
+        output_len=256,
+        concurrency=32,
+        backend="vllm",
+        backend_version="0.24.0",
+        max_total_gpus=8,
+        top_n=2,
+    )
+    base.update(overrides)
+    return SearchSpec(**base)
+
+
+def test_timeout_on_one_candidate_does_not_stop_the_others(tmp_path, monkeypatch):
+    """反例：第一条回放超时，第二条仍要跑完并入库（F2）。"""
+    csv_text = _csv_rows([
+        {"tp": "8", "tokens/s": "990"},
+        {"tp": "4", "tokens/s": "633", "num_total_gpus": "4", "parallel": "tp4pp1dp1"},
+    ])
+    _install_fake_tool(monkeypatch, csv_text, timeout_on_call=1)
+
+    result = run_two_stage(
+        _fake_spec(), tool_config=ExternalToolConfig(python="/fake", enabled=True),
+        work_dir=tmp_path / "work",
+    )
+    manifest = json.loads((tmp_path / "work" / "manifest.json").read_text(encoding="utf-8"))
+    natives = [c for c in result.candidates if c.candidate_id.startswith("sim-native")]
+    assert len(natives) == 1, "超时的那条被跳过，第二条应当成功"
+    assert any("TimeoutExpired" in e for e in manifest["errors"])
+    assert result.status == "computed"
+
+
+def test_timeout_is_converted_to_a_controlled_error(monkeypatch):
+    """subprocess 超时要转成受控异常，而不是把 TimeoutExpired 抛给上层。"""
+    import subprocess
+    import sys
+
+    import llm_capacity_pricing.perf.aisimulate_adapter as adapter
+
+    def boom(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=["aisimulate"], timeout=1)
+
+    # 跳过可执行文件解析（本环境没装工具），直接验证 subprocess 层的行为
+    monkeypatch.setattr(adapter, "resolve_executable", lambda surface, python=None: ["/bin/true"])
+    original = adapter.subprocess.run
+    adapter.subprocess.run = boom
+    try:
+        with pytest.raises(SimulationNotAvailable) as excinfo:
+            adapter.run_external(
+                "sweeper", config_arg="x.yaml", save_dir="/tmp/never",
+                config=ExternalToolConfig(python=sys.executable, enabled=True),
+            )
+        assert "超时" in str(excinfo.value)
+    finally:
+        adapter.subprocess.run = original
+
+
+def test_unaligned_candidates_do_not_consume_the_replay_quota(tmp_path, monkeypatch):
+    """反例：吞吐最高但 ctx_tokens 不一致的候选不得占用 Top-N 名额（F3）。
+
+    构造三条：A 吞吐最高但 ctx=16384（不可对齐）；B 次高且可对齐；C 最低。
+    top_n=1 时必须回放 B。
+    """
+    csv_text = _csv_rows([
+        {"tp": "8", "tokens/s": "1500", "ctx_tokens": "16384", "parallel": "tp8pp1dp1"},
+        {"tp": "4", "tokens/s": "900", "num_total_gpus": "4", "parallel": "tp4pp1dp1"},
+        {"tp": "2", "tokens/s": "500", "num_total_gpus": "2", "parallel": "tp2pp1dp1"},
+    ])
+    _install_fake_tool(monkeypatch, csv_text)
+
+    result = run_two_stage(
+        _fake_spec(top_n=1), tool_config=ExternalToolConfig(python="/fake", enabled=True),
+        work_dir=tmp_path / "work",
+    )
+    manifest = json.loads((tmp_path / "work" / "manifest.json").read_text(encoding="utf-8"))
+    natives = [c for c in result.candidates if c.candidate_id.startswith("sim-native")]
+    assert len(natives) == 1
+    assert "tp4" in (natives[0].linked_search_candidate_id or ""), natives[0].linked_search_candidate_id
+    # 不可对齐的那条仍然留在结果里，并说明原因
+    assert any("tp8" in key for key in manifest["not_aligned"])
+    non_aligned = [
+        c for c in result.candidates
+        if c.candidate_id.startswith("sim-sweeper") and c.link_reasons
+    ]
+    assert non_aligned and any("ctx_tokens" in r for c in non_aligned for r in c.link_reasons)
+
+
+def test_context_budget_is_not_a_search_constraint_but_a_filter():
+    """F4：扫描器**没有**以请求并发为搜索约束的字段，只能靠结果过滤。
+
+    这条用例把这件事固定下来，避免以后误以为"搜索是按并发 32 优化的"。
+    """
+    entry = next(iter(build_search_config(_spec()).values()))
+    # 搜索空间里只有 GPU/TP/PP/DP/MoE/CP 维度，没有请求并发维度
+    assert not any("concurren" in key for key in entry)
+    assert "decode_max_batch_size" not in entry

@@ -872,13 +872,16 @@ def external_tool_available(config: ExternalToolConfig | None, *, environ: Mappi
     python = resolve_python(config, environ=environ)
     if python is None:
         return False
-    probe = subprocess.run(
-        [python, "-c", "import aiconfigurator, aisimulate"],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=120,
-    )
+    try:
+        probe = subprocess.run(
+            [python, "-c", "import aiconfigurator, aisimulate"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
     return probe.returncode == 0
 
 
@@ -950,13 +953,23 @@ def run_external(
         *resolve_executable(surface, python),
         *build_command(surface, config_arg=config_arg, save_dir=save_dir, extra=extra),
     ]
-    result = subprocess.run(
-        argv,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=config.timeout_s,
-    )
+    try:
+        result = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=config.timeout_s,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # 超时是可预期的失败：转成受控异常，让调用方按"单个候选失败"处理
+        raise SimulationNotAvailable(
+            f"AISimulate 执行超时（{config.timeout_s}s）：{exc.cmd[0] if exc.cmd else surface}"
+        ) from exc
+    except OSError as exc:
+        raise SimulationNotAvailable(
+            f"AISimulate 无法启动：{type(exc).__name__}: {exc}"
+        ) from exc
     if result.returncode != 0:
         raise SimulationNotAvailable(
             f"AISimulate 执行失败（exit {result.returncode}）：{(result.stderr or '').strip()[-500:]}"
@@ -1282,6 +1295,58 @@ def discover_outputs(out_dir: str | Path, surface: str) -> dict[str, str]:
     return found
 
 
+def _replay_one(
+    spec: SearchSpec,
+    candidate: SimulationCandidate,
+    *,
+    index: int,
+    root: Path,
+    tool_config: ExternalToolConfig,
+    predict_requests: int,
+    version_aliases: Mapping[str, str] | None,
+    effective_target: SimulationTarget,
+    manifest: dict[str, Any],
+) -> SimulationCandidate:
+    """对**一个**候选做原生回放。任何异常都向上抛，由调用方按候选隔离。"""
+    predict_cfg = build_predict_config(spec, candidate, requests=predict_requests)
+    predict_path, predict_sha = _write_yaml(
+        root / "predict", f"predict_{index}.yaml", predict_cfg
+    )
+    manifest["inputs"][str(predict_path.relative_to(root))] = predict_sha
+
+    predict_out = run_external(
+        "native_replay",
+        config_arg=predict_path,
+        save_dir=root / "predict" / f"out_{index}",
+        config=tool_config,
+    )
+    produced = discover_outputs(predict_out, "native_replay")
+    if not produced.get("native_prediction"):
+        raise SimulationNotAvailable("回放输出里没有 prediction.json")
+    for path in predict_out.rglob("*"):
+        if path.is_file():
+            manifest["outputs"][str(path.relative_to(root))] = sha256_file(path)
+
+    deployment, workload = parse_native_input_yaml(
+        predict_path,
+        model_precision=spec.model_precision,
+        version_aliases=version_aliases,
+    )
+    native_candidate = parse_native_prediction(
+        produced["native_prediction"], deployment=deployment, workload=workload
+    )
+    native_candidate.linked_search_candidate_id = candidate.candidate_id
+    native_candidate.deployment.backend = candidate.deployment.backend
+    native_candidate.deployment.backend_version = candidate.deployment.backend_version
+    native_candidate.notes.append(
+        f"回放的工作点来自搜索结果 `{candidate.candidate_id}`"
+        f"（ctx_tokens={candidate.workload.ctx_tokens}、并发={candidate.workload.concurrency}）"
+    )
+    check_comparability(native_candidate, effective_target)
+    assess_verdict(native_candidate, effective_target)
+    return native_candidate
+
+
 def run_two_stage(
     spec: SearchSpec,
     *,
@@ -1332,8 +1397,8 @@ def run_two_stage(
         search_out = run_external(
             "sweeper", config_arg=search_path, save_dir=root / "search", config=tool_config
         )
-    except SimulationNotAvailable as exc:
-        manifest["errors"].append(f"sweeper: {exc}")
+    except Exception as exc:  # noqa: BLE001 - 含超时/启动失败
+        manifest["errors"].append(f"sweeper: {type(exc).__name__}: {exc}")
         (root / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -1382,11 +1447,26 @@ def run_two_stage(
         check_comparability(candidate, effective_target)
         assess_verdict(candidate, effective_target)
 
-    pool = (
-        [c for c in search_candidates if accept(c)]
-        if accept is not None
-        else [c for c in search_candidates if c.comparable]
-    )
+    # 先做资格过滤（身份 + 资源），再**先判能否对齐**，最后才取 Top-N：
+    # 否则"吞吐最高但 ctx_tokens 不一致"的候选会白白占掉回放名额（F3）。
+    pool: list[SimulationCandidate] = []
+    for candidate in search_candidates:
+        try:
+            accepted = accept(candidate) if accept is not None else candidate.comparable
+        except Exception as exc:  # noqa: BLE001 - 资格回调本身出错也不能中断整轮
+            manifest["errors"].append(
+                f"{candidate.candidate_id}: 资格校验异常 {type(exc).__name__}: {exc}"
+            )
+            accepted = False
+        if not accepted:
+            continue
+        reasons = native_alignment_reasons(candidate, spec)
+        if reasons:
+            candidate.link_reasons = reasons
+            manifest["not_aligned"][candidate.candidate_id] = reasons
+            continue
+        pool.append(candidate)
+
     pool.sort(
         key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0), reverse=True
     )
@@ -1394,58 +1474,25 @@ def run_two_stage(
 
     native_candidates: list[SimulationCandidate] = []
     for index, candidate in enumerate(shortlist, 1):
-        reasons = native_alignment_reasons(candidate, spec)
-        if reasons:
-            manifest["not_aligned"][candidate.candidate_id] = reasons
-            candidate.link_reasons = reasons
-            continue
         try:
-            predict_cfg = build_predict_config(spec, candidate, requests=predict_requests)
-        except ValueError as exc:  # 理论上与上面同源，防御性处理
-            manifest["not_aligned"][candidate.candidate_id] = [str(exc)]
-            candidate.link_reasons = [str(exc)]
-            continue
-        predict_path, predict_sha = _write_yaml(
-            root / "predict", f"predict_{index}.yaml", predict_cfg
-        )
-        manifest["inputs"][str(predict_path.relative_to(root))] = predict_sha
-        try:
-            predict_out = run_external(
-                "native_replay",
-                config_arg=predict_path,
-                save_dir=root / "predict" / f"out_{index}",
-                config=tool_config,
+            native_candidates.append(
+                _replay_one(
+                    spec,
+                    candidate,
+                    index=index,
+                    root=root,
+                    tool_config=tool_config,
+                    predict_requests=predict_requests,
+                    version_aliases=version_aliases,
+                    effective_target=effective_target,
+                    manifest=manifest,
+                )
             )
-        except SimulationNotAvailable as exc:
-            manifest["errors"].append(f"{candidate.candidate_id}: {exc}")
-            continue
-        produced = discover_outputs(predict_out, "native_replay")
-        if not produced.get("native_prediction"):
+        except Exception as exc:  # noqa: BLE001
+            # 单候选的任何失败（超时、启动失败、输出损坏、解析异常）都只记录，不中断
             manifest["errors"].append(
-                f"{candidate.candidate_id}: 回放输出里没有 prediction.json"
+                f"{candidate.candidate_id}: {type(exc).__name__}: {exc}"
             )
-            continue
-        for path in predict_out.rglob("*"):
-            if path.is_file():
-                manifest["outputs"][str(path.relative_to(root))] = sha256_file(path)
-        deployment, workload = parse_native_input_yaml(
-            predict_path,
-            model_precision=spec.model_precision,
-            version_aliases=version_aliases,
-        )
-        native_candidate = parse_native_prediction(
-            produced["native_prediction"], deployment=deployment, workload=workload
-        )
-        native_candidate.linked_search_candidate_id = candidate.candidate_id
-        native_candidate.deployment.backend = candidate.deployment.backend
-        native_candidate.deployment.backend_version = candidate.deployment.backend_version
-        native_candidate.notes.append(
-            f"回放的工作点来自搜索结果 `{candidate.candidate_id}`"
-            f"（ctx_tokens={candidate.workload.ctx_tokens}、并发={candidate.workload.concurrency}）"
-        )
-        check_comparability(native_candidate, effective_target)
-        assess_verdict(native_candidate, effective_target)
-        native_candidates.append(native_candidate)
 
     (root / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"

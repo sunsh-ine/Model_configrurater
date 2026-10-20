@@ -284,51 +284,67 @@ class SimulationResult(BaseModel):
         """
         return [c for c in self.candidates if not self.rejection_reasons(c)]
 
-    def cost_ranking_available(self) -> tuple[bool, list[str]]:
-        """成本排序是否成立：只比"币种/口径/年限完全一致且金额已知"的候选。
+    @staticmethod
+    def _cost_group(candidate: SimulationCandidate) -> tuple[str | None, str | None, int | None] | None:
+        """该候选的可比成本口径；成本不完整/金额缺失时返回 ``None``。"""
+        cost = candidate.cost
+        if cost is None or cost.incomplete or cost.total_cash_over_horizon is None:
+            return None
+        return (cost.currency, cost.cost_basis, cost.horizon_years)
 
-        口径不一致时**不排序** —— 那会拿不同口径的金额直接比大小（R2.3）。
+    def cost_ranking_available(
+        self, *, only_predicted_pass: bool = True
+    ) -> tuple[bool, list[str]]:
+        """成本排序是否成立：**所有参与排序的候选**都必须有可比成本。
+
+        只要求"池子里存在一条完整成本"是不够的 —— 那样拿 ``100 万`` 与 ``None``
+        比较会直接抛异常，也可能把缺成本的候选当成"最便宜"（F1）。
         """
-        pool = [c for c in self.eligible() if c.cost is not None]
-        if not pool:
-            return False, ["推荐池里没有带成本的候选"]
-        complete = [
+        pool = [
             c
-            for c in pool
-            if not c.cost.incomplete and c.cost.total_cash_over_horizon is not None
+            for c in self.eligible()
+            if not only_predicted_pass or c.verdict == "predicted_pass"
         ]
-        if not complete:
-            return False, ["候选成本不完整（含未确认/缺失项）：只能给性能优先建议"]
-        groups = {
-            (c.cost.currency, c.cost.cost_basis, c.cost.horizon_years) for c in complete
-        }
+        if not pool:
+            return False, ["没有可参与成本排序的候选"]
+        groups = {g for g in (self._cost_group(c) for c in pool) if g is not None}
+        missing = [c for c in pool if self._cost_group(c) is None]
         if len(groups) > 1:
+            return False, ["候选的币种/成本口径/年限不一致：不得直接比较成本"]
+        if missing:
+            names = "、".join(c.candidate_id for c in missing[:3])
             return False, [
-                "候选的币种/成本口径/年限不一致：不得直接比较成本"
+                f"{len(missing)} 个候选的成本不完整或金额缺失（如 {names}）："
+                "无法与其他候选比较成本"
             ]
         return True, []
 
     def recommended(self, objective: str = "throughput") -> SimulationCandidate | None:
-        """**严格推荐**：推荐池里预测为满足阈值、吞吐最高者。
+        """**严格推荐**：先筛预测达标，再按排序目标取一个。
 
-        没有候选达标时返回 ``None`` —— 报告必须如实说明，不硬凑"最优"。
+        * ``cost``：只有当**所有**达标候选的成本都可比时才按成本取最小；
+          否则**降级为吞吐优先**，且仍然只在**预测达标**的候选里选
+          （绝不因为成本不可用就退到 ``best_effort`` 的不达标候选）。
+        * ``throughput``：按预测吞吐取最大。
         """
         passed = [c for c in self.eligible() if c.verdict == "predicted_pass"]
         if not passed:
             return None
+
         if objective == "cost":
-            ok, _reasons = self.cost_ranking_available()
-            if not ok:
-                return None
-            return min(
-                passed,
-                key=lambda c: c.cost.total_cash_over_horizon,  # type: ignore[union-attr]
-            )
+            available, _reasons = self.cost_ranking_available()
+            if available:
+                return min(
+                    passed,
+                    key=lambda c: c.cost.total_cash_over_horizon,  # type: ignore[union-attr]
+                )
+            # 降级：不返回 None，改为在达标候选里按吞吐推荐
+
         pool = [
             c for c in passed if c.metrics.sim_output_throughput_tok_s is not None
         ]
         if not pool:
-            return None
+            return passed[0]
         return max(pool, key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0))
 
     def best_effort(self) -> SimulationCandidate | None:

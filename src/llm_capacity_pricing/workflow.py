@@ -1224,6 +1224,7 @@ def _simulate(
         result, request=request, cost_items=cost_items, db_path=db_path
     )
     _simulation_budget_gate(request, result=result)
+    result.ranking = config.ranking
     return result
 
 

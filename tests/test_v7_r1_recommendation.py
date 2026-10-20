@@ -410,3 +410,115 @@ def test_no_eligible_candidate_says_so_explicitly(tmp_path):
     report = build_plan_report(result)
     assert "无符合条件的模拟候选" in report
     assert "没有模拟候选" not in report
+
+
+# ---------------------------------------------------------------------------
+# F1：成本排序的降级策略（部分候选缺成本时不得报错、不得误选不达标候选）
+# ---------------------------------------------------------------------------
+
+
+def _sim_result(candidates):
+    from llm_capacity_pricing.schemas.simulation import SimulationResult
+
+    return SimulationResult(status="computed", candidates=candidates)
+
+
+def _cand(cid, *, verdict="predicted_pass", throughput="100", cost=...):
+    from llm_capacity_pricing.schemas.simulation import (
+        SimulatedCost,
+        SimulationCandidate,
+        SimulationDeployment,
+        SimulationMetrics,
+    )
+
+    kwargs = {}
+    if cost is not ...:
+        kwargs["cost"] = cost
+    return SimulationCandidate(
+        candidate_id=cid,
+        deployment=SimulationDeployment(model_name="Qwen/Qwen3-32B", model_precision="bf16",
+                                        system="h100_sxm", gpu_count=8, tp_size=8),
+        metrics=SimulationMetrics(
+            sim_output_throughput_tok_s=Decimal(throughput) if throughput else None,
+            sim_p99_ttft_ms=Decimal("100"),
+            sim_p99_tpot_ms=Decimal("10"),
+            sim_ttft_samples=500,
+            sim_tpot_samples=500,
+        ),
+        verdict=verdict,
+        comparable=True,
+        resource_feasible=True,
+        **kwargs,
+    )
+
+
+def _cost(amount, *, currency="CNY", basis="owned", horizon=3, incomplete=False):
+    from llm_capacity_pricing.schemas.simulation import SimulatedCost
+
+    return SimulatedCost(
+        hardware_id="nvidia-h100-sxm-80gb",
+        currency=currency,
+        currency_confirmed=True,
+        cost_basis=basis,
+        horizon_years=horizon,
+        total_cash_over_horizon=None if incomplete else Decimal(amount),
+        incomplete=incomplete,
+    )
+
+
+def test_cost_ranking_unavailable_when_one_candidate_lacks_cost():
+    """反例：A 有完整成本、B 缺成本 -> 不排序，且**不得**抛异常。"""
+    cheap = _cand("sim:A", throughput="100", cost=_cost("100"))
+    unknown = _cand("sim:B", throughput="200", cost=None)
+    result = _sim_result([cheap, unknown])
+
+    available, reasons = result.cost_ranking_available()
+    assert available is False
+    assert any("成本不完整" in r or "金额缺失" in r for r in reasons)
+    # 不排序，但**仍然**从预测达标的候选里按吞吐推荐
+    picked = result.recommended("cost")
+    assert picked is unknown  # 吞吐更高；关键是它 predicted_pass，而不是 None
+    assert picked.verdict == "predicted_pass"
+
+
+def test_cost_ranking_picks_the_cheapest_when_all_comparable():
+    expensive = _cand("sim:A", cost=_cost("200"))
+    cheap = _cand("sim:B", cost=_cost("100"), throughput="50")
+    result = _sim_result([expensive, cheap])
+    available, _ = result.cost_ranking_available()
+    assert available is True
+    assert result.recommended("cost").candidate_id == "sim:B"
+
+
+def test_cost_ranking_rejects_mixed_currency():
+    cny = _cand("sim:A", cost=_cost("100", currency="CNY"))
+    usd = _cand("sim:B", cost=_cost("50", currency="USD"))
+    result = _sim_result([cny, usd])
+    available, reasons = result.cost_ranking_available()
+    assert available is False
+    assert any("币种" in r for r in reasons)
+    # 降级为吞吐，不返回 None
+    assert result.recommended("cost") is not None
+
+
+def test_cost_ranking_never_falls_back_to_a_failing_candidate():
+    """反例：达标候选成本缺失时，不能因为降级就选一个不达标的更高吞吐候选。"""
+    passing = _cand("sim:pass", throughput="10", cost=None)  # 达标但没成本
+    failing = _cand("sim:fail", throughput="999", verdict="predicted_fail",
+                    cost=_cost("100"))
+    result = _sim_result([passing, failing])
+    picked = result.recommended("cost")
+    assert picked is passing
+    assert picked.verdict == "predicted_pass"
+
+
+def test_cost_downgrade_is_stated_in_the_report(tmp_path):
+    """报告要说清"已降级为吞吐优先"，不能含糊成按成本最优。"""
+    from llm_capacity_pricing.reporting.plan_report import build_plan_report
+
+    db = _demo_db(tmp_path)
+    config = _config(tmp_path, simulation={"ranking": "cost"})
+    result = evaluate_plan(load_plan_request(config), db_path=db)
+    report = build_plan_report(result)
+    assert "成本排序**不可用**" in report
+    assert "已降级为吞吐优先" in report
