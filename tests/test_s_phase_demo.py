@@ -261,6 +261,243 @@ def test_streamlit_app_runs_headlessly():
     assert len(app.number_input) >= 6
 
 
+def test_streamlit_interaction_hints(monkeypatch):
+    """界面上的联动提示必须跟着输入变化，而不是写死一段静态说明。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    import streamlit as st
+
+    monkeypatch.setattr(
+        "llm_capacity_pricing.perf.aisimulate_adapter.resolve_python",
+        lambda *args, **kwargs: None,
+    )
+    st.cache_data.clear()
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    app.run()
+
+    def text() -> str:
+        return "\n".join(item.value for item in app.markdown)
+
+    assert "hgx-h100-8gpu" in text()
+
+    # GPU 换成 H200：机箱必须跟着换，否则候选会被判 server_gpu_sku_mismatch
+    app.selectbox[1].set_value("nvidia-h200-sxm-141gb").run()
+    assert "hgx-h200-8gpu" in text()
+
+    # 目录里没有匹配机箱的 GPU：不能说成 server_gpu_sku_mismatch
+    app.selectbox[1].set_value("nvidia-h100-nvl-94gb").run()
+    assert "没有与该 GPU 匹配的机箱" in text()
+    assert "server_gpu_sku_mismatch" not in text()
+
+    # 离线归档只有 bf16 工作点
+    app.selectbox[2].set_value("fp8").run()
+    assert "离线归档只有 bf16 工作点" in text()
+
+    # 成本排序的生效条件
+    app.radio[0].set_value("成本优先").run()
+    assert "成本排序只在所有候选成本完整" in text()
+
+    # 没有 AISimulate 时实时模式必须禁用，而不是等运行失败
+    app.selectbox[3].set_value("实时模拟（调用 AISimulate）").run()
+    assert "未检测到 AISimulate" in text()
+    assert app.button[0].disabled is True
+
+    # 关掉 SLA / 预算：不再传约束，界面要说明后果
+    app.toggle[0].set_value(False).run()
+    app.toggle[1].set_value(False).run()
+    assert "不设阈值时" in text()
+    assert "不设预算：候选仍会算成本" in text()
+    assert not app.exception, app.exception
+
+
+def test_streamlit_status_maps_cover_evaluator_literals():
+    """界面状态映射必须覆盖后端真实取值，否则会把结论静默显示成“未配置”。"""
+    import runpy
+    from typing import get_args
+
+    from llm_capacity_pricing.schemas.decision import BudgetCheck
+    from llm_capacity_pricing.schemas.performance import SlaStatus
+    from llm_capacity_pricing.schemas.simulation import SimulationVerdict
+    from llm_capacity_pricing.schemas.sizing import FeasibilityStatus
+
+    namespace = runpy.run_path(str(ROOT / "app" / "streamlit_app.py"))
+    assert set(get_args(FeasibilityStatus)) <= set(namespace["STATIC"])
+    assert set(get_args(SlaStatus)) <= set(namespace["SLA"])
+    assert set(get_args(SimulationVerdict)) <= set(namespace["VERDICT"])
+    budget_literals = set(
+        get_args(BudgetCheck.model_fields["status"].annotation)
+    )
+    assert budget_literals <= set(namespace["BUDGET"])
+
+
+def test_ledger_counts_estimated_only_candidates():
+    """仅有估算既不是实测结论，也不是“不可评估”，必须单独计数。"""
+    import runpy
+    from types import SimpleNamespace as NS
+
+    ledger = runpy.run_path(str(ROOT / "app" / "streamlit_app.py"))["_ledger"]
+    result = NS(
+        candidates=[
+            NS(
+                static_status="conditional_feasible",
+                sla_status="estimated_only",
+                quote_publishable=False,
+            ),
+            NS(
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+        ],
+        request_echo={"sla": {"ttft_p99_ms_max": 400}},
+        domains={"governance": "not_configured"},
+    )
+    html = ledger(result)
+    assert "1 个仅有估算" in html
+    assert "1 个不可评估" in html
+    assert "这是证据缺口" in html
+
+    blocked = NS(
+        candidates=[
+            NS(
+                static_status="infeasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+        ],
+        request_echo={"sla": {"ttft_p99_ms_max": 400}},
+        domains={"governance": "not_configured"},
+    )
+    blocked_html = ledger(blocked)
+    assert "补测不能解决" in blocked_html
+    assert "这是证据缺口" not in blocked_html
+
+    mixed = NS(
+        candidates=[
+            NS(
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+            NS(
+                static_status="infeasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+        ],
+        request_echo={"sla": {"ttft_p99_ms_max": 400}},
+        domains={"governance": "not_configured"},
+    )
+    mixed_html = ledger(mixed)
+    assert "1 个候选已被资源或硬件排除" in mixed_html
+    # 证据缺口只统计还能进入性能评估的候选
+    assert "1 个不可评估" in mixed_html
+
+
+def test_insufficient_predictions_are_counted_outside_the_judged_pool():
+    """sim.judged() 不含预测不充分的候选，汇总必须从全量候选中计数。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    app.run()
+    app.button[0].click().run()
+
+    text = "\n".join(item.value for item in app.markdown)
+    assert "共 3 个候选（其中不可比 0 个）" in text
+    assert "预测不充分 2" in text
+    assert "可判定 1 个" in text
+    assert not app.exception, app.exception
+
+
+def test_live_mode_rejects_an_interpreter_that_cannot_import_aisimulate(monkeypatch):
+    """解释器存在但导不进来时，实时模式必须仍被禁用。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    import streamlit as st
+
+    monkeypatch.setattr(
+        "llm_capacity_pricing.perf.aisimulate_adapter.resolve_python",
+        lambda *args, **kwargs: "/usr/bin/python3",
+    )
+    monkeypatch.setattr(
+        "llm_capacity_pricing.perf.aisimulate_adapter.external_tool_available",
+        lambda *args, **kwargs: False,
+    )
+    st.cache_data.clear()
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    app.run()
+    app.selectbox[3].set_value("实时模拟（调用 AISimulate）").run()
+
+    text = "\n".join(item.value for item in app.markdown)
+    assert "无法导入 aiconfigurator / aisimulate" in text
+    assert app.button[0].disabled is True
+    assert not app.exception, app.exception
+
+
+def test_fp8_offline_summary_counts_are_consistent():
+    """不可比 + 预测未达标会同时出现：三个 verdict 数与不可比数必须自洽。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    app.run()
+    app.selectbox[2].set_value("fp8").run()
+    app.button[0].click().run()
+
+    text = "\n".join(item.value for item in app.markdown)
+    assert "共 3 个候选（其中不可比 3 个）" in text
+    assert "预测达标 0" in text
+    assert "预测未达标 1" in text
+    assert "预测不充分 2" in text
+    assert "可判定 0 个" in text
+    assert not app.exception, app.exception
+
+
+def test_unset_sla_is_not_reported_as_an_evidence_gap():
+    """关掉 SLA 阈值是“未配置”，不能被说成“找不到实测证据”。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    app.run()
+    app.toggle[0].set_value(False).run()
+    app.button[0].click().run()
+
+    outcome = app.session_state["outcome"]
+    assert outcome.result.request_echo["sla"] is None
+
+    ledger = next(
+        item.value
+        for item in app.markdown
+        if "本次没有设置 SLA 阈值" in item.value
+    )
+    assert "证据不足" not in ledger
+    assert not app.exception, app.exception
+
+
+def test_failed_regeneration_keeps_the_previous_result(monkeypatch, tmp_path):
+    """新一次生成失败时，上一次成功的方案不能从界面上消失。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    app.run()
+    app.button[0].click().run()
+    assert "本次评估卷宗" in "\n".join(item.value for item in app.markdown)
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    import llm_capacity_pricing.app.demo_service as demo_service
+
+    monkeypatch.setattr(demo_service, "run_demo", explode)
+    app.button[0].click().run()
+
+    text = "\n".join(item.value for item in app.markdown)
+    assert "生成失败" in text
+    assert "RuntimeError: boom" in text
+    assert "下方仍是上一次成功的评估结果" in text
+    assert "本次评估卷宗" in text
+    assert not app.exception, app.exception
+
+
 # --------------------------------------------------------------------------
 # codex 复审指出的 4 个问题（P2）的反向用例
 # --------------------------------------------------------------------------

@@ -1,0 +1,9 @@
+# 界面主题：固定浅色，避免浏览器深色模式把控件渲染成深色块。
+# 颜色与 app/streamlit_app.py 里的 CSS 变量保持一致。
+[theme]
+base = "light"
+primaryColor = "#1C5A49"
+backgroundColor = "#E8EBE4"
+secondaryBackgroundColor = "#FCFCF8"
+textColor = "#18211C"
+font = "sans serif"
