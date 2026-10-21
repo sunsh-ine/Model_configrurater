@@ -32,3 +32,8 @@ data/private/
 # 交付产物如需公开，必须先生成脱敏版本到 data/examples/（见 docs/security_remediation_report.md）。
 # 注意：data/raw/official/（官方公开文档的存档证据，含 sha256）与 data/examples/（脱敏示例）
 # 都**不**忽略；被忽略的只有 data/exports/（内部派生结果）与 data/private/（真实 oracle）。
+
+# V 阶段 Agent 运行产物与会话密码（不入库）
+data/agent/
+data/agent_runs/
+data/agent_tasks/

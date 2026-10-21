@@ -375,6 +375,25 @@ CLI 同样支持：
 三组完整报告在 `docs/demo_scenarios/`，场景说明与成本门禁解释见
 [`docs/demo_scenarios.md`](docs/demo_scenarios.md)。
 
+## 1.6 自然语言入口（OpenCode Agent，实验性）
+
+除结构化表单外，页面支持“自然语言（OpenCode Agent）”模式：
+
+- OpenCode 负责理解需求、选择工具与组织步骤；
+- 业务工具只调用现有 `evaluate_plan()`，数字不经过模型生成；
+- 业务系统按 `run_id` 读取工具产物生成报告，模型文本只作解释；
+- 无法调用工具、任务超时或产物不一致时**不生成报告**。
+
+```bash
+bash scripts/start_opencode_server.sh          # 127.0.0.1 + Basic Auth
+.venv/bin/streamlit run app/streamlit_app.py   # 左侧切换输入方式
+```
+
+当前本机 OpenCode 的服务/会话/HTTP API 已验证，但可用的模型 provider 受账号权限限制
+（免费模型禁止服务端调用、Kimi 订阅无权限、MiMo 端点 404），因此真实模型编排
+尚未验证。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
+与 [`docs/v_final_validation.md`](docs/v_final_validation.md)。
+
 ## 2. 命令清单
 
 | 命令 | 作用 |

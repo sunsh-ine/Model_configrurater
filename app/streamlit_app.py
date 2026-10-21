@@ -51,6 +51,7 @@ from llm_capacity_pricing.app.scenarios import (  # noqa: E402
     get_scenario,
     scenario_ids,
 )
+from llm_capacity_pricing.agent.service import AgentService  # noqa: E402
 
 ROOT = APP_DIR.parent
 COST_INPUTS = ROOT / "data/examples/phase4_cost_inputs.example.yaml"
@@ -165,6 +166,20 @@ def _matches_scenario(scenario, current: dict[str, object]) -> bool:
     return True
 
 
+@st.cache_data(show_spinner=False, ttl=15)
+def _agent_availability() -> tuple[bool, str]:
+    try:
+        return AgentService().available()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+AGENT_SAMPLE_PROMPT = (
+    "我有 8 张 H100，希望部署 Qwen3-32B，输入 8K、输出 256，并发 32，"
+    "TTFT P99 不超过 2 秒，TPOT P99 不超过 50ms，请给出部署配置和成本分析。"
+)
+
+
 def _fingerprint(values: dict[str, object]) -> str:
     import json
 
@@ -192,320 +207,376 @@ with left:
             unsafe_allow_html=True,
         )
 
-        scenario_options = ["custom", *scenario_ids()]
-        scenario_id = st.selectbox(
-            "演示案例",
-            scenario_options,
-            index=1,
-            format_func=lambda sid: (
-                "自定义（保留当前输入）"
-                if sid == "custom"
-                else get_scenario(sid).label
-            ),
-            key="ui_scenario",
+        input_mode = st.radio(
+            "输入方式",
+            ["form", "agent"],
+            index=0,
+            format_func=lambda value: "结构化表单（手动）" if value == "form" else "自然语言（OpenCode Agent）",
+            horizontal=True,
+            key="ui_input_mode",
         )
-        if st.session_state.get("ui_applied_scenario") != scenario_id:
-            if scenario_id != "custom":
-                for key, value in form_state(scenario_id).items():
-                    st.session_state[key] = value
-            st.session_state["ui_applied_scenario"] = scenario_id
-        scenario = get_scenario(scenario_id) if scenario_id != "custom" else None
-        if scenario is not None:
-            st.markdown(
-                f"<p class='hint'>{_esc(scenario.summary)}</p>",
-                unsafe_allow_html=True,
+        if input_mode == "form":
+            scenario_options = ["custom", *scenario_ids()]
+            scenario_id = st.selectbox(
+                "演示案例",
+                scenario_options,
+                index=1,
+                format_func=lambda sid: (
+                    "自定义（保留当前输入）"
+                    if sid == "custom"
+                    else get_scenario(sid).label
+                ),
+                key="ui_scenario",
             )
-        else:
-            st.markdown(
-                "<p class='hint'>手动填写需求；切换预设会覆盖下面字段。</p>",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("<div class='group first'>模型与硬件</div>", unsafe_allow_html=True)
-        model_id = st.selectbox(
-            "模型", models, index=_index_before(models, "qwen3-32b"), key="ui_model"
-        )
-        hardware_id = st.selectbox(
-            "GPU 型号",
-            hardwares,
-            index=_index_before(hardwares, "nvidia-h100-sxm-80gb"),
-            key="ui_hardware",
-        )
-        gpu_count = st.number_input(
-            "GPU 上限（卡）", min_value=1, max_value=64, value=8, step=1, key="ui_gpu"
-        )
-        server_id = server_for_hardware(hardware_id)
-        if server_id:
-            server_hint = "机箱按 GPU 自动匹配为 <b>" + _esc(server_id) + "</b>。"
-        else:
-            server_hint = (
-                "<span class='hint warn'>硬件目录里没有与该 GPU 匹配的机箱："
-                "Sizing 会记录机箱档案缺失；若该 GPU 本身不在本阶段支持范围内，"
-                "候选会直接判为不可行。</span>"
-            )
-        st.markdown(f"<p class='hint'>{server_hint}</p>", unsafe_allow_html=True)
-
-        st.markdown("<div class='group'>负载</div>", unsafe_allow_html=True)
-        w1, w2 = st.columns(2)
-        input_len = w1.number_input(
-            "输入长度 ISL",
-            min_value=1,
-            max_value=131072,
-            value=8192,
-            step=256,
-            key="ui_isl",
-        )
-        output_len = w2.number_input(
-            "输出长度 OSL",
-            min_value=1,
-            max_value=8192,
-            value=256,
-            step=16,
-            key="ui_osl",
-        )
-        concurrency = st.number_input(
-            "并发请求数",
-            min_value=1,
-            max_value=1024,
-            value=32,
-            step=1,
-            key="ui_conc",
-        )
-
-        st.markdown("<div class='group'>SLA 阈值</div>", unsafe_allow_html=True)
-        sla_on = st.toggle("设置 SLA 阈值", value=True, key="ui_sla_on")
-        ttft_value: float | None = None
-        tpot_value: float | None = None
-        if sla_on:
-            s1, s2 = st.columns(2)
-            ttft_value = s1.number_input(
-                "TTFT P99（ms）",
-                min_value=1.0,
-                value=400.0,
-                step=10.0,
-                format="%.1f",
-                key="ui_ttft",
-            )
-            tpot_value = s2.number_input(
-                "TPOT P99（ms）",
-                min_value=1.0,
-                value=30.0,
-                step=1.0,
-                format="%.1f",
-                key="ui_tpot",
-            )
-        else:
-            st.markdown(
-                "<p class='hint'>不设阈值时，性能领域只给数据匹配结论，不判定达标与否。</p>",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("<div class='group'>成本与预算</div>", unsafe_allow_html=True)
-        budget_on = st.toggle("设置预算上限", value=True, key="ui_budget_on")
-        budget_value: float | None = None
-        if budget_on:
-            budget_value = st.number_input(
-                "预算上限（成本目录币种）",
-                min_value=0.0,
-                max_value=1e10,
-                value=3_000_000.0,
-                step=100_000.0,
-                format="%.0f",
-                key="ui_budget",
-            )
-        else:
-            st.markdown(
-                "<p class='hint'>不设预算：候选仍会算成本，但不做预算比对。</p>",
-                unsafe_allow_html=True,
-            )
-        st.markdown(
-            "<p class='hint'>预算只与同币种成本比较；示例目录币种状态为 assumed，"
-            "预算结论保持未知，不用于正式报价判断。</p>",
-            unsafe_allow_html=True,
-        )
-
-        with st.expander("高级设置（精度 / 排序 / 模拟）", expanded=False):
-            precision = st.selectbox(
-                "模型精度", ["bf16", "fp8"], index=0, key="ui_precision"
-            )
-            mode = st.selectbox(
-                "模拟数据来源",
-                ["offline", "live", "core"],
-                index=0,
-                format_func=lambda value: MODE_LABELS[value],
-                key="ui_mode",
-            )
-            ranking = st.radio(
-                "排序目标",
-                ["throughput", "cost"],
-                index=0,
-                format_func=lambda value: RANKING_LABELS[value],
-                horizontal=True,
-                key="ui_ranking",
-            )
-
-            blocking_reason = None
-            if mode == "offline":
-                mismatches = offline_mismatches(
-                    {
-                        "model_id": model_id,
-                        "hardware_id": hardware_id,
-                        "framework": "vllm",
-                        "framework_version": "0.24.0",
-                        "weight_precision": precision,
-                        "input_len": int(input_len),
-                        "output_len": int(output_len),
-                        "concurrency": int(concurrency),
-                    }
+            if st.session_state.get("ui_applied_scenario") != scenario_id:
+                if scenario_id != "custom":
+                    for key, value in form_state(scenario_id).items():
+                        st.session_state[key] = value
+                st.session_state["ui_applied_scenario"] = scenario_id
+            scenario = get_scenario(scenario_id) if scenario_id != "custom" else None
+            if scenario is not None:
+                st.markdown(
+                    f"<p class='hint'>{_esc(scenario.summary)}</p>",
+                    unsafe_allow_html=True,
                 )
-                if mismatches:
-                    items = "".join(f"<li>{_esc(item)}</li>" for item in mismatches)
-                    st.markdown(
-                        "<p class='hint warn'>与离线归档工作点不一致：</p>"
-                        f"<ul class='plain'>{items}</ul>"
-                        "<p class='hint'>偏离任一项都会让模拟候选不可比或只能作参考。</p>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        "<p class='hint'>当前组合与归档工作点一致："
-                        "Qwen3-32B / H100 SXM / vllm 0.24.0 / bf16 / "
-                        "ISL 8192 / OSL 256 / 并发 32。</p>",
-                        unsafe_allow_html=True,
-                    )
-            elif mode == "live":
-                # 只有选择实时模式才做外部探测
-                live_python, live_ready = _aisimulate_probe()
-                if live_python and live_ready:
-                    st.markdown(
-                        "<p class='hint'>已检测到 AISimulate 环境：<b>"
-                        + _esc(live_python)
-                        + "</b>（导入检查通过）。搜索与回放会写入本次运行目录。</p>",
-                        unsafe_allow_html=True,
-                    )
-                elif live_python:
-                    blocking_reason = (
-                        f"找到解释器 {live_python}，但无法导入 aiconfigurator / aisimulate："
-                        "实时模式不可用，请修正环境或改用离线归档。"
-                    )
-                    st.markdown(
-                        f"<p class='hint fail'>{_esc(blocking_reason)}</p>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    blocking_reason = (
-                        "未检测到 AISimulate：请设置 AISIMULATE_PYTHON 指向独立环境，"
-                        "或改用离线归档。"
-                    )
-                    st.markdown(
-                        f"<p class='hint fail'>{_esc(blocking_reason)}</p>",
-                        unsafe_allow_html=True,
-                    )
             else:
                 st.markdown(
-                    "<p class='hint'>不使用模拟：只做资源、实测参考与成本，"
-                    "性能侧通常停在「不可评估」。</p>",
+                    "<p class='hint'>手动填写需求；切换预设会覆盖下面字段。</p>",
                     unsafe_allow_html=True,
                 )
 
-            if ranking == "cost":
+            st.markdown("<div class='group first'>模型与硬件</div>", unsafe_allow_html=True)
+            model_id = st.selectbox(
+                "模型", models, index=_index_before(models, "qwen3-32b"), key="ui_model"
+            )
+            hardware_id = st.selectbox(
+                "GPU 型号",
+                hardwares,
+                index=_index_before(hardwares, "nvidia-h100-sxm-80gb"),
+                key="ui_hardware",
+            )
+            gpu_count = st.number_input(
+                "GPU 上限（卡）", min_value=1, max_value=64, value=8, step=1, key="ui_gpu"
+            )
+            server_id = server_for_hardware(hardware_id)
+            if server_id:
+                server_hint = "机箱按 GPU 自动匹配为 <b>" + _esc(server_id) + "</b>。"
+            else:
+                server_hint = (
+                    "<span class='hint warn'>硬件目录里没有与该 GPU 匹配的机箱："
+                    "Sizing 会记录机箱档案缺失；若该 GPU 本身不在本阶段支持范围内，"
+                    "候选会直接判为不可行。</span>"
+                )
+            st.markdown(f"<p class='hint'>{server_hint}</p>", unsafe_allow_html=True)
+
+            st.markdown("<div class='group'>负载</div>", unsafe_allow_html=True)
+            w1, w2 = st.columns(2)
+            input_len = w1.number_input(
+                "输入长度 ISL",
+                min_value=1,
+                max_value=131072,
+                value=8192,
+                step=256,
+                key="ui_isl",
+            )
+            output_len = w2.number_input(
+                "输出长度 OSL",
+                min_value=1,
+                max_value=8192,
+                value=256,
+                step=16,
+                key="ui_osl",
+            )
+            concurrency = st.number_input(
+                "并发请求数",
+                min_value=1,
+                max_value=1024,
+                value=32,
+                step=1,
+                key="ui_conc",
+            )
+
+            st.markdown("<div class='group'>SLA 阈值</div>", unsafe_allow_html=True)
+            sla_on = st.toggle("设置 SLA 阈值", value=True, key="ui_sla_on")
+            ttft_value: float | None = None
+            tpot_value: float | None = None
+            if sla_on:
+                s1, s2 = st.columns(2)
+                ttft_value = s1.number_input(
+                    "TTFT P99（ms）",
+                    min_value=1.0,
+                    value=400.0,
+                    step=10.0,
+                    format="%.1f",
+                    key="ui_ttft",
+                )
+                tpot_value = s2.number_input(
+                    "TPOT P99（ms）",
+                    min_value=1.0,
+                    value=30.0,
+                    step=1.0,
+                    format="%.1f",
+                    key="ui_tpot",
+                )
+            else:
                 st.markdown(
-                    "<p class='hint'>成本排序只在所有候选成本完整、币种已确认时生效；"
-                    "否则自动降级为吞吐优先，并在结果里写明原因。</p>",
+                    "<p class='hint'>不设阈值时，性能领域只给数据匹配结论，不判定达标与否。</p>",
                     unsafe_allow_html=True,
                 )
 
-        preset_values = {
-            "model_id": model_id,
-            "hardware_id": hardware_id,
-            "gpu_count": int(gpu_count),
-            "input_len": int(input_len),
-            "output_len": int(output_len),
-            "concurrency": int(concurrency),
-            "ttft_p99_ms_max": ttft_value if sla_on else None,
-            "tpot_p99_ms_max": tpot_value if sla_on else None,
-            "budget_amount": budget_value if budget_on else None,
-            "weight_precision": precision,
-            "mode": mode,
-            "ranking": ranking,
-        }
-        preset_matches = _matches_scenario(scenario, preset_values)
-        if scenario is not None and not preset_matches:
+            st.markdown("<div class='group'>成本与预算</div>", unsafe_allow_html=True)
+            budget_on = st.toggle("设置预算上限", value=True, key="ui_budget_on")
+            budget_value: float | None = None
+            if budget_on:
+                budget_value = st.number_input(
+                    "预算上限（成本目录币种）",
+                    min_value=0.0,
+                    max_value=1e10,
+                    value=3_000_000.0,
+                    step=100_000.0,
+                    format="%.0f",
+                    key="ui_budget",
+                )
+            else:
+                st.markdown(
+                    "<p class='hint'>不设预算：候选仍会算成本，但不做预算比对。</p>",
+                    unsafe_allow_html=True,
+                )
             st.markdown(
-                "<p class='hint warn'>已手动修改预设字段：本次生成不会附带预设说明。</p>",
+                "<p class='hint'>预算只与同币种成本比较；示例目录币种状态为 assumed，"
+                "预算结论保持未知，不用于正式报价判断。</p>",
                 unsafe_allow_html=True,
             )
 
-        st.markdown("<div class='group'>生成</div>", unsafe_allow_html=True)
-        clicked = st.button(
-            "生成部署方案",
-            type="primary",
-            width="stretch",
-            disabled=blocking_reason is not None,
-        )
-        st.markdown(
-            "<p class='hint'>当前："
-            + _esc(
-                f"{precision} · {MODE_LABELS[mode]} · {RANKING_LABELS[ranking]}"
+            with st.expander("高级设置（精度 / 排序 / 模拟）", expanded=False):
+                precision = st.selectbox(
+                    "模型精度", ["bf16", "fp8"], index=0, key="ui_precision"
+                )
+                mode = st.selectbox(
+                    "模拟数据来源",
+                    ["offline", "live", "core"],
+                    index=0,
+                    format_func=lambda value: MODE_LABELS[value],
+                    key="ui_mode",
+                )
+                ranking = st.radio(
+                    "排序目标",
+                    ["throughput", "cost"],
+                    index=0,
+                    format_func=lambda value: RANKING_LABELS[value],
+                    horizontal=True,
+                    key="ui_ranking",
+                )
+
+                blocking_reason = None
+                if mode == "offline":
+                    mismatches = offline_mismatches(
+                        {
+                            "model_id": model_id,
+                            "hardware_id": hardware_id,
+                            "framework": "vllm",
+                            "framework_version": "0.24.0",
+                            "weight_precision": precision,
+                            "input_len": int(input_len),
+                            "output_len": int(output_len),
+                            "concurrency": int(concurrency),
+                        }
+                    )
+                    if mismatches:
+                        items = "".join(f"<li>{_esc(item)}</li>" for item in mismatches)
+                        st.markdown(
+                            "<p class='hint warn'>与离线归档工作点不一致：</p>"
+                            f"<ul class='plain'>{items}</ul>"
+                            "<p class='hint'>偏离任一项都会让模拟候选不可比或只能作参考。</p>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            "<p class='hint'>当前组合与归档工作点一致："
+                            "Qwen3-32B / H100 SXM / vllm 0.24.0 / bf16 / "
+                            "ISL 8192 / OSL 256 / 并发 32。</p>",
+                            unsafe_allow_html=True,
+                        )
+                elif mode == "live":
+                    # 只有选择实时模式才做外部探测
+                    live_python, live_ready = _aisimulate_probe()
+                    if live_python and live_ready:
+                        st.markdown(
+                            "<p class='hint'>已检测到 AISimulate 环境：<b>"
+                            + _esc(live_python)
+                            + "</b>（导入检查通过）。搜索与回放会写入本次运行目录。</p>",
+                            unsafe_allow_html=True,
+                        )
+                    elif live_python:
+                        blocking_reason = (
+                            f"找到解释器 {live_python}，但无法导入 aiconfigurator / aisimulate："
+                            "实时模式不可用，请修正环境或改用离线归档。"
+                        )
+                        st.markdown(
+                            f"<p class='hint fail'>{_esc(blocking_reason)}</p>",
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        blocking_reason = (
+                            "未检测到 AISimulate：请设置 AISIMULATE_PYTHON 指向独立环境，"
+                            "或改用离线归档。"
+                        )
+                        st.markdown(
+                            f"<p class='hint fail'>{_esc(blocking_reason)}</p>",
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        "<p class='hint'>不使用模拟：只做资源、实测参考与成本，"
+                        "性能侧通常停在「不可评估」。</p>",
+                        unsafe_allow_html=True,
+                    )
+
+                if ranking == "cost":
+                    st.markdown(
+                        "<p class='hint'>成本排序只在所有候选成本完整、币种已确认时生效；"
+                        "否则自动降级为吞吐优先，并在结果里写明原因。</p>",
+                        unsafe_allow_html=True,
+                    )
+
+            preset_values = {
+                "model_id": model_id,
+                "hardware_id": hardware_id,
+                "gpu_count": int(gpu_count),
+                "input_len": int(input_len),
+                "output_len": int(output_len),
+                "concurrency": int(concurrency),
+                "ttft_p99_ms_max": ttft_value if sla_on else None,
+                "tpot_p99_ms_max": tpot_value if sla_on else None,
+                "budget_amount": budget_value if budget_on else None,
+                "weight_precision": precision,
+                "mode": mode,
+                "ranking": ranking,
+            }
+            preset_matches = _matches_scenario(scenario, preset_values)
+            if scenario is not None and not preset_matches:
+                st.markdown(
+                    "<p class='hint warn'>已手动修改预设字段：本次生成不会附带预设说明。</p>",
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown("<div class='group'>生成</div>", unsafe_allow_html=True)
+            clicked = st.button(
+                "生成部署方案",
+                type="primary",
+                width="stretch",
+                disabled=blocking_reason is not None,
             )
-            + "</p>",
-            unsafe_allow_html=True,
-        )
-
-current_values = {
-    "scenario": scenario_id,
-    "model_id": model_id,
-    "hardware_id": hardware_id,
-    "gpu_count": gpu_count,
-    "input_len": input_len,
-    "output_len": output_len,
-    "concurrency": concurrency,
-    "sla_on": sla_on,
-    "ttft": ttft_value,
-    "tpot": tpot_value,
-    "budget_on": budget_on,
-    "budget": budget_value,
-    "precision": precision,
-    "mode": mode,
-    "ranking": ranking,
-}
-current_fp = _fingerprint(current_values)
-
-if clicked:
-    request_inputs = DemoInputs(
-        model_id=model_id,
-        hardware_id=hardware_id,
-        gpu_count=int(gpu_count),
-        input_len=int(input_len),
-        output_len=int(output_len),
-        concurrency=int(concurrency),
-        ttft_p99_ms_max=Decimal(str(ttft_value)) if sla_on else None,
-        tpot_p99_ms_max=Decimal(str(tpot_value)) if sla_on else None,
-        # 0 是真实约束（"不给预算"是另一回事），因此只由开关决定是否置空
-        budget_amount=Decimal(str(budget_value)) if budget_on else None,
-        weight_precision=precision,
-        framework="vllm",
-        framework_version="0.24.0",
-        mode=mode,  # type: ignore[arg-type]
-        ranking=ranking,
-        top_n=2,
-    )
-    with st.spinner("正在生成：建库 → 资源规划 → 性能/模拟 → 成本 → 报告 …"):
-        try:
-            st.session_state["outcome"] = run_demo(
-                request_inputs,
-                demo_note=scenario.note if preset_matches else None,
-                scenario_id=scenario_id if preset_matches else "custom",
+            st.markdown(
+                "<p class='hint'>当前："
+                + _esc(
+                    f"{precision} · {MODE_LABELS[mode]} · {RANKING_LABELS[ranking]}"
+                )
+                + "</p>",
+                unsafe_allow_html=True,
             )
-            st.session_state["error"] = None
-            st.session_state["fingerprint"] = current_fp
-        except Exception as exc:  # noqa: BLE001 - 界面上只展示可读错误
-            # 失败不应清空上一次成功生成的方案
-            st.session_state["error"] = f"{type(exc).__name__}: {exc}"
 
-outcome = st.session_state.get("outcome")
-error = st.session_state.get("error")
-stale = outcome is not None and st.session_state.get("fingerprint") != current_fp
+        else:
+            st.markdown(
+                "<div class='group first'>自然语言需求</div>", unsafe_allow_html=True
+            )
+            agent_prompt = st.text_area(
+                "需求描述",
+                value=AGENT_SAMPLE_PROMPT,
+                height=190,
+                key="ui_agent_prompt",
+            )
+            agent_ok, agent_note = _agent_availability()
+            if not agent_ok:
+                st.markdown(
+                    f"<p class='hint fail'>OpenCode Agent 不可用：{_esc(agent_note)}"
+                    "</p>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<p class='hint'>OpenCode 负责理解需求并调用业务工具；"
+                    "所有数字仍由 evaluate_plan() 生成。</p>",
+                    unsafe_allow_html=True,
+                )
+            agent_clicked = st.button(
+                "让 Agent 生成方案",
+                type="primary",
+                width="stretch",
+                disabled=not agent_ok,
+            )
+            if agent_clicked:
+                with st.spinner("OpenCode 正在理解需求并调用业务工具…"):
+                    try:
+                        st.session_state["agent_run"] = AgentService().run(agent_prompt)
+                        st.session_state["agent_error"] = None
+                    except Exception as exc:  # noqa: BLE001
+                        st.session_state["agent_run"] = None
+                        st.session_state["agent_error"] = f"{type(exc).__name__}: {exc}"
+manual_outcome = None
+manual_error = None
+manual_stale = False
+current_values: dict[str, object] = {}
+
+if input_mode == "form":
+    current_values = {
+        "scenario": scenario_id,
+        "model_id": model_id,
+        "hardware_id": hardware_id,
+        "gpu_count": gpu_count,
+        "input_len": input_len,
+        "output_len": output_len,
+        "concurrency": concurrency,
+        "sla_on": sla_on,
+        "ttft": ttft_value,
+        "tpot": tpot_value,
+        "budget_on": budget_on,
+        "budget": budget_value,
+        "precision": precision,
+        "mode": mode,
+        "ranking": ranking,
+    }
+    current_fp = _fingerprint(current_values)
+
+    if clicked:
+        request_inputs = DemoInputs(
+            model_id=model_id,
+            hardware_id=hardware_id,
+            gpu_count=int(gpu_count),
+            input_len=int(input_len),
+            output_len=int(output_len),
+            concurrency=int(concurrency),
+            ttft_p99_ms_max=Decimal(str(ttft_value)) if sla_on else None,
+            tpot_p99_ms_max=Decimal(str(tpot_value)) if sla_on else None,
+            # 0 是真实约束（"不给预算"是另一回事），因此只由开关决定是否置空
+            budget_amount=Decimal(str(budget_value)) if budget_on else None,
+            weight_precision=precision,
+            framework="vllm",
+            framework_version="0.24.0",
+            mode=mode,  # type: ignore[arg-type]
+            ranking=ranking,
+            top_n=2,
+        )
+        with st.spinner("正在生成：建库 → 资源规划 → 性能/模拟 → 成本 → 报告 …"):
+            try:
+                st.session_state["outcome"] = run_demo(
+                    request_inputs,
+                    demo_note=scenario.note if preset_matches else None,
+                    scenario_id=scenario_id if preset_matches else "custom",
+                )
+                st.session_state["error"] = None
+                st.session_state["fingerprint"] = current_fp
+            except Exception as exc:  # noqa: BLE001 - 界面上只展示可读错误
+                # 失败不应清空上一次成功生成的方案
+                st.session_state["error"] = f"{type(exc).__name__}: {exc}"
+
+    manual_outcome = st.session_state.get("outcome")
+    manual_error = st.session_state.get("error")
+    manual_stale = manual_outcome is not None and st.session_state.get("fingerprint") != current_fp
+
+outcome = manual_outcome
+error = manual_error
+stale = manual_stale
 
 
 # ---------------------------------------------------------------------------
@@ -513,103 +584,153 @@ stale = outcome is not None and st.session_state.get("fingerprint") != current_f
 # ---------------------------------------------------------------------------
 
 with right:
-    if error:
-        keep_note = (
-            "下方仍是上一次成功的评估结果，不会因为本次失败被清空。"
-            if outcome is not None
-            else "修正后重新生成。"
-        )
-        st.markdown(
-            "<div class='callout fail'><b>生成失败</b><br>"
-            + _esc(error)
-            + "<br><span class='muted'>"
-            + keep_note
-            + "</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<p class='hint'>常见原因：实时模拟环境不可用、输出目录非空、"
-            "或输入组合没有可用数据。</p>",
-            unsafe_allow_html=True,
-        )
-
-    if outcome is not None:
-        result = outcome.result
-        sim = getattr(result, "simulation", None)
-        st.markdown(result_head_html(result), unsafe_allow_html=True)
-        if stale:
+    if input_mode == "agent":
+        agent_run = st.session_state.get("agent_run")
+        agent_error = st.session_state.get("agent_error")
+        if agent_error:
             st.markdown(
-                "<div class='callout warn'>需求已改动：左侧当前值与这份结果对应的需求不同。"
-                "重新生成会新建运行目录，不会覆盖这份结果。</div>",
+                "<div class='callout fail'><b>Agent 调用失败</b><br>"
+                + _esc(agent_error)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+        elif agent_run is None:
+            st.markdown(
+                "<div class='empty'><h2>用自然语言生成方案</h2>"
+                "<p>在左侧描述模型、GPU、负载与 SLA。OpenCode 会先核对目录，"
+                "再调用业务工具；缺字段时会列出需要补充的条件。</p>"
+                "<ol>"
+                "<li><b>理解</b><span>识别模型、GPU、负载、SLA 与预算。</span></li>"
+                "<li><b>调用</b><span>通过固定工具执行现有 evaluate_plan()。</span></li>"
+                "<li><b>校验</b><span>系统只读取工具产物；模型文本不进入报告数字。</span></li>"
+                "</ol></div>",
+                unsafe_allow_html=True,
+            )
+        elif agent_run.completed:
+            st.markdown(
+                "<div class='callout pred'>本结果由 OpenCode Agent 编排；"
+                "所有数字来自同一次 evaluate_plan()，模型文本只作解释。</div>",
+                unsafe_allow_html=True,
+            )
+            _render_result(agent_run.as_demo_outcome(), False)
+        else:
+            task = agent_run.task
+            if task.status == "needs_confirmation":
+                missing = "、".join(task.missing_fields)
+                st.markdown(
+                    "<div class='callout warn'><b>还需要补充</b>："
+                    + _esc(missing)
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    "<div class='callout fail'><b>未生成方案</b><br>"
+                    + _esc(task.error or "Agent 未返回可用的业务结果")
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+            if agent_run.assistant_text:
+                with st.expander("Agent 说明（不是业务结论）"):
+                    st.markdown(agent_run.assistant_text)
+    else:
+        if error:
+            keep_note = (
+                "下方仍是上一次成功的评估结果，不会因为本次失败被清空。"
+                if outcome is not None
+                else "修正后重新生成。"
+            )
+            st.markdown(
+                "<div class='callout fail'><b>生成失败</b><br>"
+                + _esc(error)
+                + "<br><span class='muted'>"
+                + keep_note
+                + "</span></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<p class='hint'>常见原因：实时模拟环境不可用、输出目录非空、"
+                "或输入组合没有可用数据。</p>",
                 unsafe_allow_html=True,
             )
 
-        st.markdown(
-            "<div class='sec'><h3>核心候选对比</h3>"
-            f"<span>{len(result.candidates)} 个候选</span></div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(candidates_table_html(result), unsafe_allow_html=True)
+        if outcome is not None:
+            result = outcome.result
+            sim = getattr(result, "simulation", None)
+            st.markdown(result_head_html(result), unsafe_allow_html=True)
+            if stale:
+                st.markdown(
+                    "<div class='callout warn'>需求已改动：左侧当前值与这份结果对应的需求不同。"
+                    "重新生成会新建运行目录，不会覆盖这份结果。</div>",
+                    unsafe_allow_html=True,
+                )
 
-        d1, d2, d3 = st.columns(3)
-        d1.download_button(
-            "部署方案文档",
-            data=outcome.proposal_md.encode("utf-8"),
-            file_name="deployment_proposal.md",
-            mime="text/markdown",
-            width="stretch",
-        )
-        d2.download_button(
-            "技术评估报告",
-            data=outcome.technical_md.encode("utf-8"),
-            file_name="technical_report.md",
-            mime="text/markdown",
-            width="stretch",
-        )
-        d3.download_button(
-            "结构化结果 JSON",
-            data=json.dumps(
-                outcome.result_json, ensure_ascii=False, indent=2
-            ).encode("utf-8"),
-            file_name="result.json",
-            mime="application/json",
-            width="stretch",
-        )
-        st.markdown(
-            f"<p class='note'>产物目录：<b>{_esc(outcome.out_dir)}</b></p>",
-            unsafe_allow_html=True,
-        )
-
-        with st.expander("评估链路与三线结论", expanded=False):
             st.markdown(
-                rail_html(result, data_ok=bool(outcome.stages and outcome.stages[0][1] == "ok")),
+                "<div class='sec'><h3>核心候选对比</h3>"
+                f"<span>{len(result.candidates)} 个候选</span></div>",
                 unsafe_allow_html=True,
             )
-            st.markdown(_ledger(result), unsafe_allow_html=True)
+            st.markdown(candidates_table_html(result), unsafe_allow_html=True)
 
-        with st.expander("性能与 SLA 明细", expanded=False):
-            st.markdown(perf_table_html(result), unsafe_allow_html=True)
+            d1, d2, d3 = st.columns(3)
+            d1.download_button(
+                "部署方案文档",
+                data=outcome.proposal_md.encode("utf-8"),
+                file_name="deployment_proposal.md",
+                mime="text/markdown",
+                width="stretch",
+            )
+            d2.download_button(
+                "技术评估报告",
+                data=outcome.technical_md.encode("utf-8"),
+                file_name="technical_report.md",
+                mime="text/markdown",
+                width="stretch",
+            )
+            d3.download_button(
+                "结构化结果 JSON",
+                data=json.dumps(
+                    outcome.result_json, ensure_ascii=False, indent=2
+                ).encode("utf-8"),
+                file_name="result.json",
+                mime="application/json",
+                width="stretch",
+            )
             st.markdown(
-                "<div class='sec'><h3>外部公开实测参考</h3>"
-                "<span>不参与本次判定</span></div>",
+                f"<p class='note'>产物目录：<b>{_esc(outcome.out_dir)}</b></p>",
                 unsafe_allow_html=True,
             )
-            st.markdown(refs_html(result), unsafe_allow_html=True)
 
-        with st.expander("成本与预算", expanded=False):
-            st.markdown(cost_table_html(result), unsafe_allow_html=True)
+            with st.expander("评估链路与三线结论", expanded=False):
+                st.markdown(
+                    rail_html(result, data_ok=bool(outcome.stages and outcome.stages[0][1] == "ok")),
+                    unsafe_allow_html=True,
+                )
+                st.markdown(_ledger(result), unsafe_allow_html=True)
 
-        with st.expander("模拟预测（不是实测）", expanded=False):
-            st.markdown(sim_html(sim), unsafe_allow_html=True)
+            with st.expander("性能与 SLA 明细", expanded=False):
+                st.markdown(perf_table_html(result), unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='sec'><h3>外部公开实测参考</h3>"
+                    "<span>不参与本次判定</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(refs_html(result), unsafe_allow_html=True)
 
-        with st.expander("推荐依据、阻断与适用边界", expanded=False):
-            st.markdown(recommendations_html(result), unsafe_allow_html=True)
+            with st.expander("成本与预算", expanded=False):
+                st.markdown(cost_table_html(result), unsafe_allow_html=True)
 
-        with st.expander("部署方案文档预览", expanded=False):
-            st.markdown(outcome.proposal_md)
+            with st.expander("模拟预测（不是实测）", expanded=False):
+                st.markdown(sim_html(sim), unsafe_allow_html=True)
 
-    elif not error:
-        st.markdown(empty_html(current_values, cost_currency), unsafe_allow_html=True)
+            with st.expander("推荐依据、阻断与适用边界", expanded=False):
+                st.markdown(recommendations_html(result), unsafe_allow_html=True)
+
+            with st.expander("部署方案文档预览", expanded=False):
+                st.markdown(outcome.proposal_md)
+
+        elif not error:
+            st.markdown(empty_html(current_values, cost_currency), unsafe_allow_html=True)
 
 st.markdown(
     "<p class='hint' style='margin-top:40px;border-top:1px solid #CFD5CB;padding-top:14px'>"

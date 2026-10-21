@@ -300,7 +300,7 @@ def test_streamlit_interaction_hints(monkeypatch):
     assert "精度：当前 fp8，归档 bf16" in text()
 
     # 成本排序的生效条件
-    app.radio[0].set_value("成本优先").run()
+    next(r for r in app.radio if r.label == "排序目标").set_value("cost").run()
     assert "成本排序只在所有候选成本完整" in text()
 
     # 没有 AISimulate 时实时模式必须禁用，而不是等运行失败
