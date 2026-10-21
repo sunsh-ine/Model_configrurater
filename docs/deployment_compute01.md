@@ -106,5 +106,15 @@ docker run -d --name llm-capacity-ui --restart unless-stopped --memory 2g \
 
 ## 部署记录
 
-> 构建完成后在此追加：源码提交 SHA、镜像 ID、构建时间、健康检查结果。
-> 本次部署的实际值见仓库提交记录中的本文件更新。
+| 项 | 值 |
+| --- | --- |
+| 源码提交 | `e56b464`（U 阶段） |
+| 镜像 | `llm-capacity-ui:v1.3` |
+| 镜像 ID | `sha256:633dbcb2aab329badaeb33d19d4a0e11e5e109d07509a45f32ff587cacf35d40` |
+| 构建时间 | 2026-10-21 14:39:36（UTC+8） |
+| 运行时 | Python 3.12.15 / Streamlit 1.66.0 |
+| 健康检查 | `healthy`，`/_stcore/health` = `ok` |
+| 远端实跑 | 宽松 SLA 预设生成成功，显示 `TP8×PP1×DP1` 与身份推导说明 |
+| 回滚镜像 | `llm-capacity-ui:v1.2`（`sha256:fc84e123e27b5463a128b5f30d4c3f846e87bb61e5beb2dd0590da64c483521a`） |
+
+镜像内未发现 `*.db`；运行产物在 `/opt/llm-capacity-ui/runs`。

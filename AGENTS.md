@@ -7,20 +7,20 @@
 **每次写完代码后、`git commit` 之前**，必须调用本机的 codex CLI 做一轮代码审核，
 并按审核结果处理问题后再提交。
 
-固定用法（模型 `gpt-6-sol`，推理强度 `medium`）：
+固定用法（模型 `gpt-6-luna`，推理强度 `high`）：
 
 ```bash
 # 审核当前未提交的改动
 codex exec review --uncommitted \
-  -m gpt-6-sol -c model_reasoning_effort="medium"
+  -m gpt-6-luna -c model_reasoning_effort="high"
 
 # 审核某个已提交的 commit
 codex exec review --commit <SHA> \
-  -m gpt-6-sol -c model_reasoning_effort="medium"
+  -m gpt-6-luna -c model_reasoning_effort="high"
 
 # 审核相对某分支的改动
 codex exec review --base main \
-  -m gpt-6-sol -c model_reasoning_effort="medium"
+  -m gpt-6-luna -c model_reasoning_effort="high"
 ```
 
 要求：
