@@ -108,39 +108,47 @@ PYTHONPATH=src .venv/bin/python -m llm_capacity_pricing.agent.tool_cli evaluate 
 1. 在 `agent/opencode/` 启动 `opencode serve`；
 2. 用 `XDG_CONFIG_HOME=data/agent/xdg` 隔离全局 MCP / skills / instructions；
 3. 只复制模型 provider（含服务端密钥）与本项目 Agent；
-4. 把 server password 写入 `data/agent/opencode.env`（0600，git 忽略）。
+4. 把 server password 写入 `data/agent/opencode.credentials`（0600，git 忽略）。
 
 ## 安全边界
 
 | 项 | 做法 |
 | --- | --- |
 | 监听 | `127.0.0.1` only |
-| 认证 | HTTP Basic Auth；密码只写本地 0600 文件 |
-| Agent 工具权限 | `shell/edit/read/glob/grep/list/webfetch/websearch/skill/question` 全部 deny；只放行三个业务工具 |
+| 认证 | HTTP Basic Auth；密码只写 `data/agent/opencode.credentials`（0600，避开 `*.env` 通配） |
+| Agent 工具权限 | shell/edit/glob/grep/list/bash/task/webfetch/websearch/lsp/skill/question 全部 deny；read 仅允许 `.env` 类（free-tier 鉴权需要）；只放行三个业务工具 |
 | 全局能力 | 隔离配置，不加载全局 MCP / skills / instructions |
 | 浏览器 | 不接触模型 API Key |
 | 工具输出 | 只写 `data/agent_runs/`；`run_id` 白名单校验，阻止路径穿越 |
 | 失败 | 无工具产物即 `failed`，不生成报告 |
 
-## 当前外部阻塞：模型 provider
+## 当前阻塞：模型可用，但工具未暴露
 
-本机 OpenCode 已启动、会话与 HTTP API 已验证，但现有三组 provider 都无法从
-服务端完成一次模型调用：
+61 上的 OpenCode v2.1.2 CLI 可以直接调用 free 模型，实测可用：
 
-| provider/model | 实际结果 |
-| --- | --- |
-| `opencode/deepseek-v4.1-flash-free` | 403：`OpenCode's free tier can only be used from within OpenCode` |
-| `kimi/kimi-for-coding` | 403：当前订阅没有 Kimi Code 权限 |
-| `mimo/mimo-v2.5-pro` | 404（provider 端点） |
+- `opencode/glm-5.3-flash-free`、`opencode/big-pickle`、`opencode/mimo-v2.6-flash-free`；
+- `opencode/deepseek-v4.1-flash-free` 当前上游返回 503。
 
-因此 **V5 的“真实模型编排”尚未验证**；这不是代码缺陷，也不是可以靠改提示词
-绕过的问题。启用方式：在 OpenCode 配置里换成一个可用的 provider/model
-（`agent/opencode/opencode.json` 的 `model` 与 Agent 的 `model`），重启服务后
-重新执行 `AgentService().run(...)`。
+但还有两个限制：
 
-在此之前，以下部分已验证：
+1. **`opencode serve` 的 free tier 仍被限制**（即使 v2.1.2 也返回 403
+   “only be used from within OpenCode”）；只有客户端 `opencode run` 能用 free 模型。
+   走 HTTP 服务端需要付费 provider。
+2. **v2.1.2 没有加载 `.opencode/tools/` 下的自定义工具**：模型实际只看到 7 个
+   内置 opencode 工具，调用 `get_platform_catalog` 返回 `Unknown tool`。
+   已尝试项目目录、仓库根目录与隔离的全局 tools 目录，均未暴露。
+
+因此“自然语言 → 模型 → 业务工具 → 报告”仍未完整跑通，V5 不写成通过。
+两条可行路径：
+
+- 用 **MCP**（官方支持）暴露同样三个工具（当前配置已禁用全局 MCP，
+  可新增一个本地 MCP server）；
+- 或换到确实支持 `.opencode/tools` 的版本，或使用付费 provider 走 serve。
+
+已验证的部分：
 
 - 服务启动、Basic Auth、会话/消息/等待接口；
+- v2.1.2 模型（glm-5.3-flash-free）能在客户端与会话中正常回复；
 - 三个业务工具的 Python 实现与契约；
 - 缺字段、失败、超时、产物不一致时不生成报告；
 - 手动模式与工具路径的结论逐项一致；

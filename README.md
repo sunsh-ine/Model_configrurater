@@ -389,9 +389,8 @@ bash scripts/start_opencode_server.sh          # 127.0.0.1 + Basic Auth
 .venv/bin/streamlit run app/streamlit_app.py   # 左侧切换输入方式
 ```
 
-当前本机 OpenCode 的服务/会话/HTTP API 已验证，但可用的模型 provider 受账号权限限制
-（免费模型禁止服务端调用、Kimi 订阅无权限、MiMo 端点 404），因此真实模型编排
-尚未验证。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
+v2.1.2 CLI 的 free 模型（`glm-5.3-flash-free` 等）可用，但 HTTP `serve` 的 free tier
+仍受限，且 v2.1.2 未加载 `.opencode/tools` 自定义工具；因此真实模型编排链路尚未跑通。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
 与 [`docs/v_final_validation.md`](docs/v_final_validation.md)。
 
 ## 2. 命令清单

@@ -117,6 +117,25 @@ def test_task_contract_rejects_incomplete_results(payload):
         AgentTaskResult.model_validate(payload)
 
 
+def test_client_reads_legacy_credentials_file(monkeypatch, tmp_path):
+    from llm_capacity_pricing.agent import opencode_client
+
+    monkeypatch.delenv("OPENCODE_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENCODE_SERVER_PASSWORD", raising=False)
+    legacy = tmp_path / "opencode.env"
+    legacy.write_text(
+        "OPENCODE_BASE_URL=http://127.0.0.1:4096\n"
+        "OPENCODE_SERVER_PASSWORD=legacy-pass\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(opencode_client, "ENV_FILE", tmp_path / "missing")
+    monkeypatch.setattr(opencode_client, "LEGACY_ENV_FILE", legacy)
+
+    config = opencode_client.OpenCodeConfig.load()
+    assert config.base_url == "http://127.0.0.1:4096"
+    assert config.password == "legacy-pass"
+
+
 class _FakeClient:
     def __init__(self, session_id: str, messages: list[dict] | None = None):
         self.session_id = session_id

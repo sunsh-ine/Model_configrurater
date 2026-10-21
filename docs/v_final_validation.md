@@ -5,16 +5,16 @@
 
 ## 总结
 
-V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排被 provider 权限阻塞**，
-未完成。所有“已完成”的结论都附有可复现证据；“未完成”的部分不写成通过。
+V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排仍受阻**：v2.1.2 CLI 的 free 模型可用，
+但 HTTP serve 的 free tier 受限，且自定义工具未暴露给模型。所有“已完成”的结论都附有可复现证据；“未完成”的部分不写成通过。
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| V1 服务与 HTTP | 部分完成 | 服务启动、鉴权、创建会话、发送消息、等待、取回文本已实测；模型 provider 无法从服务端调用 |
-| V2 专用 Agent + 业务工具 | 部分完成 | 三个工具与 Agent 配置已实现；工具由 Python 测试直接验证；模型实际调用工具因 provider 失败未验证 |
+| V1 服务与 HTTP | 部分完成 | 服务/鉴权/会话/消息已实测；v2.1.2 模型可在会话中回复；serve 的 free tier 仍被限制 |
+| V2 专用 Agent + 业务工具 | 部分完成 | 三个工具与 Agent 配置已实现并直接验证；v2.1.2 未加载 `.opencode/tools`，模型调用返回 Unknown tool |
 | V3 契约与异常 | 完成 | `completed/needs_confirmation/failed`、产物校验、路径白名单、失败不生成报告均有测试 |
 | V4 自然语言入口 | 完成（失败路径） | UI 双模式、Agent 输入、服务不可用/失败展示；完整成功路径待在可用 provider 上复验 |
-| V5 一致性 | 部分完成 | 手动与工具路径结论逐项一致；OpenCode 真实模型路径未能执行 |
+| V5 一致性 | 部分完成 | 手动与工具路径结论逐项一致；OpenCode 真实模型调用工具的路径未跑通 |
 
 ## 证据
 
@@ -25,13 +25,19 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排被 pro
   `POST /api/experimental/session/{id}/wait`（204）→ `GET /api/session/{id}/message`；
 - 助手文本可正常取回。
 
-模型调用结果（如实记录）：
+模型与工具现状（如实记录，2026-10-21 复测）：
 
-| provider/model | 结果 |
+| 项 | 结果 |
 | --- | --- |
-| `opencode/deepseek-v4.1-flash-free` | 403：free tier 仅限 OpenCode 客户端 |
-| `kimi/kimi-for-coding` | 403：订阅无权限 |
-| `mimo/mimo-v2.5-pro` | 404：provider 端点 |
+| v2.1.2 CLI + `glm-5.3-flash-free` | 可用（客户端 `run`） |
+| v2.1.2 CLI + `big-pickle` / `mimo-v2.6-flash-free` | 可用 |
+| `deepseek-v4.1-flash-free` | 上游 503 |
+| `opencode serve` + free 模型 | 403：仅限 OpenCode 客户端内使用 |
+| `.opencode/tools` 自定义工具 | 未加载；模型调用返回 `Unknown tool 'get_platform_catalog'` |
+
+服务端会话中模型已能正常回复；失败点是工具未暴露。
+安全侧已把 `read` 收窄为“仅 `.env` 类”（free-tier 鉴权需要），并把凭据文件改名为
+`opencode.credentials`，避免被 `*.env` 通配匹配。
 
 ### V2/V3：工具与契约
 
@@ -58,13 +64,13 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排被 pro
 `test_agent_tool_uses_the_same_engine_as_manual_mode`：同一需求分别走
 `run_demo()` 与 Agent 工具，候选 ID、静态状态、SLA、成本与模拟 verdict 逐项一致。
 
-**未完成**：让真实模型通过 OpenCode 调用工具并返回结果；当前 provider 不可用。
-因此不能声称“自然语言 → OpenCode → 工具 → 报告”的完整链路已通过真实模型验证。
+**未完成**：让真实模型通过 OpenCode 调用业务工具并返回结果。v2.1.2 的 free 模型可用，
+但自定义工具没有暴露；因此不能声称完整链路已通过真实模型验证。
 
 ## 安全验证
 
 - 服务仅监听 `127.0.0.1`，Basic Auth；
-- 密码写入 `data/agent/opencode.env`（0600，git 忽略）；
+- 密码写入 `data/agent/opencode.credentials`（0600，git 忽略）；
 - 隔离 `XDG_CONFIG_HOME=data/agent/xdg`：启动日志中 MCP 连接数为 **0**，
   全局 skills / instructions 未加载；
 - Agent 权限：`shell/edit/read/glob/grep/list/webfetch/websearch/skill/question` 均 deny，
@@ -74,14 +80,14 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排被 pro
 
 ## 回归
 
-- `pytest`：**940 passed, 1 skipped**；
+- `pytest`：**941 passed, 1 skipped**；
 - `scripts/verify_all.sh`：**66/66**；
 - U 阶段的三场景与 v1.3 容器不受影响。
 
 ## 启用实时模型后的复验步骤
 
-1. 在 `agent/opencode/opencode.json` 的 `model` 与 Agent `model` 填入可用
-   `provider/model`；
+1. 解决工具暴露：改用 MCP，或换到支持 `.opencode/tools` 的 OpenCode 版本；
+   若走 HTTP serve，还需一个非 free-tier 的 provider；
 2. `bash scripts/start_opencode_server.sh` 重启；
 3. 运行：
    ```bash

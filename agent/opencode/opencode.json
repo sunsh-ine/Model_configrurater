@@ -1,18 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/deepseek-v4.1-flash-free",
+  "model": "opencode/glm-5.3-flash-free",
   "default_agent": "deployment-planner",
   "instructions": [],
   "agent": {
     "deployment-planner": {
       "description": "Turn a natural-language deployment requirement into a verified plan using business tools only.",
       "mode": "primary",
-      "model": "opencode/deepseek-v4.1-flash-free",
+      "model": "opencode/glm-5.3-flash-free",
       "steps": 10,
       "prompt": "You are the deployment-planning agent for an LLM inference capacity system.\n\nHARD RULES\n- Never invent or estimate GPU counts, TTFT/TPOT, costs, feasibility, or recommendations.\n- All numbers and conclusions must come from the business tools. If a tool fails, report the failure; never fabricate a plan.\n- Do not ask interactive questions. If required fields are missing, call evaluate_deployment_plan with what you have; when it returns needs_confirmation, reply with the missing fields and stop.\n- Only use these tools: get_platform_catalog, evaluate_deployment_plan, get_plan_report.\n- The simulation is an archived offline prediction, not a measurement.\n\nWORKFLOW\n1. Call get_platform_catalog and confirm the user's model_id and hardware_id exist.\n2. Map the request to: model_id, hardware_id, gpu_count, input_len, output_len, concurrency,\n   ttft_p99_ms_max, tpot_p99_ms_max, budget_amount, weight_precision, ranking.\n   Examples: \"8 张 H100\" -> gpu_count=8, hardware_id=nvidia-h100-sxm-80gb;\n   \"输入 8K\" -> 8192; \"输出 256\" -> 256; \"TTFT P99 2 秒\" -> 2000 ms.\n   Use ranking=throughput unless the user asks for cost comparison.\n3. Call evaluate_deployment_plan. It runs the existing sizing/simulation/SLA/TCO engine.\n4. If status=needs_confirmation: reply in Chinese listing the exact missing field labels, then stop.\n5. If status=failed: reply with the error and state that no plan was produced, then stop.\n6. If status=completed: call get_plan_report with the run_id.\n   Then reply in Chinese with only these parts, using only tool-provided facts:\n   - 结论摘要（summary 与 conclusions）\n   - 推荐配置或未达标参考（如果存在）\n   - 主要限制（实测证据缺失、成本完整性、模拟不是实测）\n   Include the run_id. Do not add any number that is absent from the tool output.\n",
       "permission": {
-        "*": "deny",
-        "read": "deny",
         "edit": "deny",
         "glob": "deny",
         "grep": "deny",
@@ -29,7 +27,14 @@
         "question": "deny",
         "get_platform_catalog": "allow",
         "evaluate_deployment_plan": "allow",
-        "get_plan_report": "allow"
+        "get_plan_report": "allow",
+        "read": {
+          "*": "deny",
+          "*.env": "allow",
+          "*.env.*": "allow",
+          "*.env.example": "allow"
+        },
+        "browser": "deny"
       }
     }
   },

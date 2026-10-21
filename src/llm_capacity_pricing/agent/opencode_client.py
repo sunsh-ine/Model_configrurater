@@ -1,6 +1,6 @@
 """OpenCode Server 的最小 HTTP 客户端（Basic Auth）。
 
-只依赖标准库；密码从环境变量或 data/agent/opencode.env（0600）读取。
+只依赖标准库；密码从环境变量或 data/agent/opencode.credentials（0600）读取。
 """
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
-ENV_FILE = ROOT / "data/agent/opencode.env"
+ENV_FILE = ROOT / "data/agent/opencode.credentials"
+# 兼容旧安装：V 阶段早期使用 opencode.env
+LEGACY_ENV_FILE = ROOT / "data/agent/opencode.env"
 
 
 class OpenCodeUnavailable(RuntimeError):
@@ -37,14 +39,19 @@ class OpenCodeConfig:
 
         base_url = os.environ.get("OPENCODE_BASE_URL")
         password = os.environ.get("OPENCODE_SERVER_PASSWORD")
-        if (not base_url or not password) and ENV_FILE.exists():
-            values: dict[str, str] = {}
-            for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-                if "=" in line:
-                    key, value = line.split("=", 1)
-                    values[key.strip()] = value.strip()
-            base_url = base_url or values.get("OPENCODE_BASE_URL")
-            password = password or values.get("OPENCODE_SERVER_PASSWORD")
+        if not base_url or not password:
+            for path in (ENV_FILE, LEGACY_ENV_FILE):
+                if not path.exists():
+                    continue
+                values: dict[str, str] = {}
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        values[key.strip()] = value.strip()
+                base_url = base_url or values.get("OPENCODE_BASE_URL")
+                password = password or values.get("OPENCODE_SERVER_PASSWORD")
+                if base_url and password:
+                    break
         if not base_url or not password:
             raise OpenCodeUnavailable(
                 "未配置 OpenCode 服务：请先运行 scripts/start_opencode_server.sh"
