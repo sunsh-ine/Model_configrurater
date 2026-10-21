@@ -1,0 +1,2 @@
+# V 阶段 Agent 集成依赖（不并入主 requirements.lock）
+mcp==2.3.0

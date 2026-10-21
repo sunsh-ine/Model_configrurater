@@ -5,16 +5,16 @@
 
 ## 总结
 
-V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排仍受阻**：v2.1.2 CLI 的 free 模型可用，
-但 HTTP serve 的 free tier 受限，且自定义工具未暴露给模型。所有“已完成”的结论都附有可复现证据；“未完成”的部分不写成通过。
+**Command Code + MCP 已真实跑通完整链路**（自然语言 → 模型 → 三个业务工具 → 报告）。
+OpenCode 作为备选仍有阻塞：serve 的 free tier、v2.1.2 未暴露 `.opencode/tools`。所有“已完成”的结论都附有可复现证据；“未完成”的部分不写成通过。
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| V1 服务与 HTTP | 部分完成 | 服务/鉴权/会话/消息已实测；v2.1.2 模型可在会话中回复；serve 的 free tier 仍被限制 |
-| V2 专用 Agent + 业务工具 | 部分完成 | 三个工具与 Agent 配置已实现并直接验证；v2.1.2 未加载 `.opencode/tools`，模型调用返回 Unknown tool |
+| V1 Agent 入口 | 完成 | Command Code client API 已实测；OpenCode 服务/鉴权/会话/消息也已实测（serve 的 free tier 仍受限） |
+| V2 业务工具 | 完成 | MCP server 暴露三个工具；Command Code 实际调用成功（catalog → evaluate → report）；OpenCode 自定义工具仍未暴露 |
 | V3 契约与异常 | 完成 | `completed/needs_confirmation/failed`、产物校验、路径白名单、失败不生成报告均有测试 |
 | V4 自然语言入口 | 完成（失败路径） | UI 双模式、Agent 输入、服务不可用/失败展示；完整成功路径待在可用 provider 上复验 |
-| V5 一致性 | 部分完成 | 手动与工具路径结论逐项一致；OpenCode 真实模型调用工具的路径未跑通 |
+| V5 一致性 | 完成（Command Code） | 手动与工具路径逐项一致；Command Code 真实模型链路跑通，run_id 20261021T085956Z |
 
 ## 证据
 
@@ -35,9 +35,19 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排仍受�
 | `opencode serve` + free 模型 | 403：仅限 OpenCode 客户端内使用 |
 | `.opencode/tools` 自定义工具 | 未加载；模型调用返回 `Unknown tool 'get_platform_catalog'` |
 
-服务端会话中模型已能正常回复；失败点是工具未暴露。
-安全侧已把 `read` 收窄为“仅 `.env` 类”（free-tier 鉴权需要），并把凭据文件改名为
-`opencode.credentials`，避免被 `*.env` 通配匹配。
+### Command Code（当前默认 transport）
+
+- 本机 `command-code` v1.53.0，client API 已登录；
+- `mcp add --transport stdio --scope user lcp -- .venv/bin/python -m llm_capacity_pricing.agent.mcp_server`；
+- headless 默认禁止写文件/改文件/shell；不使用 `--yolo/--tools-all`；
+- 实测模型依次调用 `mcp__lcp__get_platform_catalog` →
+  `mcp__lcp__evaluate_deployment_plan` → `mcp__lcp__get_plan_report`；
+- 任务文件按 `TASK_ID` 写入，服务只读产物；最终报告与手动模式同一引擎。
+
+### OpenCode（备选）
+
+服务端会话中模型已能正常回复；失败点是自定义工具未暴露。free-tier 鉴权需要
+`read`，已收窄为“仅 `.env` 类”，并把凭据文件改名为 `opencode.credentials`。
 
 ### V2/V3：工具与契约
 
@@ -64,8 +74,8 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排仍受�
 `test_agent_tool_uses_the_same_engine_as_manual_mode`：同一需求分别走
 `run_demo()` 与 Agent 工具，候选 ID、静态状态、SLA、成本与模拟 verdict 逐项一致。
 
-**未完成**：让真实模型通过 OpenCode 调用业务工具并返回结果。v2.1.2 的 free 模型可用，
-但自定义工具没有暴露；因此不能声称完整链路已通过真实模型验证。
+Command Code 路径已完成；OpenCode 路径仍未完成（工具未暴露）。
+因此“OpenCode 真实模型链路”不写成通过，“Command Code 真实模型链路”通过。
 
 ## 安全验证
 
@@ -80,7 +90,7 @@ V1–V4 的代码与确定性验证已完成；**V5 的真实模型编排仍受�
 
 ## 回归
 
-- `pytest`：**941 passed, 1 skipped**；
+- `pytest`：**945 passed, 1 skipped**；
 - `scripts/verify_all.sh`：**66/66**；
 - U 阶段的三场景与 v1.3 容器不受影响。
 

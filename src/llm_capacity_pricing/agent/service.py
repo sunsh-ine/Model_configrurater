@@ -1,12 +1,20 @@
-"""Agent 任务编排：OpenCode 负责理解与调用工具，业务系统只认工具产物。"""
+"""Agent 任务编排：Command Code / OpenCode 负责理解与调用工具，业务系统只认工具产物。"""
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from llm_capacity_pricing.agent.commandcode_client import (
+    CommandCodeClient,
+    CommandCodeTimeout,
+    CommandCodeUnavailable,
+)
 from llm_capacity_pricing.agent.opencode_client import (
     OpenCodeClient,
     OpenCodeConfig,
@@ -67,11 +75,26 @@ class AgentRun:
 
 
 class AgentService:
-    def __init__(self, client: OpenCodeClient | None = None):
+    """统一入口：Command Code（默认，若已安装）或 OpenCode。
+
+    两条 transport 只在“如何让模型调用工具”上不同；任务产物、校验和报告
+    完全共用 ``data/agent_tasks`` 与 ``data/agent_runs``。
+    """
+
+    def __init__(self, client=None, *, transport: str | None = None):
+        self.transport = (
+            transport
+            or os.environ.get("AGENT_TRANSPORT")
+            or ("commandcode" if shutil.which("command-code") else "opencode")
+        )
         self.client = client
 
-    def _get_client(self) -> OpenCodeClient:
-        if self.client is None:
+    def _get_client(self):
+        if self.client is not None:
+            return self.client
+        if self.transport == "commandcode":
+            self.client = CommandCodeClient()
+        else:
             self.client = OpenCodeClient(OpenCodeConfig.load())
         return self.client
 
@@ -80,34 +103,72 @@ class AgentService:
             client = self._get_client()
         except OpenCodeUnavailable as exc:
             return False, str(exc)
+        if self.transport == "commandcode":
+            return client.available()
         if client.health():
             return True, "OpenCode 服务可用（模型权限由服务端配置决定）"
         return False, "OpenCode 服务不可达"
 
-    def run(self, text: str, *, timeout: float = 240.0) -> AgentRun:
+    def run(self, text: str, *, timeout: float = 300.0) -> AgentRun:
+        if self.transport == "commandcode":
+            return self._run_commandcode(text, timeout=timeout)
+        return self._run_opencode(text, timeout=timeout)
+
+    # ------------------------------------------------------------------
+    # Command Code
+    # ------------------------------------------------------------------
+
+    def _run_commandcode(self, text: str, *, timeout: float) -> AgentRun:
+        task_id = f"cc-{uuid.uuid4().hex[:16]}"
+        try:
+            result = self._get_client().run(text, task_id=task_id, timeout=timeout)
+        except CommandCodeTimeout as exc:
+            return self._failed(task_id, str(exc))
+        except (CommandCodeUnavailable, OSError) as exc:
+            return self._failed(task_id, str(exc))
+
+        task_path = TASKS / f"{task_id}.json"
+        if not task_path.exists():
+            return AgentRun(
+                session_id=task_id,
+                task=AgentTaskResult(
+                    status="failed",
+                    session_id=task_id,
+                    needs_confirmation=False,
+                    error=result.error
+                    or "Agent 未调用 evaluate_deployment_plan，未生成任何报告",
+                ),
+                assistant_text=result.final_text,
+                provider_error=result.error,
+            )
+        task = self._parse_task(task_path, task_id)
+        if task.status != "completed":
+            return AgentRun(
+                session_id=task_id,
+                task=task,
+                assistant_text=result.final_text,
+                provider_error=result.error,
+            )
+        return self._load_completed(task_id, task, result.final_text, result.error)
+
+    # ------------------------------------------------------------------
+    # OpenCode
+    # ------------------------------------------------------------------
+
+    def _run_opencode(self, text: str, *, timeout: float) -> AgentRun:
         client = self._get_client()
         session_id = client.create_session(title="deployment-plan")
         client.prompt(session_id, text)
         try:
             client.wait(session_id, timeout=timeout)
         except OpenCodeTimeout as exc:
-            return AgentRun(
-                session_id=session_id,
-                task=AgentTaskResult(
-                    status="failed",
-                    session_id=session_id,
-                    needs_confirmation=False,
-                    error=str(exc),
-                ),
-                provider_error=str(exc),
-            )
+            return self._failed(session_id, str(exc))
 
         messages = client.messages(session_id)
         assistant = client.assistant_text(messages)
         provider_error = client.error_text(messages)
         task_path = TASKS / f"{session_id}.json"
         if not task_path.exists():
-            # 模型说完成也不算数：没有业务工具产物就没有报告
             return AgentRun(
                 session_id=session_id,
                 task=AgentTaskResult(
@@ -120,24 +181,7 @@ class AgentService:
                 assistant_text=assistant,
                 provider_error=provider_error,
             )
-
-        try:
-            task = AgentTaskResult.model_validate_json(
-                task_path.read_text(encoding="utf-8")
-            )
-        except Exception as exc:  # noqa: BLE001
-            return AgentRun(
-                session_id=session_id,
-                task=AgentTaskResult(
-                    status="failed",
-                    session_id=session_id,
-                    needs_confirmation=False,
-                    error=f"Agent 任务契约校验失败：{exc}",
-                ),
-                assistant_text=assistant,
-                provider_error=provider_error,
-            )
-
+        task = self._parse_task(task_path, session_id)
         if task.status != "completed":
             return AgentRun(
                 session_id=session_id,
@@ -145,7 +189,45 @@ class AgentService:
                 assistant_text=assistant,
                 provider_error=provider_error,
             )
+        return self._load_completed(session_id, task, assistant, provider_error)
 
+    # ------------------------------------------------------------------
+    # 共用：契约校验与产物加载
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _failed(session_id: str, error: str) -> AgentRun:
+        return AgentRun(
+            session_id=session_id,
+            task=AgentTaskResult(
+                status="failed",
+                session_id=session_id,
+                needs_confirmation=False,
+                error=error,
+            ),
+        )
+
+    @staticmethod
+    def _parse_task(path: Path, session_id: str) -> AgentTaskResult:
+        try:
+            return AgentTaskResult.model_validate_json(
+                path.read_text(encoding="utf-8")
+            )
+        except Exception as exc:  # noqa: BLE001
+            return AgentTaskResult(
+                status="failed",
+                session_id=session_id,
+                needs_confirmation=False,
+                error=f"Agent 任务契约校验失败：{exc}",
+            )
+
+    def _load_completed(
+        self,
+        session_id: str,
+        task: AgentTaskResult,
+        assistant: str,
+        provider_error: str | None,
+    ) -> AgentRun:
         try:
             run_dir = (ROOT / task.artifacts["dir"]).resolve()
             base = RUNS.resolve()

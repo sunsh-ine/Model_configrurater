@@ -379,18 +379,23 @@ CLI 同样支持：
 
 除结构化表单外，页面支持“自然语言（OpenCode Agent）”模式：
 
-- OpenCode 负责理解需求、选择工具与组织步骤；
+- 默认使用 **Command Code + 本地 MCP server**（client API 已配置）；
 - 业务工具只调用现有 `evaluate_plan()`，数字不经过模型生成；
 - 业务系统按 `run_id` 读取工具产物生成报告，模型文本只作解释；
 - 无法调用工具、任务超时或产物不一致时**不生成报告**。
 
 ```bash
-bash scripts/start_opencode_server.sh          # 127.0.0.1 + Basic Auth
+.venv/bin/pip install -r requirements-agent.txt
+command-code mcp add --transport stdio --scope user \
+  -e "PYTHONPATH=$PWD/src" lcp -- \
+  "$PWD/.venv/bin/python" -m llm_capacity_pricing.agent.mcp_server
 .venv/bin/streamlit run app/streamlit_app.py   # 左侧切换输入方式
 ```
 
-v2.1.2 CLI 的 free 模型（`glm-5.3-flash-free` 等）可用，但 HTTP `serve` 的 free tier
-仍受限，且 v2.1.2 未加载 `.opencode/tools` 自定义工具；因此真实模型编排链路尚未跑通。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
+OpenCode 仍作为备选：`bash scripts/start_opencode_server.sh`（v2.1.2）。
+
+Command Code + MCP 链路已真实跑通；OpenCode 仍有 serve free-tier 与
+`.opencode/tools` 暴露问题。详见 `docs/commandcode_integration.md`。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
 与 [`docs/v_final_validation.md`](docs/v_final_validation.md)。
 
 ## 2. 命令清单

@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from llm_capacity_pricing.agent import commandcode_client as cc_module
 from llm_capacity_pricing.agent import service as service_module
 from llm_capacity_pricing.agent import tool_cli
 from llm_capacity_pricing.agent.schemas import AgentTaskResult
@@ -33,6 +34,8 @@ def isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(tool_cli, "TASKS", tasks)
     monkeypatch.setattr(service_module, "RUNS", runs)
     monkeypatch.setattr(service_module, "TASKS", tasks)
+    monkeypatch.setattr(cc_module, "TASKS", tasks)
+    monkeypatch.setattr(cc_module, "WORKSPACE", tmp_path / "cc-workspace")
     return runs, tasks
 
 
@@ -183,7 +186,7 @@ def test_service_uses_tool_artifact_not_model_text(isolated_store, capsys):
     )
     assert payload["status"] == "completed"
 
-    run = AgentService(client=_FakeClient("ses_service")).run("自然语言需求")
+    run = AgentService(client=_FakeClient("ses_service"), transport="opencode").run("自然语言需求")
     assert run.completed
     assert run.result is not None
     assert len(run.result.candidates) == 3
@@ -227,6 +230,82 @@ def test_agent_tool_uses_the_same_engine_as_manual_mode(isolated_store, capsys, 
     assert snapshot(agent_result) == snapshot(manual)
 
 
+class _FakeCommandCodeClient:
+    def __init__(self, *, write_task: bool = True, final_text: str = "已完成"):
+        self.write_task = write_task
+        self.final_text = final_text
+
+    def run(self, text, *, task_id, timeout=None):
+        self.seen_timeout = timeout
+        if self.write_task:
+            import contextlib
+            import io
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                tool_cli.main(
+                    [
+                        "evaluate",
+                        "--session-id",
+                        task_id,
+                        "--input-json",
+                        json.dumps(REQUEST),
+                    ]
+                )
+        return cc_module.CommandCodeRun(
+            task_id=task_id,
+            final_text=self.final_text,
+            subtype="success",
+            stop_reason="end_turn",
+        )
+
+
+def test_service_uses_commandcode_task_file(isolated_store):
+    run = AgentService(
+        client=_FakeCommandCodeClient(final_text="我编一个 64 卡"),
+        transport="commandcode",
+    ).run("自然语言需求")
+    assert run.completed
+    assert run.result is not None
+    assert len(run.result.candidates) == 3
+    assert "64 卡" not in json.dumps(run.result_json, ensure_ascii=False)
+    assert run.session_id.startswith("cc-")
+
+
+def test_service_fails_when_commandcode_writes_no_task(isolated_store):
+    run = AgentService(
+        client=_FakeCommandCodeClient(write_task=False),
+        transport="commandcode",
+    ).run("自然语言需求")
+    assert not run.completed
+    assert run.task.status == "failed"
+    assert "未调用 evaluate_deployment_plan" in (run.task.error or "")
+
+
+def test_service_passes_timeout_to_commandcode(isolated_store):
+    client = _FakeCommandCodeClient()
+    AgentService(client=client, transport="commandcode").run(
+        "自然语言需求", timeout=42
+    )
+    assert client.seen_timeout == 42
+
+
+def test_commandcode_parse_stream_and_prompt():
+    stream = "\n".join(
+        [
+            '{"type":"event","event":{"type":"text_delta","delta":"OK"}}',
+            '{"type":"result","subtype":"success","stopReason":"end_turn","finalText":"OK"}',
+        ]
+    )
+    parsed = cc_module.CommandCodeClient.parse_stream(stream)
+    assert parsed["subtype"] == "success"
+    assert parsed["finalText"] == "OK"
+
+    prompt = cc_module.build_prompt("cc-abc", "8 张 H100")
+    assert "TASK_ID: cc-abc" in prompt
+    assert "evaluate_deployment_plan" in prompt
+    assert "Never use shell" in prompt
+
+
 def test_agent_tool_does_not_write_requirements_to_shared_tmp():
     source = (
         ROOT / "agent/opencode/.opencode/tools/evaluate_deployment_plan.ts"
@@ -238,7 +317,7 @@ def test_agent_tool_does_not_write_requirements_to_shared_tmp():
 
 
 def test_service_fails_when_agent_skips_business_tool(isolated_store):
-    run = AgentService(client=_FakeClient("ses_no_tool")).run("自然语言需求")
+    run = AgentService(client=_FakeClient("ses_no_tool"), transport="opencode").run("自然语言需求")
     assert not run.completed
     assert run.task.status == "failed"
     assert "未调用 evaluate_deployment_plan" in (run.task.error or "")
@@ -253,6 +332,6 @@ def test_service_rejects_inconsistent_artifacts(isolated_store, capsys):
     run_dir = tool_cli.ROOT / payload["artifacts"]["dir"]
     (run_dir / "result.json").unlink()
 
-    run = AgentService(client=_FakeClient("ses_bad")).run("自然语言需求")
+    run = AgentService(client=_FakeClient("ses_bad"), transport="opencode").run("自然语言需求")
     assert not run.completed
     assert "产物不一致" in (run.task.error or "")
