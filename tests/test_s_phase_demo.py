@@ -289,9 +289,10 @@ def test_streamlit_interaction_hints(monkeypatch):
     assert "没有与该 GPU 匹配的机箱" in text()
     assert "server_gpu_sku_mismatch" not in text()
 
-    # 离线归档只有 bf16 工作点
+    # 离线归档是单一工作点：偏离项必须逐条列出
     app.selectbox[2].set_value("fp8").run()
-    assert "离线归档只有 bf16 工作点" in text()
+    assert "与离线归档工作点不一致" in text()
+    assert "精度：当前 fp8，归档 bf16" in text()
 
     # 成本排序的生效条件
     app.radio[0].set_value("成本优先").run()
@@ -389,7 +390,7 @@ def test_ledger_counts_estimated_only_candidates():
         domains={"governance": "not_configured"},
     )
     mixed_html = ledger(mixed)
-    assert "1 个候选已被资源或硬件排除" in mixed_html
+    assert "1 个候选已被资源、硬件或 GPU 上限排除" in mixed_html
     # 证据缺口只统计还能进入性能评估的候选
     assert "1 个不可评估" in mixed_html
 
@@ -480,7 +481,7 @@ def test_failed_regeneration_keeps_the_previous_result(monkeypatch, tmp_path):
     app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
     app.run()
     app.button[0].click().run()
-    assert "本次评估卷宗" in "\n".join(item.value for item in app.markdown)
+    assert "方案已生成" in "\n".join(item.value for item in app.markdown)
 
     def explode(*args, **kwargs):
         raise RuntimeError("boom")
@@ -494,7 +495,154 @@ def test_failed_regeneration_keeps_the_previous_result(monkeypatch, tmp_path):
     assert "生成失败" in text
     assert "RuntimeError: boom" in text
     assert "下方仍是上一次成功的评估结果" in text
-    assert "本次评估卷宗" in text
+    assert "方案已生成" in text
+    assert not app.exception, app.exception
+
+
+# --------------------------------------------------------------------------
+# V1.1：页面减法、表格精简、语义色
+# --------------------------------------------------------------------------
+
+
+def _presenters():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "ui_presenters", ROOT / "app" / "ui_presenters.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_core_table_has_five_columns_and_gpu_cap():
+    """主表最多 5 列，并把 GPU 上限显示为展示层条件（不改 static_status）。"""
+    from types import SimpleNamespace as NS
+
+    presenters = _presenters()
+    result = NS(
+        candidates=[
+            NS(
+                tp_size=8,
+                dp_size=1,
+                gpu_count=8,
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                output_throughput_tok_s=None,
+            )
+        ],
+        request_echo={"max_total_gpus": 4},
+    )
+    html = presenters.candidates_table_html(result)
+    assert html.count("<th ") == 5
+    assert "超过上限 4" in html
+    assert "8 / 4" in html
+    # 原始静态结论未被改写
+    assert result.candidates[0].static_status == "conditional_feasible"
+
+
+def test_headline_and_ledger_respect_gpu_cap():
+    """GPU 超限的候选不能出现在“静态可行”的结论里。"""
+    from types import SimpleNamespace as NS
+
+    presenters = _presenters()
+    result = NS(
+        candidates=[
+            NS(
+                tp_size=8,
+                dp_size=1,
+                gpu_count=8,
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+            NS(
+                tp_size=4,
+                dp_size=1,
+                gpu_count=4,
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+        ],
+        request_echo={"sla": None, "max_total_gpus": 4},
+        domains={"governance": "not_configured"},
+        simulation=None,
+    )
+    sentence = presenters.headline(result)
+    assert "1 个候选在 4 卡上限内静态可行" in sentence
+    ledger = presenters.ledger_html(result)
+    assert "1 个静态条件可行的候选超过 4 卡上限" in ledger
+
+
+def test_predicted_pass_is_blue_observed_pass_is_green():
+    presenters = _presenters()
+    assert presenters.VERDICT["predicted_pass"][0] == "pred"
+    assert presenters.VERDICT["predicted_fail"][0] == "fail"
+    assert presenters.SLA["observed_pass"][0] == "ok"
+    assert presenters.SLA["observed_fail"][0] == "fail"
+
+
+def test_offline_mismatches_cover_all_workpoint_dimensions():
+    presenters = _presenters()
+    current = {
+        "model_id": "other-model",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "weight_precision": "fp8",
+        "input_len": 4096,
+        "output_len": 128,
+        "concurrency": 64,
+    }
+    mismatches = presenters.offline_mismatches(current)
+    assert len(mismatches) == 6
+    joined = "；".join(mismatches)
+    for label in ("模型", "GPU", "精度", "输入长度", "输出长度", "并发"):
+        assert label in joined
+
+
+def test_offline_mode_does_not_probe_aisimulate(monkeypatch):
+    """离线页面不应触发任何外部工具探测。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    import streamlit as st
+
+    def boom(*args, **kwargs):
+        raise AssertionError("offline mode must not probe AISimulate")
+
+    monkeypatch.setattr(
+        "llm_capacity_pricing.perf.aisimulate_adapter.resolve_python", boom
+    )
+    monkeypatch.setattr(
+        "llm_capacity_pricing.perf.aisimulate_adapter.external_tool_available", boom
+    )
+    st.cache_data.clear()
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
+    app.run()
+    assert not app.exception, app.exception
+
+
+def test_result_homepage_prioritises_conclusion_and_downloads():
+    """首页先给执行状态、关键结论、核心对比和下载，细节在折叠区。"""
+    st_testing = pytest.importorskip("streamlit.testing.v1")
+    AppTest = st_testing.AppTest
+    app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    app.run()
+    app.button[0].click().run()
+
+    text = "\n".join(item.value for item in app.markdown)
+    assert "方案已生成" in text
+    assert "分析覆盖" in text
+    assert "核心候选对比" in text
+    assert "尚无目标配置的实测 SLA 证据" in text
+
+    labels = [expander.label for expander in app.expander]
+    assert "评估链路与三线结论" in labels
+    assert "性能与 SLA 明细" in labels
+    assert "成本与预算" in labels
+    assert "模拟预测（不是实测）" in labels
+    assert "推荐依据、阻断与适用边界" in labels
     assert not app.exception, app.exception
 
 
