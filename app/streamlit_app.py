@@ -211,7 +211,7 @@ with left:
             "输入方式",
             ["form", "agent"],
             index=0,
-            format_func=lambda value: "结构化表单（手动）" if value == "form" else "自然语言（OpenCode Agent）",
+            format_func=lambda value: "结构化表单（手动）" if value == "form" else "自然语言（AI Agent）",
             horizontal=True,
             key="ui_input_mode",
         )
@@ -489,14 +489,16 @@ with left:
             agent_ok, agent_note = _agent_availability()
             if not agent_ok:
                 st.markdown(
-                    f"<p class='hint fail'>OpenCode Agent 不可用：{_esc(agent_note)}"
+                    f"<p class='hint fail'>AI Agent 不可用：{_esc(agent_note)}"
                     "</p>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    "<p class='hint'>OpenCode 负责理解需求并调用业务工具；"
-                    "所有数字仍由 evaluate_plan() 生成。</p>",
+                    "<p class='hint'>AI Agent（Command Code + 本地 MCP）负责理解需求并调用业务工具；"
+                    "所有数字仍由 evaluate_plan() 生成。已连接："
+                    + _esc(agent_note)
+                    + "</p>",
                     unsafe_allow_html=True,
                 )
             agent_clicked = st.button(
@@ -506,7 +508,7 @@ with left:
                 disabled=not agent_ok,
             )
             if agent_clicked:
-                with st.spinner("OpenCode 正在理解需求并调用业务工具…"):
+                with st.spinner("AI Agent 正在理解需求并调用业务工具…"):
                     try:
                         st.session_state["agent_run"] = AgentService().run(agent_prompt)
                         st.session_state["agent_error"] = None
@@ -597,7 +599,7 @@ with right:
         elif agent_run is None:
             st.markdown(
                 "<div class='empty'><h2>用自然语言生成方案</h2>"
-                "<p>在左侧描述模型、GPU、负载与 SLA。OpenCode 会先核对目录，"
+                "<p>在左侧描述模型、GPU、负载与 SLA。AI Agent 会先核对目录，"
                 "再调用业务工具；缺字段时会列出需要补充的条件。</p>"
                 "<ol>"
                 "<li><b>理解</b><span>识别模型、GPU、负载、SLA 与预算。</span></li>"
@@ -607,11 +609,25 @@ with right:
                 unsafe_allow_html=True,
             )
         elif agent_run.completed:
+            if agent_run.agent_status != "ok":
+                st.markdown(
+                    "<div class='callout warn'><b>业务报告已生成，但 Agent 会话未正常结束</b><br>"
+                    + _esc(agent_run.agent_error or "未知异常")
+                    + "<br>报告仍可下载；不要把本次会话视为完全成功。</div>",
+                    unsafe_allow_html=True,
+                )
             st.markdown(
-                "<div class='callout pred'>本结果由 OpenCode Agent 编排；"
+                "<div class='callout pred'>本结果由 AI Agent 编排；"
                 "所有数字来自同一次 evaluate_plan()，模型文本只作解释。</div>",
                 unsafe_allow_html=True,
             )
+            if agent_run.task.assumptions:
+                st.markdown(
+                    "<p class='note'><b>本次采用的默认假设</b>："
+                    + "；".join(_esc(item) for item in agent_run.task.assumptions)
+                    + "</p>",
+                    unsafe_allow_html=True,
+                )
             _render_result(agent_run.as_demo_outcome(), False)
         else:
             task = agent_run.task
@@ -623,6 +639,34 @@ with right:
                     + "</div>",
                     unsafe_allow_html=True,
                 )
+                if agent_run.agent_session_id:
+                    st.markdown(
+                        "<p class='hint'>可以在同一任务里补充，不需要重新输入整段需求。</p>",
+                        unsafe_allow_html=True,
+                    )
+                    additional = st.text_area(
+                        "补充信息", key="ui_agent_additional", height=90
+                    )
+                    if st.button("继续分析", key="ui_agent_continue"):
+                        with st.spinner("AI Agent 正在继续分析…"):
+                            try:
+                                st.session_state["agent_run"] = AgentService().continue_run(
+                                    additional,
+                                    task_id=agent_run.session_id,
+                                    session_id=agent_run.agent_session_id,
+                                )
+                                st.session_state["agent_error"] = None
+                            except Exception as exc:  # noqa: BLE001
+                                st.session_state["agent_error"] = (
+                                    f"{type(exc).__name__}: {exc}"
+                                )
+                        st.rerun()
+                else:
+                    st.markdown(
+                        "<p class='hint'>当前 Agent 没有返回可继续的会话；"
+                        "请补充后重新提交。</p>",
+                        unsafe_allow_html=True,
+                    )
             else:
                 st.markdown(
                     "<div class='callout fail'><b>未生成方案</b><br>"

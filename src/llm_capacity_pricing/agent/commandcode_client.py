@@ -39,6 +39,8 @@ class CommandCodeRun:
     stop_reason: str | None = None
     error: str | None = None
     raw_result: dict[str, Any] = field(default_factory=dict)
+    session_id: str | None = None
+    tool_names: list[str] = field(default_factory=list)
 
 
 def build_prompt(task_id: str, requirement: str) -> str:
@@ -49,22 +51,52 @@ Use ONLY the lcp MCP tools: get_platform_catalog, evaluate_deployment_plan,
 get_plan_report. Never use shell, file-editing, or any other tool.
 Never invent GPU counts, TTFT/TPOT, costs, feasibility, or recommendations.
 
+Do NOT infer unstated values:
+- If the user names a GPU family without a variant (for example "H100") and the
+  catalog has multiple matching hardware_id values, do not choose one. Call
+  evaluate_deployment_plan without hardware_id; it will return
+  needs_confirmation. List the matching hardware_id candidates in your reply.
+- If the user gives a budget without a currency, do not assume one. State that
+  the demo cost catalog uses CNY and ask for confirmation; if the user gives a
+  currency, pass it as budget_currency.
+- Framework/version defaults to vllm 0.24.0 only when the user did not specify;
+  if the user names a framework or version, pass framework/framework_version.
+  State the effective values as assumptions after a completed run.
+
+Map only explicitly stated values: "8 张" -> gpu_count=8; "输入 8K" -> 8192;
+"TTFT P99 2 秒" -> 2000 ms.
+
 User requirement:
 {requirement}
 
 Steps:
 1. Call get_platform_catalog and confirm the model_id and hardware_id exist.
-2. Map the requirement to: model_id, hardware_id, gpu_count, input_len,
-   output_len, concurrency, ttft_p99_ms_max, tpot_p99_ms_max,
-   budget_amount, ranking. "8 张 H100" means gpu_count=8 and
-   hardware_id=nvidia-h100-sxm-80gb; "输入 8K" means 8192; "TTFT P99 2 秒"
-   means 2000 ms.
-3. Call evaluate_deployment_plan with task_id="{task_id}" and the mapped fields.
-4. If status=needs_confirmation, reply with the exact missing field labels and stop.
+2. Map the explicitly stated fields: model_id, hardware_id, gpu_count,
+   input_len, output_len, concurrency, ttft_p99_ms_max, tpot_p99_ms_max,
+   budget_amount, budget_currency, weight_precision, framework,
+   framework_version, ranking.
+3. Call evaluate_deployment_plan with task_id="{task_id}" and those fields.
+4. If status=needs_confirmation, reply with the exact missing field labels and
+   the ambiguous candidates; stop and wait for the user's answer.
 5. If status=failed, reply with the error and state that no plan was produced; stop.
 6. If status=completed, call get_plan_report with the run_id and reply in Chinese
    with only: run_id, the summary/conclusions, recommendation or best-effort,
-   and the main limitations. Do not add any number absent from the tool output.
+   assumptions, and the main limitations. Do not add any number absent from the
+   tool output.
+"""
+
+
+def build_continuation_prompt(task_id: str, additional: str) -> str:
+    return f"""TASK_ID: {task_id}
+
+补充信息：
+{additional}
+
+Continue the SAME task; do not restart or re-ask for fields already provided.
+Use ONLY the lcp MCP tools. Call evaluate_deployment_plan with
+task_id="{task_id}" and the now-complete fields; if it returns completed, call
+get_plan_report and reply with the same concise Chinese summary.
+If it still returns needs_confirmation, list the remaining missing fields.
 """
 
 
@@ -112,28 +144,51 @@ class CommandCodeClient:
                 result = payload
         return result
 
+    @staticmethod
+    def parse_tool_names(stdout: str) -> list[str]:
+        names: list[str] = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            event = payload.get("event") or {}
+            if event.get("type") in ("tool_running", "tool_completed"):
+                name = event.get("toolName")
+                if name and name not in names:
+                    names.append(str(name))
+        return names
+
     def run(
-        self, requirement: str, *, task_id: str, timeout: float | None = None
+        self,
+        prompt: str,
+        *,
+        task_id: str,
+        session_id: str | None = None,
+        timeout: float | None = None,
     ) -> CommandCodeRun:
         path = shutil.which(self.binary)
         if not path:
             raise CommandCodeUnavailable(f"未找到 {self.binary}")
         self.workspace.mkdir(parents=True, exist_ok=True)
-        prompt = build_prompt(task_id, requirement)
         command = [
             path,
             "-p",
             "--trust",
             "--skip-onboarding",
-            "--no-session",
             "--output-format",
             "json",
             "--model",
             self.model,
             "--max-turns",
             "12",
-            prompt,
         ]
+        if session_id:
+            command.extend(["--session", session_id])
+        command.append(prompt)
         try:
             proc = subprocess.run(
                 command,
@@ -153,6 +208,8 @@ class CommandCodeClient:
             subtype=parsed.get("subtype"),
             stop_reason=parsed.get("stopReason"),
             raw_result=parsed,
+            session_id=str(parsed.get("sessionId") or "") or None,
+            tool_names=self.parse_tool_names(proc.stdout or ""),
         )
         if proc.returncode != 0 and not parsed:
             run.error = (proc.stderr or proc.stdout or "").strip()[-500:]

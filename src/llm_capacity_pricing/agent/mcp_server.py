@@ -16,8 +16,16 @@ from pathlib import Path
 from mcp.server.mcpserver import MCPServer
 
 ROOT = Path(__file__).resolve().parents[3]
-ENV = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
 _SAFE_TASK_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _tool_env() -> dict[str, str]:
+    """业务工具只接收运行所需的最小环境，不继承模型凭据等变量。"""
+    keep = ("PATH", "LANG", "LC_ALL", "TZ", "TMPDIR", "PYTHONIOENCODING")
+    env = {key: os.environ[key] for key in keep if key in os.environ}
+    env["PYTHONPATH"] = str(ROOT / "src")
+    env["PYTHONHASHSEED"] = "0"
+    return env
 
 mcp = MCPServer("llm-capacity-pricing")
 
@@ -30,7 +38,7 @@ def _run(args: list[str], stdin: str | None = None, *, timeout: int = 240) -> st
             capture_output=True,
             text=True,
             cwd=ROOT,
-            env=ENV,
+            env=_tool_env(),
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -75,7 +83,10 @@ def evaluate_deployment_plan(
     ttft_p99_ms_max: float | None = None,
     tpot_p99_ms_max: float | None = None,
     budget_amount: float | None = None,
+    budget_currency: str | None = None,
     weight_precision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
     ranking: str | None = None,
 ) -> str:
     """Run the existing deployment planner for structured requirements.
@@ -104,7 +115,10 @@ def evaluate_deployment_plan(
         "ttft_p99_ms_max": ttft_p99_ms_max,
         "tpot_p99_ms_max": tpot_p99_ms_max,
         "budget_amount": budget_amount,
+        "budget_currency": budget_currency,
         "weight_precision": weight_precision,
+        "framework": framework,
+        "framework_version": framework_version,
         "ranking": ranking,
     }
     payload = {key: value for key, value in payload.items() if value is not None}

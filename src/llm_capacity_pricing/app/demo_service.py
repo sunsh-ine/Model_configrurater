@@ -69,6 +69,8 @@ class DemoInputs:
     ttft_p99_ms_max: Decimal | None = Decimal("400")
     tpot_p99_ms_max: Decimal | None = Decimal("30")
     budget_amount: Decimal | None = Decimal("3000000")
+    #: 预算币种；None = 与成本目录同币种比较
+    budget_currency: str | None = None
     weight_precision: str | None = "bf16"
     framework: str | None = "vllm"
     framework_version: str | None = "0.24.0"
@@ -175,6 +177,7 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
             PlanBudgetInput(
                 budget_id=f"{inputs.request_id}-budget",
                 amount=inputs.budget_amount,
+                currency=inputs.budget_currency,
                 kind="total_horizon",
             )
             if inputs.budget_amount is not None

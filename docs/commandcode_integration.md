@@ -60,10 +60,18 @@ MCP 的 stdout 是协议通道，因此 server 通过**子进程**调用 `tool_c
 4. 服务只读取该文件，校验 `status/run_id/artifacts`，再从 `result.json` 加载
    `PlanResult`；
 5. 模型的 `finalText` 只用于页面解释；缺失任务文件、状态失败或产物不一致时
-   **不生成报告**。
+   **不生成报告**；
+6. 服务强制校验 task_id / run_id / artifacts / result.json 的 sha256 与运行目录
+   `agent_result.json` 一致，禁止任务文件改指向其他历史报告；
+7. Agent 会话状态（`agent_status`）与报告状态分开：报告有效但会话异常时保留报告，
+   并在页面提示“不要把本次会话视为完全成功”。
 
 headless 默认禁止文件写入/编辑和 shell；不使用 `--yolo` / `--tools-all` /
 `--accept-edits`。运行目录是空的 `data/agent/cc-workspace`。
+
+额外的运行时门禁：解析 NDJSON 的 `tool_running/tool_completed` 事件，
+只允许 `mcp__lcp__*` 与 `search_tools/select_tool`；出现其他工具就判定任务失败、
+不采用报告。MCP 子进程只接收最小环境变量（不继承模型凭据）。
 
 ## 实测记录（2026-10-21）
 
@@ -80,8 +88,26 @@ headless 默认禁止文件写入/编辑和 shell；不使用 `--yolo` / `--tool
 - 模型调用链：`get_platform_catalog` → `evaluate_deployment_plan` → `get_plan_report`；
 - 报告与手动模式同一套 `evaluate_plan()` 产物。
 
+W 阶段复验（同一最终代码）：
+
+| 场景 | run_id | 结果 |
+| --- | --- | --- |
+| 严格 SLA（2000/50） | `20261021T100422Z` | completed，预测未达标 |
+| 宽松 SLA（6000/40） | `20261021T094315Z` | completed，预测达标并推荐 TP8 |
+| 缺字段 → 同会话补充 | `20261021T094228Z` | 先 needs_confirmation，补充后 completed |
+
 同一需求的手动路径与工具路径在候选、静态状态、SLA、成本与模拟 verdict 上逐项一致
 （`tests/test_v_agent.py::test_agent_tool_uses_the_same_engine_as_manual_mode`）。
+
+## 多轮补充与歧义确认
+
+- 用户只说“H100”时，Agent 不猜型号：先返回 `needs_confirmation`，列出
+  `nvidia-h100-sxm-80gb` 与 `nvidia-h100-nvl-94gb`，并追问 OSL/ISL 等缺失项；
+- 页面提供“补充信息 → 继续分析”，使用同一 Command Code 会话（`--session`）
+  与同一 `TASK_ID`，不需要重新输入整段需求；
+- 实测：首次缺 GPU 型号/OSL → 补充后 completed，run_id `20261021T094228Z`；
+- 预算未给币种时，Agent 说明示例成本目录为 CNY 并请求确认；
+  框架/精度/成本口径作为 `assumptions` 写进契约与页面。
 
 ## 双模式
 

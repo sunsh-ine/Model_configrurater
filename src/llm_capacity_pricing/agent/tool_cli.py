@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -157,9 +158,10 @@ def _evaluate(session_id: str, payload: dict[str, Any]) -> AgentTaskResult:
         ttft_p99_ms_max=values.ttft_p99_ms_max,
         tpot_p99_ms_max=values.tpot_p99_ms_max,
         budget_amount=values.budget_amount,
+        budget_currency=values.budget_currency,
         weight_precision=values.weight_precision or "bf16",
-        framework="vllm",
-        framework_version="0.24.0",
+        framework=values.framework or "vllm",
+        framework_version=values.framework_version or "0.24.0",
         mode="offline",
         ranking=values.ranking or "throughput",
         top_n=2,
@@ -205,6 +207,7 @@ def _evaluate(session_id: str, payload: dict[str, Any]) -> AgentTaskResult:
         "technical": str(outcome.technical_path),
         "json": str(outcome.json_path),
     }
+    result_hash = hashlib.sha256(outcome.json_path.read_bytes()).hexdigest()
     task = AgentTaskResult(
         status="completed",
         session_id=session_id,
@@ -215,6 +218,21 @@ def _evaluate(session_id: str, payload: dict[str, Any]) -> AgentTaskResult:
         summary="；".join(summary_lines(outcome)),
         artifacts=artifacts,
         conclusions=conclusions,
+        result_sha256=result_hash,
+        assumptions=[
+            f"推理框架 {inputs.framework}"
+            + ("（请求值）" if values.framework else "（示例默认）"),
+            f"框架版本 {inputs.framework_version}"
+            + ("（请求值）" if values.framework_version else "（示例默认）"),
+            f"模型精度 {inputs.weight_precision or 'bf16'}"
+            + ("（请求值）" if values.weight_precision else "（示例默认）"),
+            "模拟来源：仓库内归档输出（offline，非实测）",
+            (
+                f"预算币种 {inputs.budget_currency}（请求值）"
+                if inputs.budget_currency
+                else "预算币种未指定；成本目录为 CNY（合成示例，未确认）"
+            ),
+        ],
     )
     _write_json(run_dir / "agent_result.json", task.model_dump(mode="json"))
     return _publish(task)
@@ -242,6 +260,9 @@ def _report(run_id: str, session_id: str | None) -> AgentTaskResult:
     json_path = ROOT / task.artifacts.get("json", "")
     if not json_path.exists():
         return _publish(_failed(session_id, "任务引用的 result.json 不存在"))
+    actual_hash = hashlib.sha256(json_path.read_bytes()).hexdigest()
+    if not task.result_sha256 or actual_hash != task.result_sha256:
+        return _publish(_failed(session_id, "result.json 与任务绑定的 sha256 不一致"))
     proposal_path = ROOT / task.artifacts.get("proposal", "")
     proposal = (
         proposal_path.read_text(encoding="utf-8") if proposal_path.exists() else ""

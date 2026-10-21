@@ -394,8 +394,10 @@ command-code mcp add --transport stdio --scope user \
 
 OpenCode 仍作为备选：`bash scripts/start_opencode_server.sh`（v2.1.2）。
 
-Command Code + MCP 链路已真实跑通；OpenCode 仍有 serve free-tier 与
-`.opencode/tools` 暴露问题。详见 `docs/commandcode_integration.md`。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
+Command Code + MCP 链路已真实跑通，支持缺字段确认与同一会话补充；任务结果强绑定
+`run_id` 与 `result.json` 的 sha256，Agent 会话异常与报告状态分开。OpenCode 仍有
+serve free-tier 与 `.opencode/tools` 暴露问题。详见 `docs/commandcode_integration.md`
+与 `docs/w_final_validation.md`。详见 [`docs/v_opencode_integration.md`](docs/v_opencode_integration.md)
 与 [`docs/v_final_validation.md`](docs/v_final_validation.md)。
 
 ## 2. 命令清单

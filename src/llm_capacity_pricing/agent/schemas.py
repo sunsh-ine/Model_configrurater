@@ -39,7 +39,10 @@ class AgentPlanInput(BaseModel):
     ttft_p99_ms_max: Decimal | None = Field(default=None, gt=0)
     tpot_p99_ms_max: Decimal | None = Field(default=None, gt=0)
     budget_amount: Decimal | None = Field(default=None, ge=0)
+    budget_currency: str | None = None
     weight_precision: Literal["bf16", "fp8"] | None = None
+    framework: str | None = None
+    framework_version: str | None = None
     ranking: Literal["throughput", "cost"] | None = None
 
 
@@ -59,6 +62,10 @@ class AgentTaskResult(BaseModel):
     error: str | None = None
     artifacts: dict[str, str] = Field(default_factory=dict)
     conclusions: dict[str, Any] = Field(default_factory=dict)
+    #: result.json 的 sha256：防止任务文件被改指向其他历史报告
+    result_sha256: str | None = None
+    #: 本次分析采用的默认假设（框架/精度/成本币种等）
+    assumptions: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _guard(self) -> "AgentTaskResult":
@@ -69,6 +76,8 @@ class AgentTaskResult(BaseModel):
                 raise ValueError("completed 必须提供 run_id 与 plan_result_available")
             if "json" not in self.artifacts:
                 raise ValueError("completed 必须引用 result.json")
+            if not self.result_sha256:
+                raise ValueError("completed 必须绑定 result.json 的 sha256")
         if self.status == "needs_confirmation" and not self.missing_fields:
             raise ValueError("needs_confirmation 必须列出缺失字段")
         if self.status == "failed" and not self.error:

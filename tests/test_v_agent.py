@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +108,12 @@ def test_report_rejects_path_traversal(isolated_store, capsys):
     [
         {"status": "completed", "run_id": "r", "plan_result_available": True},
         {"status": "completed", "run_id": "r", "plan_result_available": True, "artifacts": {}},
+        {
+            "status": "completed",
+            "run_id": "r",
+            "plan_result_available": True,
+            "artifacts": {"json": "x"},
+        },
         {
             "status": "needs_confirmation",
             "needs_confirmation": True,
@@ -231,12 +238,25 @@ def test_agent_tool_uses_the_same_engine_as_manual_mode(isolated_store, capsys, 
 
 
 class _FakeCommandCodeClient:
-    def __init__(self, *, write_task: bool = True, final_text: str = "已完成"):
+    def __init__(
+        self,
+        *,
+        write_task: bool = True,
+        final_text: str = "已完成",
+        subtype: str = "success",
+        error: str | None = None,
+        tool_names: list[str] | None = None,
+    ):
         self.write_task = write_task
         self.final_text = final_text
+        self.subtype = subtype
+        self.error = error
+        self.tool_names = tool_names or []
 
-    def run(self, text, *, task_id, timeout=None):
+    def run(self, text, *, task_id, session_id=None, timeout=None):
         self.seen_timeout = timeout
+        self.seen_session = session_id
+        self.seen_prompt = text
         if self.write_task:
             import contextlib
             import io
@@ -254,8 +274,11 @@ class _FakeCommandCodeClient:
         return cc_module.CommandCodeRun(
             task_id=task_id,
             final_text=self.final_text,
-            subtype="success",
+            subtype=self.subtype,
             stop_reason="end_turn",
+            error=self.error,
+            tool_names=self.tool_names,
+            session_id="cc-session-test",
         )
 
 
@@ -287,6 +310,170 @@ def test_service_passes_timeout_to_commandcode(isolated_store):
         "自然语言需求", timeout=42
     )
     assert client.seen_timeout == 42
+
+
+def test_agent_session_error_is_kept_separate_from_report(isolated_store):
+    run = AgentService(
+        client=_FakeCommandCodeClient(
+            subtype="error", error="session crashed after tool output"
+        ),
+        transport="commandcode",
+    ).run("自然语言需求")
+    # 业务报告有效，但 Agent 会话异常：不能显示为整体完全成功
+    assert run.completed
+    assert run.agent_status == "error"
+    assert run.agent_error == "session crashed after tool output"
+    assert run.result is not None
+
+
+def test_unauthorized_tool_blocks_the_report(isolated_store):
+    run = AgentService(
+        client=_FakeCommandCodeClient(tool_names=["shell_command", "mcp__lcp__get_platform_catalog"]),
+        transport="commandcode",
+    ).run("自然语言需求")
+    assert not run.completed
+    assert run.task.status == "failed"
+    assert "未授权工具" in (run.task.error or "")
+    assert run.result is None
+
+
+def test_cross_task_report_reference_is_rejected(isolated_store, capsys):
+    task_a = _run_cli(
+        capsys,
+        ["evaluate", "--session-id", "ses_a", "--input-json", json.dumps(REQUEST)],
+    )
+    task_b = _run_cli(
+        capsys,
+        ["evaluate", "--session-id", "ses_b", "--input-json", json.dumps(REQUEST)],
+    )
+    forged = json.loads((tool_cli.TASKS / "ses_a.json").read_text(encoding="utf-8"))
+    # 把 A 的契约改成引用 B 的运行，但保留 A 的 session/request
+    forged["run_id"] = task_b["run_id"]
+    forged["artifacts"] = task_b["artifacts"]
+    forged["result_sha256"] = task_b["result_sha256"]
+    (tool_cli.TASKS / "ses_a.json").write_text(
+        json.dumps(forged), encoding="utf-8"
+    )
+
+    task = AgentTaskResult.model_validate(forged)
+    run = AgentService(transport="opencode")._load_completed(
+        "ses_a", task, "", None
+    )
+    assert not run.completed
+    assert "不一致" in (run.task.error or "")
+
+
+def test_tampered_result_hash_is_rejected(isolated_store, capsys):
+    payload = _run_cli(
+        capsys,
+        ["evaluate", "--session-id", "ses_hash", "--input-json", json.dumps(REQUEST)],
+    )
+    task = AgentTaskResult.model_validate_json(
+        (tool_cli.TASKS / "ses_hash.json").read_text(encoding="utf-8")
+    )
+    Path(payload["artifacts"]["json"]).write_text("{}\n", encoding="utf-8")
+
+    run = AgentService(transport="opencode")._load_completed(
+        "ses_hash", task, "", None
+    )
+    assert not run.completed
+    assert "sha256" in (run.task.error or "")
+
+
+def test_continuation_reuses_task_and_session(isolated_store):
+    client = _FakeCommandCodeClient()
+    first = AgentService(client=client, transport="commandcode").run(
+        "自然语言需求", timeout=60
+    )
+    continued = AgentService(client=client, transport="commandcode").continue_run(
+        "GPU 型号 nvidia-h100-sxm-80gb，OSL 256",
+        task_id=first.session_id,
+        session_id="cc-session-test",
+        timeout=60,
+    )
+    assert client.seen_session == "cc-session-test"
+    assert "TASK_ID: " + first.session_id in client.seen_prompt
+    assert "Continue the SAME task" in client.seen_prompt
+    assert continued.completed
+    assert continued.session_id == first.session_id
+
+
+def test_prompt_does_not_guess_h100_variant():
+    prompt = cc_module.build_prompt("cc-abc", "我有 8 张 H100")
+    assert "nvidia-h100-sxm-80gb" not in prompt
+    assert "do not choose one" in prompt
+    assert "H100" in prompt
+    assert "CNY" in prompt
+    assert "budget_currency" in prompt
+    assert "framework_version" in prompt
+
+
+def test_mcp_tool_env_excludes_parent_secrets(monkeypatch):
+    from llm_capacity_pricing.agent import mcp_server
+
+    monkeypatch.setenv("SECRET_MODEL_API_KEY", "should-not-leak")
+    env = mcp_server._tool_env()
+    assert "SECRET_MODEL_API_KEY" not in env
+    assert "PYTHONPATH" in env
+    assert env["PYTHONPATH"].endswith("src")
+
+
+def test_framework_and_budget_currency_are_carried_through():
+    from llm_capacity_pricing.app.demo_service import DemoInputs, build_plan_request
+
+    request = build_plan_request(
+        DemoInputs(
+            budget_amount=Decimal("100"),
+            budget_currency="USD",
+            framework="trtllm",
+            framework_version="1.3.0",
+        )
+    )
+    assert request.budget is not None
+    assert request.budget.currency == "USD"
+    assert request.advanced.framework == "trtllm"
+    assert request.advanced.framework_version == "1.3.0"
+
+
+def test_agent_tool_records_requested_framework_and_currency(isolated_store, capsys):
+    payload = _run_cli(
+        capsys,
+        [
+            "evaluate",
+            "--session-id",
+            "ses_fx",
+            "--input-json",
+            json.dumps(
+                {
+                    **REQUEST,
+                    "framework": "trtllm",
+                    "framework_version": "1.3.0",
+                    "budget_amount": 100,
+                    "budget_currency": "USD",
+                }
+            ),
+        ],
+    )
+    if payload["status"] == "completed":
+        assumptions = "；".join(payload["assumptions"])
+        assert "推理框架 trtllm（请求值）" in assumptions
+        assert "框架版本 1.3.0（请求值）" in assumptions
+        assert "USD（请求值）" in assumptions
+
+    partial = _run_cli(
+        capsys,
+        [
+            "evaluate",
+            "--session-id",
+            "ses_fx2",
+            "--input-json",
+            json.dumps({**REQUEST, "framework": "trtllm"}),
+        ],
+    )
+    if partial["status"] == "completed":
+        assumptions = "；".join(partial["assumptions"])
+        assert "推理框架 trtllm（请求值）" in assumptions
+        assert "框架版本 0.24.0（示例默认）" in assumptions
 
 
 def test_commandcode_parse_stream_and_prompt():
