@@ -349,8 +349,10 @@ def test_missing_tensor_parallel_blocks_recommendation(tmp_path):
     )
     result = evaluate_plan(load_plan_request(config), db_path=db)
     candidate = result.simulation.candidates[0]
-    assert candidate.resource_feasible is False
-    assert any("未给出 TP" in r for r in candidate.resource_reasons)
+    # 缺 TP 是“未知”，不是“已知不可行”；但同样不得进入推荐池
+    assert candidate.resource_feasible is None
+    assert any("并行身份不完整" in r and "TP" in r for r in candidate.resource_reasons)
+    assert result.simulation.eligible() == []
 
 
 # ---------------------------------------------------------------------------

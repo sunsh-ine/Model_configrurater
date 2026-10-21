@@ -668,6 +668,19 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
                 )
             add("")
 
+    notes = [
+        (candidate.candidate_id, candidate.notes)
+        for candidate in simulation.candidates
+        if candidate.notes
+    ]
+    if notes:
+        add("**并行身份与工作点说明**：")
+        add("")
+        for cid, note_list in notes:
+            for note in note_list:
+                add(f"- `{cid}`：{note}")
+        add("")
+
     add("**本节结论的限制**：")
     add("")
     for limitation in simulation.limitations:

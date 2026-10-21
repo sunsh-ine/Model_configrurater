@@ -798,6 +798,21 @@ def sim_html(sim: Any) -> str:
                 numeric=(1, 2, 3, 4),
             )
         )
+        notes = [
+            (candidate.candidate_id, candidate.notes)
+            for candidate in sim.candidates
+            if candidate.notes
+        ]
+        if notes:
+            items = "".join(
+                f"<li><b>{esc(cid)}</b>：{inline(note)}</li>"
+                for cid, note_list in notes
+                for note in note_list
+            )
+            parts.append(
+                "<p class='note'><b>并行身份与工作点说明</b></p>"
+                f"<ul class='plain'>{items}</ul>"
+            )
         if (sim.ranking or "throughput") == "cost":
             available, reasons = sim.cost_ranking_available()
             if available:

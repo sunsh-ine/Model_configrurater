@@ -19,7 +19,7 @@
 | 1 | 三个案例均能一键运行 | 通过 | `docs/demo_scenarios/{strict,relaxed,cost}/` 各有方案、技术报告、JSON；UI 预设选择后同样走 `run_demo()` |
 | 2 | 请求与结果身份一致 | 通过 | `result.json.request_echo`：strict 400/30、relaxed 6000/40、cost 6000/40 + budget 1,000,000 + ranking cost；`max_total_gpus=8` |
 | 3 | 模拟预测与实测隔离 | 通过 | 三个场景 `sla_status` 均为 `not_evaluable`/`None`；结果 JSON 中 `"observed_pass"` 出现 0 次；既有 `test_simulation_does_not_add_any_benchmark_run` 继续通过 |
-| 4 | 推荐资格、P99、预算、成本结论 | 通过 | relaxed/cost 推荐 `sim-native:…tp8-c32-n500`（`predicted_pass`）；cost 的 `cost_ranking_available=False`；预算全部 `unknown`；三个场景 `quote_publishable=False` |
+| 4 | 推荐资格、P99、预算、成本结论 | 通过 | relaxed/cost 推荐 `sim-native:…tp8pp1dp1-c32-n500`（`predicted_pass`）；cost 的 `cost_ranking_available=False`；预算全部 `unknown`；三个场景 `quote_publishable=False` |
 | 5 | 改变 SLA 不改预测值 | 通过 | 同一原生回放在 400/30 与 6000/40 下均为 TTFT 5,201.83 ms、TPOT 31.46 ms，只有 verdict 从 fail 变 pass |
 | 6 | 关闭预算 ≠ 预算为零 | 通过 | `test_zero_budget_is_a_real_constraint_not_unknown`；cost 场景额外验证 `budget_amount=None` 与 `Decimal("0")` 是两种不同输入 |
 | 7 | 页面导出与 JSON/Markdown 一致 | 通过 | 报告由同一次 `PlanResult` 生成；宽松场景首行演示说明与 `request_echo.sla` 一致；`result.json` 与方案文档的 TTFT/TPOT 相同 |
@@ -38,7 +38,7 @@
 ### relaxed（宽松 SLA，演示阈值）
 
 - 预测值完全不变，仅 verdict 变为 `predicted_pass`；
-- 推荐 `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500`；
+- 推荐 `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`；
 - 仍无 `observed_pass`；方案文档与技术报告首行都写明“演示阈值，不代表客户真实需求”。
 
 ### cost（成本与预算）

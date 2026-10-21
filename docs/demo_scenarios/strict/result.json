@@ -1082,7 +1082,8 @@
         "comparable": true,
         "comparability_reasons": [],
         "notes": [
-          "模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀"
+          "模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀",
+          "工作点提示：ctx_tokens=16384 ≠ 目标 ISL=8192；可用于相同请求负载下的配置比较，但不能与原生回放（ctx=ISL）视为同一工作点"
         ],
         "resource_feasible": true,
         "resource_reasons": [
@@ -1115,7 +1116,7 @@
         "link_reasons": []
       },
       {
-        "candidate_id": "sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500",
+        "candidate_id": "sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500",
         "deployment": {
           "model_name": "Qwen/Qwen3-32B",
           "model_precision": "bf16",
@@ -1125,8 +1126,8 @@
           "gpu_count": 8,
           "serving_mode": "agg",
           "tp_size": 8,
-          "pp_size": null,
-          "dp_size": null,
+          "pp_size": 1,
+          "dp_size": 1,
           "moe_tp_size": null,
           "moe_ep_size": null,
           "cp_size": null,
@@ -1171,6 +1172,9 @@
         "comparable": true,
         "comparability_reasons": [],
         "notes": [
+          "PP1 由输入未声明 pipeline 且 decode_gpus_per_worker=8 == tensor=8 推导（aggregated 单 worker）",
+          "DP1 由 workers.aggregated.replicas=1 推导（单一 aggregated worker 组；原生 schema 无独立 dp 维度）",
+          "GPU 总数 8 由 decode_gpus_per_worker=8 × replicas=1 推导",
           "模型精度 bf16 由**输入身份**给出（原生回放输出不回显精度，它按 HF config 自行推断）"
         ],
         "resource_feasible": true,
@@ -1256,5 +1260,5 @@
     "未提供的数据一律标为未配置/缺失，不使用默认值补齐",
     "治理领域未产出结论：正式报价资格未被评估（默认不可发布）"
   ],
-  "generated_at": "2026-10-21T04:30:31.939968Z"
+  "generated_at": "2026-10-21T06:07:00.771358Z"
 }

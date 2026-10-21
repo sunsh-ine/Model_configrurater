@@ -1,4 +1,5 @@
 # 单页 Demo 的容器镜像：不依赖 GPU，只跑离线归档路径。
+# 基线镜像在 2026-10-21 构建时解析为 Python 3.12.15；依赖见 requirements-app.txt（已固定版本）
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

@@ -930,9 +930,16 @@ def _check_simulation_candidate_resources(
         )
         candidate.resource_reasons = reasons
         return False
-    if dep.tp_size is None:
-        candidate.resource_feasible = False
-        reasons.insert(0, "模拟未给出 TP：无法做静态可行性校验")
+    from llm_capacity_pricing.perf.aisimulate_adapter import parallel_identity_gaps
+
+    gaps = parallel_identity_gaps(dep)
+    if gaps:
+        # 未知并行身份不得隐式按 DP1 处理，也不得进入推荐池
+        candidate.resource_feasible = None
+        reasons.insert(
+            0,
+            "并行身份不完整：" + "；".join(gaps) + "：不能进入推荐配置",
+        )
         candidate.resource_reasons = reasons
         return False
     if hardware_id is None:
@@ -942,7 +949,7 @@ def _check_simulation_candidate_resources(
         return False
 
     tp = int(dep.tp_size)
-    dp = int(dep.dp_size or 1)
+    dp = int(dep.dp_size)
     key = (tp, dp)
     if key not in memo:
         try:

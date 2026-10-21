@@ -54,7 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--model", default="qwen3-32b")
     parser.add_argument("--hardware", default="nvidia-h100-sxm-80gb")
-    parser.add_argument("--server", default="hgx-h100-8gpu")
+    parser.add_argument(
+        "--server", default=None, help="机箱 ID；缺省按 --hardware 自动匹配"
+    )
     parser.add_argument("--gpu", type=int, default=8, help="可用 GPU 上限")
     parser.add_argument("--isl", type=int, default=8192)
     parser.add_argument("--osl", type=int, default=256)
@@ -74,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{scenario.scenario_id}\t{scenario.label}\t{scenario.summary}")
         return 0
 
-    def maybe(value: str) -> str | None:
+    def maybe(value: str | None) -> str | None:
+        if value is None:
+            return None
         return None if value.lower() in ("none", "null", "") else value
 
     out_dir = args.out or str(new_run_dir())

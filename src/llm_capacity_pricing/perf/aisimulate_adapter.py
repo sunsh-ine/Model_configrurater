@@ -412,6 +412,17 @@ def check_comparability(candidate: SimulationCandidate, target: SimulationTarget
         elif want != got:
             reasons.append(f"{label}不同：目标 {want}，模拟 {got}")
 
+    if (
+        wl.ctx_tokens is not None
+        and target.input_len is not None
+        and wl.ctx_tokens != target.input_len
+    ):
+        candidate.notes.append(
+            f"工作点提示：ctx_tokens={wl.ctx_tokens} ≠ 目标 ISL={target.input_len}；"
+            "可用于相同请求负载下的配置比较，但不能与原生回放（ctx=ISL）"
+            "视为同一工作点"
+        )
+
     if target.concurrency is None or wl.concurrency is None:
         reasons.append("配置并发有一侧未声明：无法确认同一工作点")
     elif target.concurrency != wl.concurrency:
@@ -717,6 +728,73 @@ def parse_native_input_yaml(
     return deployment, workload
 
 
+def parallel_identity_gaps(deployment: SimulationDeployment) -> list[str]:
+    """推荐所需的并行身份缺口；未知一律保留，不默认成 1。"""
+    gaps: list[str] = []
+    if deployment.tp_size is None:
+        gaps.append("缺 TP")
+    if deployment.dp_size is None:
+        gaps.append("缺 DP（未给出可推导的 replicas，保留未知，不以 DP1 代替）")
+    if deployment.pp_size is None:
+        gaps.append("缺 PP（未声明 pipeline，且无法从 GPU 数推导）")
+    elif deployment.pp_size != 1:
+        gaps.append(f"PP={deployment.pp_size}（本系统不建模流水线并行）")
+    return gaps
+
+
+def derive_native_identity(
+    deployment: SimulationDeployment, *, gpus_per_worker: int | None
+) -> tuple[SimulationDeployment, list[str]]:
+    """从原生回放的 aggregated 拓扑推导 PP/DP/GPU 数，并记录依据。
+
+    原生 schema 只有 ``parallelism.tensor / pipeline / replicas``：
+    * ``pipeline`` 缺省且 ``decode_gpus_per_worker == tensor`` → PP1；
+    * 单一 aggregated worker 组下 ``replicas`` 即模型副本数 → DP；
+    * 总卡数 = ``decode_gpus_per_worker × replicas``。
+    任何一项推不出来就保持未知，由 ``parallel_identity_gaps`` 阻止推荐。
+    """
+    notes: list[str] = []
+    updates: dict[str, Any] = {}
+    tp = deployment.tp_size
+    pp = deployment.pp_size
+    dp = deployment.dp_size
+    replicas = deployment.replicas
+
+    if pp is None and tp is not None and gpus_per_worker == tp:
+        pp = 1
+        updates["pp_size"] = 1
+        notes.append(
+            f"PP1 由输入未声明 pipeline 且 decode_gpus_per_worker={gpus_per_worker} "
+            f"== tensor={tp} 推导（aggregated 单 worker）"
+        )
+    if dp is None and replicas is not None and replicas > 0:
+        dp = replicas
+        updates["dp_size"] = dp
+        notes.append(
+            f"DP{dp} 由 workers.aggregated.replicas={replicas} 推导"
+            "（单一 aggregated worker 组；原生 schema 无独立 dp 维度）"
+        )
+    elif dp is None:
+        notes.append("DP 未声明且无可推导的 replicas：保留未知，不以 DP1 代替")
+    if (
+        deployment.gpu_count is None
+        and gpus_per_worker is not None
+        and gpus_per_worker > 0
+        and replicas is not None
+        and replicas > 0
+    ):
+        total = gpus_per_worker * replicas
+        updates["gpu_count"] = total
+        notes.append(
+            f"GPU 总数 {total} 由 decode_gpus_per_worker={gpus_per_worker} "
+            f"× replicas={replicas} 推导"
+        )
+
+    if updates:
+        deployment = deployment.model_copy(update=updates)
+    return deployment, notes
+
+
 def parse_native_prediction(
     path: str | Path,
     *,
@@ -727,6 +805,14 @@ def parse_native_prediction(
     """解析 ``prediction.json``（原生回放，含 P99）。"""
     path = Path(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
+    # 只认 decode worker 的卡数；prefill 数量属于另一种 worker，不能拿来
+    # 推导解码拓扑（disagg 本身也不在本系统建模范围内）。
+    per_worker = _int(payload.get("decode_gpus_per_worker"))
+    if per_worker is not None and per_worker <= 0:
+        per_worker = None
+    deployment, identity_notes = derive_native_identity(
+        deployment, gpus_per_worker=per_worker
+    )
     metric_kwargs: dict[str, Any] = {}
     for field_name, attr in _NATIVE_METRIC_FIELDS:
         value = _dec(payload.get(field_name))
@@ -768,6 +854,7 @@ def parse_native_prediction(
         deployment=dep,
         workload=workload,
         metrics=SimulationMetrics(**metric_kwargs),
+        notes=list(identity_notes),
         source_file=str(path),
         source_sha256=sha256_file(path),
         source_row=None,

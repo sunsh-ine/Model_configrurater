@@ -1,2 +1,2 @@
 # S3 单页 Demo 的可选依赖（**不并入**主 requirements.lock）
-streamlit>=1.36,<2
+streamlit==1.66.0

@@ -7,7 +7,7 @@
 | 场景 | 输入差异 | 实际结论（2026-10-21） |
 | --- | --- | --- |
 | `strict` 严格 SLA | TTFT ≤ 400 ms、TPOT ≤ 30 ms；吞吐优先 | 预测未达标；无推荐配置；给出未达标参考 TP8；无目标配置实测证据 |
-| `relaxed` 宽松 SLA | TTFT ≤ 6000 ms、TPOT ≤ 40 ms（演示阈值）；其余不变 | 预测达标；推荐 `sim-native:…tp8-c32-n500`；仍无实测通过 |
+| `relaxed` 宽松 SLA | TTFT ≤ 6000 ms、TPOT ≤ 40 ms（演示阈值）；其余不变 | 预测达标；推荐 `sim-native:…tp8pp1dp1-c32-n500`；仍无实测通过 |
 | `cost` 成本与预算 | 在宽松 SLA 上启用成本优先；预算 1,000,000 CNY | 预测达标、推荐候选存在；**成本排序不成立**，降级为吞吐优先；预算未知；成本表显示一次性/年现金，但全周期总额不展示 |
 
 三个场景的 `ranking` 目标、SLA 阈值与预算都写在请求里，报告首行的演示说明也会
@@ -55,6 +55,23 @@ CLI：
 
 宽松阈值只是**演示阈值**，不是客户真实需求；报告首行会明确写出这一点。
 预测达标仍然不是实测：三个场景中 `observed_pass` 都是 0。
+
+### 并行身份与 ctx 工作点
+
+原生回放的输入只有 `workers.aggregated.parallelism: {tensor: 8, replicas: 1}`，
+预测里 `decode_gpus_per_worker=8`。据此推导并在报告中写明：
+
+- **PP1**：输入未声明 pipeline，且 `decode_gpus_per_worker == tensor`；
+- **DP1**：单一 aggregated worker 组下 `replicas=1`；
+- **GPU 总数 8**：`decode_gpus_per_worker × replicas`。
+
+推导依据会写进方案文档与技术报告的“并行身份与工作点说明”。
+如果缺少 `replicas` 等关键字段，DP 保持未知，该候选**不会进入推荐池**，
+不会隐式按 DP1 处理。
+
+扫描器的 `ctx_tokens=16384` 候选与目标 ISL=8192 不同：它仍可用于
+**相同请求负载下的配置比较**，但报告会明确标注它**不是**与原生回放
+（ctx=ISL）相同的工具工作点。
 
 ### 为什么成本场景不给“成本最优”
 

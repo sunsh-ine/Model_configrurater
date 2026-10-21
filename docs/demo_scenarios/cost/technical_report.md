@@ -6,7 +6,7 @@
 - 模型：`qwen3-32b`
 - 候选硬件：['nvidia-h100-sxm-80gb']
 - 目标负载：输入 8192 / 输出 256 / 并发 32
-- 生成时间：2026-10-21T04:30:35+00:00
+- 生成时间：2026-10-21T06:07:04+00:00
 
 ## 1. 结论摘要
 
@@ -122,15 +122,15 @@
 - 叠加的经验修正系数（**非实测**）：`autoscale_ttft_correction_factor=1.8`、`decode_latency_correction=1.08`、`encoder_latency_correction=1.0`、`prefill_latency_correction=1.1`、`rate_match_decode_degradation=0.92`、`rate_match_encoder_degradation=0.9`、`rate_match_prefill_degradation=0.9`
 
 - 排序目标：**成本优先**（多候选都满足时按此目标取一个，不提供含糊的「全局最优」）
-- 成本排序**不可用**：1 个候选的成本不完整或金额缺失（如 sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500）：无法与其他候选比较成本。**已降级为吞吐优先**（仍然只从预测达标的候选里选），且**不得**称为成本最优
+- 成本排序**不可用**：1 个候选的成本不完整或金额缺失（如 sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500）：无法与其他候选比较成本。**已降级为吞吐优先**（仍然只从预测达标的候选里选），且**不得**称为成本最优
 
-**推荐配置（模拟）**：`sim-native:Qwen/Qwen3-32B@h100_sxm-tp8-c32-n500`
+**推荐配置（模拟）**：`sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`
 
 | 项 | 值 |
 |---|---|
 | 模型 | Qwen/Qwen3-32B（bf16） |
 | GPU | h100_sxm × 8 |
-| 并行 | TP8 × PP— × DP—，副本 1 |
+| 并行 | TP8 × PP1 × DP1，副本 1 |
 | 部署模式 | 聚合部署 |
 | 负载 | 输入 8192 / 输出 256 / 并发 32 |
 | 模拟输出吞吐 | 990.888548064229 tok/s（123.861 tok/s/GPU） |
@@ -145,6 +145,9 @@
 
 - 资源校验：静态结论 conditional_feasible（Sizing 口径 8 卡）
 - 预算：cost_incomplete: 成本不完整，不能据此给预算结论
+- 记录说明：PP1 由输入未声明 pipeline 且 decode_gpus_per_worker=8 == tensor=8 推导（aggregated 单 worker）
+- 记录说明：DP1 由 workers.aggregated.replicas=1 推导（单一 aggregated worker 组；原生 schema 无独立 dp 维度）
+- 记录说明：GPU 总数 8 由 decode_gpus_per_worker=8 × replicas=1 推导
 - 记录说明：模型精度 bf16 由**输入身份**给出（原生回放输出不回显精度，它按 HF config 自行推断）
 
 - **成本（本仓库 TCO 计算，不是模拟值）**：**不完整，不给总额**
@@ -156,6 +159,16 @@
 |---|---|---|---|---|---|---|---|
 | `sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c32-ctx8192` | 8 | TP8×PP1×DP1 | 32 | 997.419 | — | — | 预测不足以下结论 |
 | `sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c32-ctx16384` | 8 | TP8×PP1×DP1 | 32 | 966.671 | — | — | 预测不足以下结论 |
+
+**并行身份与工作点说明**：
+
+- `sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c32-ctx8192`：模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀
+- `sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c32-ctx16384`：模型精度 bf16 由权重量化列（gemm/moe）推断，模型名未带精度后缀
+- `sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c32-ctx16384`：工作点提示：ctx_tokens=16384 ≠ 目标 ISL=8192；可用于相同请求负载下的配置比较，但不能与原生回放（ctx=ISL）视为同一工作点
+- `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`：PP1 由输入未声明 pipeline 且 decode_gpus_per_worker=8 == tensor=8 推导（aggregated 单 worker）
+- `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`：DP1 由 workers.aggregated.replicas=1 推导（单一 aggregated worker 组；原生 schema 无独立 dp 维度）
+- `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`：GPU 总数 8 由 decode_gpus_per_worker=8 × replicas=1 推导
+- `sim-native:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1-c32-n500`：模型精度 bf16 由**输入身份**给出（原生回放输出不回显精度，它按 HF config 自行推断）
 
 **本节结论的限制**：
 
