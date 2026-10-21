@@ -250,6 +250,11 @@ def test_summary_lines_only_restate_structured_fields(offline_outcome):
 # --------------------------------------------------------------------------
 
 
+def _select(app, label: str, value: str):
+    widget = next(item for item in app.selectbox if item.label == label)
+    widget.set_value(value).run()
+
+
 def test_streamlit_app_runs_headlessly():
     st_testing = pytest.importorskip("streamlit.testing.v1")
     AppTest = st_testing.AppTest
@@ -281,16 +286,16 @@ def test_streamlit_interaction_hints(monkeypatch):
     assert "hgx-h100-8gpu" in text()
 
     # GPU 换成 H200：机箱必须跟着换，否则候选会被判 server_gpu_sku_mismatch
-    app.selectbox[1].set_value("nvidia-h200-sxm-141gb").run()
+    _select(app, "GPU 型号", "nvidia-h200-sxm-141gb")
     assert "hgx-h200-8gpu" in text()
 
     # 目录里没有匹配机箱的 GPU：不能说成 server_gpu_sku_mismatch
-    app.selectbox[1].set_value("nvidia-h100-nvl-94gb").run()
+    _select(app, "GPU 型号", "nvidia-h100-nvl-94gb")
     assert "没有与该 GPU 匹配的机箱" in text()
     assert "server_gpu_sku_mismatch" not in text()
 
     # 离线归档是单一工作点：偏离项必须逐条列出
-    app.selectbox[2].set_value("fp8").run()
+    _select(app, "模型精度", "fp8")
     assert "与离线归档工作点不一致" in text()
     assert "精度：当前 fp8，归档 bf16" in text()
 
@@ -299,7 +304,7 @@ def test_streamlit_interaction_hints(monkeypatch):
     assert "成本排序只在所有候选成本完整" in text()
 
     # 没有 AISimulate 时实时模式必须禁用，而不是等运行失败
-    app.selectbox[3].set_value("实时模拟（调用 AISimulate）").run()
+    _select(app, "模拟数据来源", "live")
     assert "未检测到 AISimulate" in text()
     assert app.button[0].disabled is True
 
@@ -427,7 +432,7 @@ def test_live_mode_rejects_an_interpreter_that_cannot_import_aisimulate(monkeypa
     st.cache_data.clear()
     app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=120)
     app.run()
-    app.selectbox[3].set_value("实时模拟（调用 AISimulate）").run()
+    _select(app, "模拟数据来源", "live")
 
     text = "\n".join(item.value for item in app.markdown)
     assert "无法导入 aiconfigurator / aisimulate" in text
@@ -441,7 +446,7 @@ def test_fp8_offline_summary_counts_are_consistent():
     AppTest = st_testing.AppTest
     app = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
     app.run()
-    app.selectbox[2].set_value("fp8").run()
+    _select(app, "模型精度", "fp8")
     app.button[0].click().run()
 
     text = "\n".join(item.value for item in app.markdown)

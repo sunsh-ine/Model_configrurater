@@ -250,6 +250,8 @@ def run_demo(
     *,
     out_dir: str | Path | None = None,
     write_files: bool = True,
+    demo_note: str | None = None,
+    scenario_id: str | None = None,
 ) -> DemoOutcome:
     """执行一次完整演示：建库 → 评估 → 生成两份报告。"""
     run_dir = Path(out_dir) if out_dir is not None else new_run_dir()
@@ -279,7 +281,13 @@ def run_demo(
     stages.append(("统一评估", result.status, f"domains={result.domains}"))
 
     proposal = build_deployment_proposal(result)
+    if demo_note:
+        # 演示说明只加在客户版文档最前面，不改变任何结构化结论
+        proposal = f"> {demo_note}\n\n{proposal}"
     technical = build_plan_report(result)
+    if demo_note:
+        # 技术报告也要带同一句限定，避免单独下载时被当成客户 SLA
+        technical = f"> {demo_note}\n\n{technical}"
     payload = result.model_dump(mode="json")
 
     outcome = DemoOutcome(
@@ -300,6 +308,12 @@ def run_demo(
         outcome.json_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        if demo_note:
+            (run_dir / "scenario_note.md").write_text(
+                f"# 演示说明\n\nscenario_id: {scenario_id or 'custom'}\n\n"
+                f"{demo_note}\n",
+                encoding="utf-8",
+            )
     return outcome
 
 

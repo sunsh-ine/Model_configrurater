@@ -46,9 +46,21 @@ from llm_capacity_pricing.app.demo_service import (  # noqa: E402
     run_demo,
     server_for_hardware,
 )
+from llm_capacity_pricing.app.scenarios import (  # noqa: E402
+    form_state,
+    get_scenario,
+    scenario_ids,
+)
 
 ROOT = APP_DIR.parent
 COST_INPUTS = ROOT / "data/examples/phase4_cost_inputs.example.yaml"
+
+MODE_LABELS = {
+    "offline": "离线归档（无需安装工具）",
+    "live": "实时模拟（调用 AISimulate）",
+    "core": "不使用模拟",
+}
+RANKING_LABELS = {"throughput": "吞吐优先", "cost": "成本优先"}
 
 st.set_page_config(
     page_title="推理部署方案生成器",
@@ -132,6 +144,27 @@ def _aisimulate_probe() -> tuple[str | None, bool]:
         return None, False
 
 
+def _matches_scenario(scenario, current: dict[str, object]) -> bool:
+    """当前输入是否仍与预设一致；不一致时不附带预设说明，避免误导。"""
+    if scenario is None:
+        return False
+    for field_name, actual in current.items():
+        if field_name not in scenario.inputs:
+            continue
+        expected = scenario.inputs[field_name]
+        if expected is None or actual is None:
+            if expected is not actual:
+                return False
+            continue
+        try:
+            if Decimal(str(expected)) != Decimal(str(actual)):
+                return False
+        except Exception:  # noqa: BLE001 - 非数值字段按字符串比较
+            if str(expected) != str(actual):
+                return False
+    return True
+
+
 def _fingerprint(values: dict[str, object]) -> str:
     import json
 
@@ -159,15 +192,47 @@ with left:
             unsafe_allow_html=True,
         )
 
+        scenario_options = ["custom", *scenario_ids()]
+        scenario_id = st.selectbox(
+            "演示案例",
+            scenario_options,
+            index=1,
+            format_func=lambda sid: (
+                "自定义（保留当前输入）"
+                if sid == "custom"
+                else get_scenario(sid).label
+            ),
+            key="ui_scenario",
+        )
+        if st.session_state.get("ui_applied_scenario") != scenario_id:
+            if scenario_id != "custom":
+                for key, value in form_state(scenario_id).items():
+                    st.session_state[key] = value
+            st.session_state["ui_applied_scenario"] = scenario_id
+        scenario = get_scenario(scenario_id) if scenario_id != "custom" else None
+        if scenario is not None:
+            st.markdown(
+                f"<p class='hint'>{_esc(scenario.summary)}</p>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<p class='hint'>手动填写需求；切换预设会覆盖下面字段。</p>",
+                unsafe_allow_html=True,
+            )
+
         st.markdown("<div class='group first'>模型与硬件</div>", unsafe_allow_html=True)
         model_id = st.selectbox(
-            "模型", models, index=_index_before(models, "qwen3-32b")
+            "模型", models, index=_index_before(models, "qwen3-32b"), key="ui_model"
         )
         hardware_id = st.selectbox(
-            "GPU 型号", hardwares, index=_index_before(hardwares, "nvidia-h100-sxm-80gb")
+            "GPU 型号",
+            hardwares,
+            index=_index_before(hardwares, "nvidia-h100-sxm-80gb"),
+            key="ui_hardware",
         )
         gpu_count = st.number_input(
-            "GPU 上限（卡）", min_value=1, max_value=64, value=8, step=1
+            "GPU 上限（卡）", min_value=1, max_value=64, value=8, step=1, key="ui_gpu"
         )
         server_id = server_for_hardware(hardware_id)
         if server_id:
@@ -183,26 +248,51 @@ with left:
         st.markdown("<div class='group'>负载</div>", unsafe_allow_html=True)
         w1, w2 = st.columns(2)
         input_len = w1.number_input(
-            "输入长度 ISL", min_value=1, max_value=131072, value=8192, step=256
+            "输入长度 ISL",
+            min_value=1,
+            max_value=131072,
+            value=8192,
+            step=256,
+            key="ui_isl",
         )
         output_len = w2.number_input(
-            "输出长度 OSL", min_value=1, max_value=8192, value=256, step=16
+            "输出长度 OSL",
+            min_value=1,
+            max_value=8192,
+            value=256,
+            step=16,
+            key="ui_osl",
         )
         concurrency = st.number_input(
-            "并发请求数", min_value=1, max_value=1024, value=32, step=1
+            "并发请求数",
+            min_value=1,
+            max_value=1024,
+            value=32,
+            step=1,
+            key="ui_conc",
         )
 
         st.markdown("<div class='group'>SLA 阈值</div>", unsafe_allow_html=True)
-        sla_on = st.toggle("设置 SLA 阈值", value=True)
+        sla_on = st.toggle("设置 SLA 阈值", value=True, key="ui_sla_on")
         ttft_value: float | None = None
         tpot_value: float | None = None
         if sla_on:
             s1, s2 = st.columns(2)
             ttft_value = s1.number_input(
-                "TTFT P99（ms）", min_value=1.0, value=400.0, step=10.0, format="%.1f"
+                "TTFT P99（ms）",
+                min_value=1.0,
+                value=400.0,
+                step=10.0,
+                format="%.1f",
+                key="ui_ttft",
             )
             tpot_value = s2.number_input(
-                "TPOT P99（ms）", min_value=1.0, value=30.0, step=1.0, format="%.1f"
+                "TPOT P99（ms）",
+                min_value=1.0,
+                value=30.0,
+                step=1.0,
+                format="%.1f",
+                key="ui_tpot",
             )
         else:
             st.markdown(
@@ -211,7 +301,7 @@ with left:
             )
 
         st.markdown("<div class='group'>成本与预算</div>", unsafe_allow_html=True)
-        budget_on = st.toggle("设置预算上限", value=True)
+        budget_on = st.toggle("设置预算上限", value=True, key="ui_budget_on")
         budget_value: float | None = None
         if budget_on:
             budget_value = st.number_input(
@@ -221,6 +311,7 @@ with left:
                 value=3_000_000.0,
                 step=100_000.0,
                 format="%.0f",
+                key="ui_budget",
             )
         else:
             st.markdown(
@@ -234,24 +325,24 @@ with left:
         )
 
         with st.expander("高级设置（精度 / 排序 / 模拟）", expanded=False):
-            precision = st.selectbox("模型精度", ["bf16", "fp8"], index=0)
-            mode_label = st.selectbox(
+            precision = st.selectbox(
+                "模型精度", ["bf16", "fp8"], index=0, key="ui_precision"
+            )
+            mode = st.selectbox(
                 "模拟数据来源",
-                ["离线归档（无需安装工具）", "实时模拟（调用 AISimulate）", "不使用模拟"],
+                ["offline", "live", "core"],
                 index=0,
+                format_func=lambda value: MODE_LABELS[value],
+                key="ui_mode",
             )
-            mode = {
-                "离线归档（无需安装工具）": "offline",
-                "实时模拟（调用 AISimulate）": "live",
-                "不使用模拟": "core",
-            }[mode_label]
-            ranking_label = st.radio(
+            ranking = st.radio(
                 "排序目标",
-                ["吞吐优先", "成本优先"],
+                ["throughput", "cost"],
                 index=0,
+                format_func=lambda value: RANKING_LABELS[value],
                 horizontal=True,
+                key="ui_ranking",
             )
-            ranking = "throughput" if ranking_label == "吞吐优先" else "cost"
 
             blocking_reason = None
             if mode == "offline":
@@ -324,6 +415,27 @@ with left:
                     unsafe_allow_html=True,
                 )
 
+        preset_values = {
+            "model_id": model_id,
+            "hardware_id": hardware_id,
+            "gpu_count": int(gpu_count),
+            "input_len": int(input_len),
+            "output_len": int(output_len),
+            "concurrency": int(concurrency),
+            "ttft_p99_ms_max": ttft_value if sla_on else None,
+            "tpot_p99_ms_max": tpot_value if sla_on else None,
+            "budget_amount": budget_value if budget_on else None,
+            "weight_precision": precision,
+            "mode": mode,
+            "ranking": ranking,
+        }
+        preset_matches = _matches_scenario(scenario, preset_values)
+        if scenario is not None and not preset_matches:
+            st.markdown(
+                "<p class='hint warn'>已手动修改预设字段：本次生成不会附带预设说明。</p>",
+                unsafe_allow_html=True,
+            )
+
         st.markdown("<div class='group'>生成</div>", unsafe_allow_html=True)
         clicked = st.button(
             "生成部署方案",
@@ -331,19 +443,17 @@ with left:
             width="stretch",
             disabled=blocking_reason is not None,
         )
-        mode_short = {
-            "offline": "离线归档",
-            "live": "实时 AISimulate",
-            "core": "不使用模拟",
-        }[mode]
         st.markdown(
             "<p class='hint'>当前："
-            + _esc(f"{precision} · {mode_short} · {ranking_label}")
+            + _esc(
+                f"{precision} · {MODE_LABELS[mode]} · {RANKING_LABELS[ranking]}"
+            )
             + "</p>",
             unsafe_allow_html=True,
         )
 
 current_values = {
+    "scenario": scenario_id,
     "model_id": model_id,
     "hardware_id": hardware_id,
     "gpu_count": gpu_count,
@@ -382,7 +492,11 @@ if clicked:
     )
     with st.spinner("正在生成：建库 → 资源规划 → 性能/模拟 → 成本 → 报告 …"):
         try:
-            st.session_state["outcome"] = run_demo(request_inputs)
+            st.session_state["outcome"] = run_demo(
+                request_inputs,
+                demo_note=scenario.note if preset_matches else None,
+                scenario_id=scenario_id if preset_matches else "custom",
+            )
             st.session_state["error"] = None
             st.session_state["fingerprint"] = current_fp
         except Exception as exc:  # noqa: BLE001 - 界面上只展示可读错误

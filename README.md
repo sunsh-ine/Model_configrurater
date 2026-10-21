@@ -354,6 +354,27 @@ bash scripts/verify_all.sh
 
 ---
 
+## 1.5 三个业务演示场景（T 阶段）
+
+页面左侧「演示案例」提供三个预设，选择后只填充需求字段，点击生成仍走
+`run_demo()` → `evaluate_plan()`：
+
+| 预设 | 阈值 / 排序 | 预期与实测结论 |
+| --- | --- | --- |
+| 严格 SLA | TTFT ≤ 400 ms、TPOT ≤ 30 ms；吞吐优先 | 归档预测未达标；无推荐；给出未达标参考配置 |
+| 宽松 SLA | TTFT ≤ 6000 ms、TPOT ≤ 40 ms（演示阈值）；吞吐优先 | 预测达标并推荐 TP8；预测值不变，仍无实测通过 |
+| 成本与预算 | 宽松 SLA；成本优先；预算 100 万 | 成本不完整/币种未确认，成本排序降级为吞吐优先；预算未知 |
+
+CLI 同样支持：
+
+```bash
+.venv/bin/python -m llm_capacity_pricing.app.demo_cli --list-scenarios
+.venv/bin/python -m llm_capacity_pricing.app.demo_cli --scenario relaxed --out /tmp/relaxed
+```
+
+三组完整报告在 `docs/demo_scenarios/`，场景说明与成本门禁解释见
+[`docs/demo_scenarios.md`](docs/demo_scenarios.md)。
+
 ## 2. 命令清单
 
 | 命令 | 作用 |
