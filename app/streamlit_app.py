@@ -151,6 +151,7 @@ hardwares = _catalog("data/hardware/hardware_catalog.yaml") or ["nvidia-h100-sxm
 left, right = st.columns([0.36, 0.64], gap="large")
 
 with left:
+    st.markdown("<span class='main-left-marker'></span>", unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown(
             "<div class='panel-head'><b>需求单</b>"

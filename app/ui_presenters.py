@@ -247,11 +247,15 @@ def _sim_label(candidate: Any) -> str:
 def headline(result: Any) -> str:
     candidates = result.candidates
     cap = result.request_echo.get("max_total_gpus")
-    # 与主表同一判据：GPU 超限的候选不能算作“可行”
+    # 与主表、账本同一判据：GPU 超限的候选不能算作“可用”
     feasible = [c for c in candidates if resource_condition(c, cap)[1] == "条件可行"]
-    observed = sum(
+    observed_all = sum(
         1 for c in candidates if c.sla_status in ("observed_pass", "observed_fail")
     )
+    observed = sum(
+        1 for c in feasible if c.sla_status in ("observed_pass", "observed_fail")
+    )
+    excluded_observed = observed_all - observed
     sla_configured = result.request_echo.get("sla") is not None
     parts: list[str] = []
     if feasible:
@@ -263,9 +267,16 @@ def headline(result: Any) -> str:
         parts.append("没有静态可行候选")
     if sla_configured:
         if observed:
-            parts.append(f"{observed} 个候选有实测 SLA 结论")
+            parts.append(f"{observed} 个可用候选有实测 SLA 结论")
+        elif feasible:
+            parts.append("可用候选中尚无实测 SLA 结论")
         else:
             parts.append("尚无目标配置的实测 SLA 证据")
+        if excluded_observed:
+            parts.append(
+                f"另有 {excluded_observed} 个候选不在当前可用范围内，"
+                "其实测数据仅作历史参考"
+            )
     else:
         parts.append("未设置 SLA 阈值，本次不判定达标")
     sim = getattr(result, "simulation", None)

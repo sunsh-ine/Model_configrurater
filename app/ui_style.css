@@ -257,10 +257,13 @@ a{color:var(--pine); text-decoration:none; border-bottom:1px solid rgba(28,90,73
 a:hover{border-bottom-color:var(--pine);}
 
 /* 笔记本宽度：上下布局，避免右侧表格被挤压 */
+.main-left-marker{display:none;}
+
+/* 只让最外层主栏上下排列；内部输入框与下载按钮保持各自布局 */
 @media (max-width:1100px){
   [data-testid="stMainBlockContainer"]{padding:1.2rem 1.2rem 3rem;}
-  [data-testid="stHorizontalBlock"]{flex-wrap:wrap;}
-  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]{
+  [data-testid="stHorizontalBlock"]:has(.main-left-marker){flex-wrap:wrap;}
+  [data-testid="stHorizontalBlock"]:has(.main-left-marker) > [data-testid="stColumn"]{
     flex:1 1 100% !important; width:100% !important; min-width:100% !important;
   }
 }

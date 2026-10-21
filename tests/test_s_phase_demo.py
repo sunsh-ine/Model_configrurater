@@ -575,6 +575,41 @@ def test_headline_and_ledger_respect_gpu_cap():
     assert "1 个静态条件可行的候选超过 4 卡上限" in ledger
 
 
+def test_headline_does_not_count_observed_evidence_of_over_cap_candidates():
+    """GPU 超限的候选即使有实测通过，也不能算进“可用候选的实测结论”。"""
+    from types import SimpleNamespace as NS
+
+    presenters = _presenters()
+    result = NS(
+        candidates=[
+            NS(
+                tp_size=4,
+                dp_size=1,
+                gpu_count=4,
+                static_status="conditional_feasible",
+                sla_status="not_evaluable",
+                quote_publishable=False,
+            ),
+            NS(
+                tp_size=8,
+                dp_size=1,
+                gpu_count=8,
+                static_status="conditional_feasible",
+                sla_status="observed_pass",
+                quote_publishable=False,
+            ),
+        ],
+        request_echo={"sla": {"ttft_p99_ms_max": 400}, "max_total_gpus": 4},
+        domains={"governance": "not_configured"},
+        simulation=None,
+    )
+    sentence = presenters.headline(result)
+    assert "1 个候选在 4 卡上限内静态可行" in sentence
+    assert "可用候选中尚无实测 SLA 结论" in sentence
+    assert "1 个候选不在当前可用范围内" in sentence
+    assert "1 个可用候选有实测 SLA 结论" not in sentence
+
+
 def test_predicted_pass_is_blue_observed_pass_is_green():
     presenters = _presenters()
     assert presenters.VERDICT["predicted_pass"][0] == "pred"
@@ -635,7 +670,7 @@ def test_result_homepage_prioritises_conclusion_and_downloads():
     assert "方案已生成" in text
     assert "分析覆盖" in text
     assert "核心候选对比" in text
-    assert "尚无目标配置的实测 SLA 证据" in text
+    assert "可用候选中尚无实测 SLA 结论" in text
 
     labels = [expander.label for expander in app.expander]
     assert "评估链路与三线结论" in labels
