@@ -91,14 +91,20 @@ def test_evaluate_and_report_round_trip(isolated_store, capsys):
     assert (run_dir / "technical_report.md").exists()
     assert (run_dir / "agent_result.json").exists()
 
-    report = _run_cli(capsys, ["report", "--run-id", payload["run_id"]])
+    report = _run_cli(
+        capsys,
+        ["report", "--run-id", payload["run_id"], "--task-id", "ses_full"],
+    )
     assert report["status"] == "completed"
     assert report["run_id"] == payload["run_id"]
     assert "# 推理部署方案" in report["proposal_md"]
 
 
 def test_report_rejects_path_traversal(isolated_store, capsys):
-    payload = _run_cli(capsys, ["report", "--run-id", "../outside"])
+    payload = _run_cli(
+        capsys,
+        ["report", "--run-id", "../outside", "--task-id", "ses_x"],
+    )
     assert payload["status"] == "failed"
     assert "非法 run_id" in payload["error"]
 
@@ -476,16 +482,133 @@ def test_agent_tool_records_requested_framework_and_currency(isolated_store, cap
         assert "框架版本 0.24.0（示例默认）" in assumptions
 
 
+def test_report_requires_matching_task_and_run(isolated_store, capsys):
+    a = _run_cli(
+        capsys,
+        ["evaluate", "--session-id", "ses_a", "--input-json", json.dumps(REQUEST)],
+    )
+    b = _run_cli(
+        capsys,
+        ["evaluate", "--session-id", "ses_b", "--input-json", json.dumps(REQUEST)],
+    )
+    forged = _run_cli(
+        capsys,
+        ["report", "--run-id", b["run_id"], "--task-id", "ses_a"],
+    )
+    assert forged["status"] == "failed"
+    assert "不对应" in forged["error"]
+
+    traversal = _run_cli(
+        capsys,
+        ["report", "--run-id", a["run_id"], "--task-id", "../escape"],
+    )
+    assert traversal["status"] == "failed"
+    assert "非法 task_id" in traversal["error"]
+
+
+def test_exact_mcp_tool_allowlist(isolated_store):
+    run = AgentService(
+        client=_FakeCommandCodeClient(tool_names=["mcp__lcp__future_tool"]),
+        transport="commandcode",
+    ).run("自然语言需求")
+    assert not run.completed
+    assert "未授权工具" in (run.task.error or "")
+
+
+def test_sandbox_is_required_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("COMMAND_CODE_SANDBOX", raising=False)
+    monkeypatch.setattr(cc_module.shutil, "which", lambda name: None)
+    client = cc_module.CommandCodeClient(
+        binary="command-code", workspace=tmp_path / "ws"
+    )
+    assert client.sandbox_available() is False
+    assert client.available()[0] is False
+    with pytest.raises(cc_module.CommandCodeUnavailable):
+        client.run("prompt", task_id="cc-nosandbox")
+
+
+def test_sandbox_can_be_explicitly_disabled_for_debug(monkeypatch, tmp_path):
+    script = tmp_path / "fake-command-code"
+    script.write_text(
+        "#!/bin/sh\n"
+        "echo '{\"type\":\"result\",\"subtype\":\"success\",\"finalText\":\"OK\",\"sessionId\":\"s\"}'\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("COMMAND_CODE_SANDBOX", "0")
+    client = cc_module.CommandCodeClient(
+        binary=str(script), workspace=tmp_path / "ws"
+    )
+    run = client.run("prompt", task_id="cc-debug")
+    assert run.final_text == "OK"
+    assert run.error is None
+
+
+def test_nonzero_exit_is_an_error_even_with_success_event(tmp_path, monkeypatch):
+    script = tmp_path / "fake-command-code"
+    script.write_text(
+        "#!/bin/sh\n"
+        "echo '{\"type\":\"result\",\"subtype\":\"success\",\"finalText\":\"OK\",\"sessionId\":\"s\"}'\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("COMMAND_CODE_SANDBOX", "0")
+    client = cc_module.CommandCodeClient(
+        binary=str(script), workspace=tmp_path / "ws"
+    )
+    run = client.run("prompt", task_id="cc-exit")
+    assert run.subtype == "success"
+    assert run.error and "退出码 1" in run.error
+
+
+def test_run_dirs_are_atomic_and_unique(tmp_path):
+    from llm_capacity_pricing.app.demo_service import new_run_dir
+
+    first = new_run_dir(tmp_path)
+    second = new_run_dir(tmp_path)
+    assert first != second
+    assert first.is_dir() and second.is_dir()
+
+
+def test_sandbox_binds_exclude_private_data(monkeypatch, tmp_path):
+    monkeypatch.delenv("COMMAND_CODE_SANDBOX", raising=False)
+    client = cc_module.CommandCodeClient(
+        binary="command-code", workspace=tmp_path / "ws"
+    )
+    if not client.sandbox_available():
+        pytest.skip("bwrap 不可用")
+    command = client._sandbox_command(
+        "command-code", ["--version"], task_id="cc-test"
+    )
+    assert command is not None
+    joined = " ".join(command)
+    assert "data/private" not in joined
+    assert "local.db" not in joined
+    assert "data/agent_runs" in joined
+    monkeypatch.setenv("COMMAND_CODE_SANDBOX", "0")
+    assert (
+        client._sandbox_command(
+            "command-code", ["--version"], task_id="cc-test"
+        )
+        is None
+    )
+
+
 def test_commandcode_parse_stream_and_prompt():
     stream = "\n".join(
         [
             '{"type":"event","event":{"type":"text_delta","delta":"OK"}}',
-            '{"type":"result","subtype":"success","stopReason":"end_turn","finalText":"OK"}',
+            '{"type":"event","event":{"type":"tool_running","toolName":"mcp__lcp__get_platform_catalog"}}',
+            '{"type":"result","subtype":"success","stopReason":"end_turn","finalText":"OK","sessionId":"s-1"}',
         ]
     )
     parsed = cc_module.CommandCodeClient.parse_stream(stream)
     assert parsed["subtype"] == "success"
     assert parsed["finalText"] == "OK"
+    assert cc_module.CommandCodeClient.parse_tool_names(stream) == [
+        "mcp__lcp__get_platform_catalog"
+    ]
 
     prompt = cc_module.build_prompt("cc-abc", "8 张 H100")
     assert "TASK_ID: cc-abc" in prompt

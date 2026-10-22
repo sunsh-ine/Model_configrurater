@@ -19,6 +19,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKSPACE = ROOT / "data/agent/cc-workspace"
+SANDBOX_HOME = ROOT / "data/agent/cc-homes"
 TASKS = ROOT / "data/agent_tasks"
 DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
 
@@ -79,8 +80,8 @@ Steps:
 4. If status=needs_confirmation, reply with the exact missing field labels and
    the ambiguous candidates; stop and wait for the user's answer.
 5. If status=failed, reply with the error and state that no plan was produced; stop.
-6. If status=completed, call get_plan_report with the run_id and reply in Chinese
-   with only: run_id, the summary/conclusions, recommendation or best-effort,
+6. If status=completed, call get_plan_report with task_id="{task_id}" and the run_id,
+   then reply in Chinese with only: run_id, the summary/conclusions, recommendation or best-effort,
    assumptions, and the main limitations. Do not add any number absent from the
    tool output.
 """
@@ -94,8 +95,8 @@ def build_continuation_prompt(task_id: str, additional: str) -> str:
 
 Continue the SAME task; do not restart or re-ask for fields already provided.
 Use ONLY the lcp MCP tools. Call evaluate_deployment_plan with
-task_id="{task_id}" and the now-complete fields; if it returns completed, call
-get_plan_report and reply with the same concise Chinese summary.
+task_id="{task_id}" and the now-complete fields; if it returns completed, call get_plan_report with task_id="{task_id}" and the
+run_id, then reply with the same concise Chinese summary.
 If it still returns needs_confirmation, list the remaining missing fields.
 """
 
@@ -114,6 +115,96 @@ class CommandCodeClient:
         self.workspace = workspace or WORKSPACE
         self.timeout = timeout
 
+    def sandbox_available(self) -> bool:
+        return bool(
+            shutil.which("bwrap") and shutil.which("node")
+        ) and os.environ.get("COMMAND_CODE_SANDBOX") != "0"
+
+    def _prepare_sandbox(self, task_id: str) -> Path:
+        """每个任务一个隔离 HOME，避免并发任务共用 Session/状态库。"""
+        home = SANDBOX_HOME / task_id
+        (home / ".commandcode").mkdir(parents=True, exist_ok=True)
+        (home / ".cache").mkdir(parents=True, exist_ok=True)
+        (home / ".local/share").mkdir(parents=True, exist_ok=True)
+        os.chmod(home, 0o700)
+        os.chmod(home / ".commandcode", 0o700)
+        source = Path.home() / ".commandcode"
+        for name in ("auth.json", "config.json", "mcp.json"):
+            src = source / name
+            if src.exists():
+                dst = home / ".commandcode" / name
+                dst.write_bytes(src.read_bytes())
+                os.chmod(dst, 0o600)
+        return home
+
+    def _sandbox_command(
+        self, path: str, args: list[str], *, task_id: str
+    ) -> list[str] | None:
+        if not self.sandbox_available():
+            return None
+        bwrap = shutil.which("bwrap")
+        node = shutil.which("node")
+        if not bwrap or not node:
+            return None
+        home = self._prepare_sandbox(task_id)
+        node_bin = str(Path(node).resolve().parent)
+        ro_dirs = [
+            "/usr",
+            "/bin",
+            "/lib",
+            "/lib64",
+            "/etc",
+            str(Path.home() / ".npm-global"),
+            str(Path.home() / ".local/share/fnm"),
+            str(ROOT / ".venv"),
+            str(ROOT / "src"),
+            str(ROOT / "app"),
+            str(ROOT / "scripts"),
+            str(ROOT / "data/models"),
+            str(ROOT / "data/hardware"),
+            str(ROOT / "data/examples"),
+            str(ROOT / "data/incoming"),
+            str(ROOT / "data/raw/official"),
+            str(ROOT / "data/raw/vendor"),
+            str(ROOT / "data/sources"),
+            str(ROOT / "data/fixtures"),
+            str(ROOT / "docs/poc"),
+        ]
+        rw_dirs = [
+            str(ROOT / "data/agent_runs"),
+            str(ROOT / "data/agent_tasks"),
+            str(WORKSPACE),
+            str(home),
+        ]
+        command = [bwrap, "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp"]
+        for directory in ro_dirs:
+            if Path(directory).exists():
+                command.extend(["--ro-bind", directory, directory])
+        for directory in rw_dirs:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+            command.extend(["--bind", directory, directory])
+        command.extend(
+            [
+                "--share-net",
+                "--die-with-parent",
+                "--setenv",
+                "HOME",
+                str(home),
+                "--setenv",
+                "PATH",
+                f"{node_bin}:/home/ssa/.npm-global/bin:/usr/bin:/bin",
+                "--setenv",
+                "LANG",
+                "C.UTF-8",
+                "--chdir",
+                str(WORKSPACE),
+                "--",
+                path,
+                *args,
+            ]
+        )
+        return command
+
     def available(self) -> tuple[bool, str]:
         path = shutil.which(self.binary)
         if not path:
@@ -127,7 +218,11 @@ class CommandCodeClient:
         if proc.returncode != 0:
             return False, (proc.stderr or proc.stdout).strip()[:200]
         version = (proc.stdout or "").strip().splitlines()[0]
-        return True, f"Command Code {version}"
+        if not self.sandbox_available():
+            if os.environ.get("COMMAND_CODE_SANDBOX") == "0":
+                return True, f"Command Code {version} · NO sandbox (debug)"
+            return False, "bwrap 沙箱不可用：默认拒绝无沙箱运行（调试可显式设置 COMMAND_CODE_SANDBOX=0）"
+        return True, f"Command Code {version} · bwrap sandbox"
 
     @staticmethod
     def parse_stream(stdout: str) -> dict[str, Any]:
@@ -174,8 +269,7 @@ class CommandCodeClient:
         if not path:
             raise CommandCodeUnavailable(f"未找到 {self.binary}")
         self.workspace.mkdir(parents=True, exist_ok=True)
-        command = [
-            path,
+        args = [
             "-p",
             "--trust",
             "--skip-onboarding",
@@ -187,8 +281,14 @@ class CommandCodeClient:
             "12",
         ]
         if session_id:
-            command.extend(["--session", session_id])
-        command.append(prompt)
+            args.extend(["--session", session_id])
+        args.append(prompt)
+        sandboxed = self._sandbox_command(path, args, task_id=task_id)
+        if sandboxed is None and os.environ.get("COMMAND_CODE_SANDBOX") != "0":
+            raise CommandCodeUnavailable(
+                "bwrap 沙箱不可用：拒绝在宿主机直接运行 Command Code"
+            )
+        command = sandboxed or [path, *args]
         try:
             proc = subprocess.run(
                 command,
@@ -196,6 +296,29 @@ class CommandCodeClient:
                 capture_output=True,
                 text=True,
                 timeout=timeout or self.timeout,
+                env={
+                    key: os.environ[key]
+                    for key in (
+                        "PATH",
+                        "LANG",
+                        "LC_ALL",
+                        "TERM",
+                        "HTTP_PROXY",
+                        "HTTPS_PROXY",
+                        "NO_PROXY",
+                        "http_proxy",
+                        "https_proxy",
+                        "no_proxy",
+                    )
+                    if key in os.environ
+                }
+                | {
+                    "HOME": (
+                        str(SANDBOX_HOME / task_id)
+                        if sandboxed
+                        else str(Path.home())
+                    )
+                },
             )
         except subprocess.TimeoutExpired as exc:
             raise CommandCodeTimeout(
@@ -211,10 +334,13 @@ class CommandCodeClient:
             session_id=str(parsed.get("sessionId") or "") or None,
             tool_names=self.parse_tool_names(proc.stdout or ""),
         )
-        if proc.returncode != 0 and not parsed:
-            run.error = (proc.stderr or proc.stdout or "").strip()[-500:]
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()[-500:]
+            run.error = f"Command Code 退出码 {proc.returncode}：{detail}"
         elif parsed and parsed.get("subtype") != "success":
             run.error = str(parsed.get("error") or parsed.get("subtype") or "任务失败")
+        elif not parsed:
+            run.error = (proc.stderr or proc.stdout or "").strip()[-500:] or "无结果事件"
         return run
 
     @staticmethod

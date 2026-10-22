@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -239,13 +240,17 @@ def prepare_demo_db(
 def new_run_dir(root: str | Path = DEMO_OUT_ROOT) -> Path:
     """每次运行一个独立目录（UTC 时间戳 + 序号），不覆盖历史结果。"""
     base = Path(root)
+    base.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    candidate = base / stamp
-    index = 1
-    while candidate.exists():
-        candidate = base / f"{stamp}_{index:02d}"
-        index += 1
-    return candidate
+    for _ in range(20):
+        candidate = base / f"{stamp}_{uuid.uuid4().hex[:6]}"
+        try:
+            # 原子创建：并发任务不会拿到同一个目录
+            candidate.mkdir(parents=False, exist_ok=False)
+            return candidate
+        except FileExistsError:
+            continue
+    raise RuntimeError(f"无法在 {base} 下分配唯一的运行目录")
 
 
 def run_demo(

@@ -87,10 +87,11 @@ def test_prepare_demo_db_refuses_to_overwrite(tmp_path):
 
 
 def test_new_run_dir_is_unique(tmp_path):
+    # X1.3：目录由 new_run_dir 原子创建，调用方不再自己 mkdir
     first = new_run_dir(tmp_path)
-    first.mkdir(parents=True)
     second = new_run_dir(tmp_path)
     assert first != second
+    assert first.is_dir() and second.is_dir()
 
 
 # --------------------------------------------------------------------------

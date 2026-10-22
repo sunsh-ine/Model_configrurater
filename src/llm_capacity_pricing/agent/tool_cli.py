@@ -238,43 +238,67 @@ def _evaluate(session_id: str, payload: dict[str, Any]) -> AgentTaskResult:
     return _publish(task)
 
 
-def _report(run_id: str, session_id: str | None) -> AgentTaskResult:
+def _report(run_id: str, session_id: str | None, task_id: str) -> AgentTaskResult:
     if not _SAFE_ID.match(run_id):
         return _publish(_failed(session_id, f"非法 run_id：{run_id}"))
+    if not _SAFE_ID.match(task_id):
+        return _publish(_failed(session_id, f"非法 task_id：{task_id}"))
+    task_path = TASKS / f"{task_id}.json"
+    if not task_path.exists():
+        return _publish(_failed(session_id, f"找不到任务：{task_id}"))
+    try:
+        task = AgentTaskResult.model_validate_json(
+            task_path.read_text(encoding="utf-8")
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _publish(_failed(session_id, f"任务契约校验失败：{exc}"))
+    if task.status != "completed":
+        return _publish(task)
+    if task.session_id != task_id:
+        return _publish(_failed(session_id, "任务文件与 task_id 不一致"))
+    if task.run_id != run_id:
+        return _publish(_failed(session_id, "task_id 与 run_id 不对应"))
+
     base = RUNS.resolve()
     run_dir = (RUNS / run_id).resolve()
     if run_dir.parent != base or not run_dir.is_dir():
         return _publish(_failed(session_id, f"找不到运行目录：{run_id}"))
-
     contract_path = run_dir / "agent_result.json"
     if not contract_path.exists():
         return _publish(_failed(session_id, f"运行目录缺少 agent_result.json：{run_id}"))
     try:
-        task = AgentTaskResult.model_validate_json(contract_path.read_text(encoding="utf-8"))
+        contract = AgentTaskResult.model_validate_json(
+            contract_path.read_text(encoding="utf-8")
+        )
     except Exception as exc:  # noqa: BLE001
-        return _publish(_failed(session_id, f"任务契约校验失败：{exc}"))
-
-    if task.status != "completed":
-        return _publish(task)
+        return _publish(_failed(session_id, f"运行契约校验失败：{exc}"))
+    if (
+        contract.run_id != run_id
+        or contract.session_id != task_id
+        or contract.result_sha256 != task.result_sha256
+    ):
+        return _publish(_failed(session_id, "任务与运行目录的归属不一致"))
 
     json_path = ROOT / task.artifacts.get("json", "")
-    if not json_path.exists():
-        return _publish(_failed(session_id, "任务引用的 result.json 不存在"))
+    if not json_path.exists() or not json_path.resolve().is_relative_to(run_dir):
+        return _publish(_failed(session_id, "result.json 不在本次运行目录下"))
     actual_hash = hashlib.sha256(json_path.read_bytes()).hexdigest()
     if not task.result_sha256 or actual_hash != task.result_sha256:
         return _publish(_failed(session_id, "result.json 与任务绑定的 sha256 不一致"))
     proposal_path = ROOT / task.artifacts.get("proposal", "")
-    proposal = (
-        proposal_path.read_text(encoding="utf-8") if proposal_path.exists() else ""
-    )
+    if not proposal_path.exists() or not proposal_path.resolve().is_relative_to(run_dir):
+        return _publish(_failed(session_id, "方案文档不在本次运行目录下"))
+    proposal = proposal_path.read_text(encoding="utf-8")
     print(
         json.dumps(
             {
                 "status": task.status,
                 "run_id": task.run_id,
+                "task_id": task_id,
                 "request_id": task.request_id,
                 "summary": task.summary,
                 "conclusions": task.conclusions,
+                "assumptions": task.assumptions,
                 "artifacts": task.artifacts,
                 "proposal_md": proposal,
             },
@@ -295,8 +319,9 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--input-file", default=None)
     ev.add_argument("--input-json", default=None)
 
-    rp = sub.add_parser("report", help="按 run_id 取回结果")
+    rp = sub.add_parser("report", help="按 task_id + run_id 取回结果")
     rp.add_argument("--run-id", required=True)
+    rp.add_argument("--task-id", required=True)
     rp.add_argument("--session-id", default=None)
 
     args = parser.parse_args(argv)
@@ -318,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             _evaluate(session_id, payload)
             return 0
         if args.command == "report":
-            _report(args.run_id, session_id)
+            _report(args.run_id, session_id, args.task_id)
             return 0
     except Exception as exc:  # noqa: BLE001 - 工具调用永不抛栈，返回结构化失败
         _publish(_failed(session_id, f"{type(exc).__name__}: {exc}"))

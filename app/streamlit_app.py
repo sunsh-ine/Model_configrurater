@@ -618,7 +618,8 @@ with right:
                 )
             st.markdown(
                 "<div class='callout pred'>本结果由 AI Agent 编排；"
-                "所有数字来自同一次 evaluate_plan()，模型文本只作解释。</div>",
+                "所有数字来自同一次 evaluate_plan()，模型文本只作解释。"
+                "模拟预测不是实测；成本为示例目录。</div>",
                 unsafe_allow_html=True,
             )
             if agent_run.task.assumptions:
@@ -639,6 +640,12 @@ with right:
                     + "</div>",
                     unsafe_allow_html=True,
                 )
+                if agent_run.assistant_text:
+                    st.markdown(
+                        "<p class='note'><b>Agent 说明（候选与缺失项，不是业务结论）</b></p>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(agent_run.assistant_text)
                 if agent_run.agent_session_id:
                     st.markdown(
                         "<p class='hint'>可以在同一任务里补充，不需要重新输入整段需求。</p>",
@@ -674,7 +681,7 @@ with right:
                     + "</div>",
                     unsafe_allow_html=True,
                 )
-            if agent_run.assistant_text:
+            if task.status != "needs_confirmation" and agent_run.assistant_text:
                 with st.expander("Agent 说明（不是业务结论）"):
                     st.markdown(agent_run.assistant_text)
     else:

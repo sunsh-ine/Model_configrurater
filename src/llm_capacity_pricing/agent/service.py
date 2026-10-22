@@ -166,12 +166,14 @@ class AgentService:
         except (CommandCodeUnavailable, OSError) as exc:
             return self._failed(task_id, str(exc))
 
-        allowed = {"search_tools", "select_tool"}
-        unauthorized = [
-            name
-            for name in result.tool_names
-            if name not in allowed and not name.startswith("mcp__lcp__")
-        ]
+        allowed = {
+            "mcp__lcp__get_platform_catalog",
+            "mcp__lcp__evaluate_deployment_plan",
+            "mcp__lcp__get_plan_report",
+            "search_tools",
+            "select_tool",
+        }
+        unauthorized = [name for name in result.tool_names if name not in allowed]
         if unauthorized:
             return self._failed(
                 task_id, "Agent 使用了未授权工具：" + "、".join(unauthorized)

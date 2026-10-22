@@ -129,9 +129,14 @@ def evaluate_deployment_plan(
 
 
 @mcp.tool()
-def get_plan_report(run_id: str) -> str:
-    """Fetch the verified plan result and customer proposal for a run_id."""
-    return _run(["report", "--run-id", run_id], timeout=60)
+def get_plan_report(task_id: str, run_id: str) -> str:
+    """Fetch the verified result for this task_id + run_id only.
+
+    task_id must be the current task; guessed historical run_ids are rejected.
+    """
+    return _run(
+        ["report", "--run-id", run_id, "--task-id", task_id], timeout=60
+    )
 
 
 if __name__ == "__main__":

@@ -20,6 +20,9 @@ OpenCode 的两条路径仍有阻塞（`serve` 的 free tier、v2.1.2 未加载
 ## 安装与配置
 
 ```bash
+# 0) 需要 bwrap（文件系统沙箱）与已登录的 command-code
+bwrap --version
+
 # 1) MCP Python SDK（只给 Agent 用，不并入主依赖）
 .venv/bin/pip install -r requirements-agent.txt
 
@@ -108,6 +111,21 @@ W 阶段复验（同一最终代码）：
 - 实测：首次缺 GPU 型号/OSL → 补充后 completed，run_id `20261021T094228Z`；
 - 预算未给币种时，Agent 说明示例成本目录为 CNY 并请求确认；
   框架/精度/成本口径作为 `assumptions` 写进契约与页面。
+
+## X 阶段加固
+
+- **执行边界**：Command Code 子进程默认在 `bwrap` 沙箱中运行；只读挂载代码/venv/
+  公开数据，只写挂载任务/运行目录与**每任务独立的 HOME**；不挂载
+  `data/private`、`data/local.db`、raw xlsx 与真实 HOME；bwrap/node 不可用时默认拒绝运行。
+- **工具门禁**：只允许精确的三个 MCP 工具名（外加 `search_tools/select_tool`）；
+  其他调用判失败、不采用报告。事件检查是**事后审计**，执行边界由沙箱提供；
+  不声称已做到执行前拦截。
+- **报告归属**：`get_plan_report(task_id, run_id)` 必须同时给出两者；任务文件、
+  运行目录契约、sha256、request_id 全部一致才返回，猜历史 run_id 无效。
+- **状态**：Command Code 退出码非零时，即使结果事件是 success 也标记 Agent 会话异常；
+  报告可保留，但不显示为整体成功。
+- **并发**：运行目录随机后缀 + 原子 `mkdir`；每任务独立沙箱 HOME，避免 Session 串用。
+- 调试：`COMMAND_CODE_SANDBOX=0` 仅用于本地排查，不用于开放访问。
 
 ## 双模式
 

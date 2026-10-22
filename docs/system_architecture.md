@@ -117,14 +117,36 @@ ASCII 备份（图不便渲染时看这个）：
 | **一份需求 → 一键出方案（离线可复现）** | 🟡 本阶段实现（S2） |
 | **单页业务界面** | 🟡 本阶段实现（S3） |
 | 客户版方案文档（7 段式） | 🟡 本阶段实现（S4） |
+| 自然语言 Agent 模式（Command Code + MCP） | ✅ 已实现（V/W/X） |
+| Agent 任务身份绑定 + 运行沙箱 | ✅ 已实现（X1） |
+| Agent 模式受控部署 | ❌ 未实施（X5 仅设计） |
 | 目标配置的真实性能验证 | ❌ 未实现（需 N6 真机） |
 | 真实 GPU 压测 / 审批系统接入 | ❌ 未实现（不在本阶段范围） |
 
-## 6. 未来 AI Agent 的接入位置（本轮只留接口）
+## 6. AI Agent 的接入位置（已实现）
 
-* **允许**：读取 `PlanResult`（结构化）→ 生成**解释性文字**（摘要、风险提示、客户措辞）。
-* **禁止**：修改任何数值、证据类型、推荐资格；不得自行判断"达标"。
-* **接口**：复用 `agent_api.py` 的只读入口；Agent 不参与计算链路，
-  也不作为 Demo 运行的依赖（无大模型时系统照常工作）。
+**允许**：理解自然语言需求、选择工具、组织步骤、生成解释性文字。
 
-理由：数值与结论必须可追溯到结构化计算；让模型"改写数字"等于取消可复核性。
+**禁止**：修改任何数值、证据类型、推荐资格；不得自行判断“达标”。
+
+**实现**（Command Code + 本地 MCP，V/W/X 阶段）：
+
+```
+Streamlit（手动 / Agent）
+  → AgentService
+  → command-code -p（bwrap 文件系统沙箱）
+  → MCP server（lcp）
+  → tool_cli → evaluate_plan() → PlanResult → Reporting
+```
+
+- 三个工具：`get_platform_catalog`、`evaluate_deployment_plan`、
+  `get_plan_report(task_id, run_id)`；
+- `task_id / run_id / result_sha256 / 运行目录契约` 强绑定；
+- Agent 会话状态与业务报告状态分开；
+- 运行时只允许精确的三个 MCP 工具（外加搜索元工具），其余调用判失败；
+- 沙箱不暴露 `data/private`、`data/local.db`、raw xlsx 与真实 HOME；
+- 模型文本只作解释，报告始终来自结构化产物；
+- 无 Command Code/模型时，手动模式完全不受影响。
+
+OpenCode 作为备选 transport 保留（服务端 free tier 与自定义工具暴露仍有阻塞）。
+Agent 模式未部署到无鉴权的 `compute01` 页面。
