@@ -33,6 +33,15 @@ SimulationVerdict = Literal[
     "insufficient_prediction",  # 预测缺失、样本不足或身份不完整
 ]
 
+#: AB3：面向决策的证据状态。``boundary_sensitive`` 仍是预测达标，
+#: 但预测值上调 10% 会改变结论；它不是新的 SLA 结论。
+SimulationEvidenceStatus = Literal[
+    "predicted_pass",
+    "predicted_fail",
+    "boundary_sensitive",
+    "insufficient_prediction",
+]
+
 #: 领域状态（与 PlanResult.domains 的其它领域同一套取值）
 SimulationStatus = Literal[
     "computed", "not_configured", "missing_data", "blocked", "error"
@@ -218,6 +227,15 @@ class SimulationCandidate(BaseModel):
     source_file: str | None = None
     source_sha256: str | None = None
     source_row: int | None = None
+    # ---- AB3：决策质量（不改变 verdict）----
+    sla_margin_ttft_ms: Decimal | None = None
+    sla_margin_tpot_ms: Decimal | None = None
+    sla_margin_ttft_ratio: Decimal | None = None
+    sla_margin_tpot_ratio: Decimal | None = None
+    #: 预测值上调 10% / 20% 后是否越过阈值（任一指标即算）
+    sensitive_10pct: bool | None = None
+    sensitive_20pct: bool | None = None
+    evidence_status: SimulationEvidenceStatus = "insufficient_prediction"
     #: 该配置的**成本**（来自本仓库的 TCO，不是模拟量）；未算出则 None
     cost: SimulatedCost | None = None
 
@@ -226,6 +244,25 @@ class SimulationCandidate(BaseModel):
     linked_search_candidate_id: str | None = None
     #: 若无法对齐，写明原因（不同工作点只能分别展示，不能合并）
     link_reasons: list[str] = Field(default_factory=list)
+
+
+class SimulationSearchAudit(BaseModel):
+    """AB4：候选发现与推荐有效范围的结构化摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    discovered_deployments: int = 0
+    accepted_deployments: int = 0
+    replayed_deployments: int = 0
+    failed_deployments: int = 0
+    truncated_deployments: int = 0
+    #: 候选 ID -> 未回放/未比较原因
+    filtered: dict[str, list[str]] = Field(default_factory=dict)
+    replayed: list[str] = Field(default_factory=list)
+    failed: dict[str, str] = Field(default_factory=dict)
+    truncated: list[str] = Field(default_factory=list)
+    #: complete / partial / partial_with_failures / offline_archives
+    effective_scope: str = "unknown"
 
 
 class SimulationResult(BaseModel):
@@ -246,6 +283,8 @@ class SimulationResult(BaseModel):
     source_dir: str | None = None
     #: 采用的排序目标（多候选都满足时用哪个）：throughput / cost
     ranking: str = "throughput"
+    #: AB4：搜索/归档候选的审计摘要
+    search_audit: SimulationSearchAudit | None = None
 
     def judged(self) -> list[SimulationCandidate]:
         """可比、且**已经能给出 P99 结论**的候选（pass 或 fail 都算）。
@@ -376,6 +415,26 @@ class SimulationResult(BaseModel):
         if not pool:
             return passed[0]
         return max(pool, key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0))
+
+    def min_gpu_for_sla(self) -> SimulationCandidate | None:
+        """在预测达标且资源可行的候选里，返回 GPU 数最少的那个。
+
+        这是“满足 SLA 的最小配置”参考，不替代吞吐/成本排序；并列时按吞吐取高。
+        """
+        passed = [
+            c
+            for c in self.eligible()
+            if c.verdict == "predicted_pass" and c.deployment.gpu_count is not None
+        ]
+        if not passed:
+            return None
+        return min(
+            passed,
+            key=lambda c: (
+                c.deployment.gpu_count,
+                -(c.metrics.sim_output_throughput_tok_s or Decimal(0)),
+            ),
+        )
 
     def best_effort(self) -> SimulationCandidate | None:
         """**未达标参考配置**：推荐池里即使不达标也吞吐最高的那个。

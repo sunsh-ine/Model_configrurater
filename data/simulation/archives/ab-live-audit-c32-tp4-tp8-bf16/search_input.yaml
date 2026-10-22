@@ -1,0 +1,32 @@
+auto_Qwen_Qwen3-32B:
+  agg_cp_candidates:
+  - 1
+  agg_dp_candidates:
+  - 1
+  agg_moe_ep_candidates:
+  - 1
+  agg_moe_tp_candidates:
+  - 1
+  agg_num_gpu_candidates:
+  - 1
+  - 2
+  - 4
+  - 8
+  agg_pp_candidates:
+  - 1
+  agg_tp_candidates:
+  - 1
+  - 2
+  - 4
+  - 8
+  backend_name: vllm
+  backend_version: 0.24.0
+  database_mode: SILICON
+  isl: 8192
+  model_path: Qwen/Qwen3-32B
+  osl: 256
+  serving_mode: agg
+  system_name: h100_sxm
+  total_gpus: 8
+  tpot: 1000000.0
+  ttft: 1000000.0

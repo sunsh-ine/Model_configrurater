@@ -109,7 +109,9 @@ def test_incomplete_cost_does_not_claim_cost_optimum(tmp_path):
 def test_c8_and_c64_predictions_are_unchanged(tmp_path):
     c8 = {c.deployment.tp_size: c for c in _natives(_run(tmp_path, "c8", concurrency=8).result)}
     c64 = {c.deployment.tp_size: c for c in _natives(_run(tmp_path, "c64", concurrency=64).result)}
-    assert set(c8) == {8} and set(c64) == {8}
+    assert 8 in c8 and 8 in c64
+    # AB2 新增 TP4 归档；TP8 的原始预测值必须保持不变
+    assert 4 in c8 and 4 in c64
     assert c8[8].metrics.sim_p99_ttft_ms == Decimal("727.2969240000001")
     assert c8[8].metrics.sim_p99_tpot_ms == Decimal("11.230072717647314")
     assert c8[8].verdict == "predicted_pass"

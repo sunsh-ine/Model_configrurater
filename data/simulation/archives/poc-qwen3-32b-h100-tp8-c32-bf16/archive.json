@@ -1,0 +1,10 @@
+{
+  "archived_at": "2026-10-22T08:21:13+00:00",
+  "kind": "poc_migration",
+  "source_files": {
+    "input": "docs/poc/aisimulate/16_matched_native_input_tp8_conc32_bf16.yaml",
+    "prediction": "docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json",
+    "exp_config": "docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml",
+    "per_ops_source": "docs/poc/aisimulate/artifacts/per_ops_source.json"
+  }
+}

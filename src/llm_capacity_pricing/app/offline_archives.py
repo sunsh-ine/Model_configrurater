@@ -23,7 +23,7 @@ from typing import Any
 
 import yaml
 
-from llm_capacity_pricing.app.archive_integrity import verify_manifest_hashes
+from llm_capacity_pricing.app.archive_integrity import verify_files
 from llm_capacity_pricing.perf.aisimulate_adapter import system_for_hardware_id
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -31,10 +31,6 @@ ARCHIVE_ROOT = ROOT / "data/simulation/archives"
 MODEL_MANIFEST = ROOT / "data/models/model_manifest.yaml"
 
 POC_SWEEPER = "docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv"
-POC_EXP_CONFIG = "docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml"
-POC_PER_OPS = "docs/poc/aisimulate/artifacts/per_ops_source.json"
-POC_NATIVE = "docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json"
-POC_NATIVE_INPUT = "docs/poc/aisimulate/16_matched_native_input_tp8_conc32_bf16.yaml"
 
 #: 归档里可能出现的版本槽位别名；解析成实际版本后才算身份匹配。
 VERSION_ALIASES = {"current": "0.24.0"}
@@ -179,52 +175,9 @@ def _entry_from_paths(
     )
 
 
-def _poc_entry() -> ArchiveEntry | None:
-    prediction = ROOT / POC_NATIVE
-    native_input = ROOT / POC_NATIVE_INPUT
-    if not prediction.exists() or not native_input.exists():
-        return None
-    cfg = yaml.safe_load(native_input.read_text(encoding="utf-8")) or {}
-    engine = cfg.get("engine") or {}
-    traffic = cfg.get("traffic") or {}
-    source = traffic.get("source") or {}
-    load = traffic.get("load") or {}
-    stop = traffic.get("stop") or {}
-    parallelism = ((engine.get("workers") or {}).get("aggregated") or {}).get(
-        "parallelism"
-    ) or {}
-    tp = _int(parallelism.get("tensor"))
-    pp = _int(parallelism.get("pipeline")) or 1
-    replicas = _int(parallelism.get("replicas")) or 1
-    return _entry_from_paths(
-        name="poc-20261020-tp8-c32-bf16",
-        native_prediction=prediction,
-        native_input=native_input,
-        exp_config=ROOT / POC_EXP_CONFIG,
-        per_ops_source=ROOT / POC_PER_OPS,
-        model_name=engine.get("model"),
-        system=engine.get("hardware"),
-        precision="bf16",
-        backend=engine.get("backend"),
-        backend_version=engine.get("backend_version"),
-        input_len=_int(source.get("input_tokens")),
-        output_len=_int(source.get("output_tokens")),
-        concurrency=_int(load.get("concurrency")),
-        gpu_count=(tp * pp * replicas) if tp else None,
-        tp_size=tp,
-        pp_size=pp,
-        dp_size=replicas,
-        requests=_int(stop.get("requests")),
-        tool_version="0.12.1",
-    )
-
-
 def archive_entries() -> list[ArchiveEntry]:
-    """列出所有可用的原生回放归档（PoC + Z 阶段实时归档）。"""
+    """列出所有可用原生回放归档；PoC 已迁移为标准归档，走同一校验。"""
     entries: list[ArchiveEntry] = []
-    poc = _poc_entry()
-    if poc is not None:
-        entries.append(poc)
     if not ARCHIVE_ROOT.exists():
         return entries
     for manifest_path in sorted(ARCHIVE_ROOT.glob("*/manifest.json")):
@@ -234,13 +187,19 @@ def archive_entries() -> list[ArchiveEntry]:
         except Exception:  # noqa: BLE001
             continue
         spec = manifest.get("spec") or {}
-        if manifest.get("errors"):
+        run_errors = manifest.get("run_errors")
+        if run_errors is None:
+            # 旧 manifest 没有分层字段：保守地按运行级错误处理
+            if manifest.get("errors"):
+                continue
+        elif run_errors:
             continue
-        if verify_manifest_hashes(run_dir, manifest):
-            # 文件缺失/哈希不符的归档不得作为 P99 证据；覆盖矩阵会单独报阻塞。
-            continue
+        candidate_errors = manifest.get("candidate_errors") or {}
         exp_config = run_dir / "exp_config.yaml"
         for input_path in sorted(run_dir.glob("predict/predict_*.yaml")):
+            relative_input = str(input_path.relative_to(run_dir))
+            if relative_input in candidate_errors:
+                continue
             index = input_path.stem.rsplit("_", 1)[-1]
             prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
             if not prediction_path.exists():
@@ -249,9 +208,14 @@ def archive_entries() -> list[ArchiveEntry]:
                 str(input_path.relative_to(run_dir)),
                 str(prediction_path.relative_to(run_dir)),
             ]
-            if exp_config.exists():
-                required.append(str(exp_config.relative_to(run_dir)))
-            if verify_manifest_hashes(run_dir, manifest, required=required):
+            registered = {
+                **(manifest.get("inputs") or {}),
+                **(manifest.get("outputs") or {}),
+            }
+            if "exp_config.yaml" in registered:
+                # 登记了就要求存在且哈希一致；文件被删不能静默跳过。
+                required.append("exp_config.yaml")
+            if verify_files(run_dir, manifest, required):
                 # 实际要读的文件必须被哈希覆盖；只登记别的文件不算数。
                 continue
             cfg = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}

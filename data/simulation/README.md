@@ -8,7 +8,7 @@
 ```
 archives/
   <run_id>/
-    manifest.json          # 工具版本、spec、输入/输出及 sha256、错误
+    manifest.json          # archive_version、spec、workpoint、predictions、sha256、错误
     archive.json           # 本次归档复制了哪些文件
     exp_config.yaml        # 后端版本、数据库模式（SILICON）等身份
     predict/predict_1.yaml # 原生回放输入（部署 + 负载）
@@ -16,6 +16,18 @@ archives/
     search_input.yaml      # 自动搜索模式才有
     search/**/pareto.csv   # 扫描器稳态单点（没有 P99）
 ```
+
+`archive_version: ab-1` 的 manifest 额外包含：
+
+* `workpoint`：模型/硬件/精度/ISL/OSL/并发/TP/PP/DP/请求数；
+* `predictions`：每条 `predict_N` 与 `out_N` 的对应关系、P99/吞吐/完成请求数；
+* `run_errors` / `candidate_errors` / `not_aligned` / `not_replayed`：
+  运行级失败、候选级失败与未回放原因分开记录。
+
+历史 PoC 已迁移为标准归档
+`poc-qwen3-32b-h100-tp8-c32-bf16/`，与其它归档走同一套
+`verify_manifest_hashes`，不再有特殊加载路径。迁移脚本：
+`scripts/migrate_poc_archive.py`。
 
 ## 边界
 

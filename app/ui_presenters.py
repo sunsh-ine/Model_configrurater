@@ -73,6 +73,14 @@ VERDICT = {
     "predicted_fail": ("fail", "预测未达标"),
     "insufficient_prediction": ("off", "预测不充分"),
 }
+EVIDENCE = {
+    "predicted_pass": ("pred", "预测达标（有余量）"),
+    "boundary_sensitive": ("warn", "预测达标（边界敏感）"),
+    "predicted_fail": ("fail", "预测未达标"),
+    "insufficient_prediction": ("off", "证据不足"),
+    "observed_pass": ("ok", "实测达标"),
+    "observed_fail": ("fail", "实测未达标"),
+}
 
 BUDGET = {
     "within_budget": ("ok", "在预算内"),
@@ -815,6 +823,9 @@ def sim_html(sim: Any) -> str:
             verdict = chip(kind, text)
             if not candidate.comparable:
                 verdict += " " + chip("off", "不可比")
+            status_kind, status_text = EVIDENCE.get(
+                candidate.evidence_status, ("off", candidate.evidence_status)
+            )
             rows.append(
                 [
                     f"<b>{esc(candidate.deployment.parallelism_label or '—')}</b>"
@@ -823,14 +834,23 @@ def sim_html(sim: Any) -> str:
                     num(candidate.metrics.sim_output_throughput_tok_s),
                     num(candidate.metrics.sim_p99_ttft_ms),
                     num(candidate.metrics.sim_p99_tpot_ms),
-                    verdict,
+                    f"{num(candidate.sla_margin_ttft_ms)} / {num(candidate.sla_margin_tpot_ms)}",
+                    verdict + " " + chip(status_kind, status_text),
                 ]
             )
         parts.append(
             table(
-                ["配置", "GPU", "吞吐 tok/s", "TTFT P99 ms", "TPOT P99 ms", "预测结论"],
+                [
+                    "配置",
+                    "GPU",
+                    "吞吐 tok/s",
+                    "TTFT P99 ms",
+                    "TPOT P99 ms",
+                    "SLA 裕量 ms",
+                    "证据状态",
+                ],
                 rows,
-                numeric=(1, 2, 3, 4),
+                numeric=(1, 2, 3, 4, 5),
             )
         )
         notes = [
@@ -847,6 +867,26 @@ def sim_html(sim: Any) -> str:
             parts.append(
                 "<p class='note'><b>并行身份与工作点说明</b></p>"
                 f"<ul class='plain'>{items}</ul>"
+            )
+        audit = getattr(sim, "search_audit", None)
+        if audit is not None:
+            scope = {
+                "complete": "已比较全部通过筛选的部署",
+                "partial": "不完整：有部署因回放上限未验证 P99",
+                "partial_with_failures": "不完整：有候选回放失败",
+                "offline_archives": "离线归档选择",
+            }.get(audit.effective_scope, audit.effective_scope)
+            blocked = ""
+            if audit.filtered:
+                blocked = "；未参与比较：" + "、".join(
+                    f"`{esc(cid)}`" for cid in list(audit.filtered)[:5]
+                )
+            parts.append(
+                "<div class='callout warn'><b>候选搜索与有效范围</b>："
+                f"发现 {audit.discovered_deployments}，通过 {audit.accepted_deployments}，"
+                f"回放 {audit.replayed_deployments}，失败 {audit.failed_deployments}，"
+                f"截断 {audit.truncated_deployments}。{esc(scope)}"
+                f"{blocked}</div>"
             )
         if (sim.ranking or "throughput") == "cost":
             available, reasons = sim.cost_ranking_available()

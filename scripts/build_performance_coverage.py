@@ -37,7 +37,7 @@ from typing import Any, Iterable
 
 import yaml
 
-from llm_capacity_pricing.app.archive_integrity import verify_manifest_hashes
+from llm_capacity_pricing.app.archive_integrity import verify_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -514,37 +514,17 @@ def native_evidence(
 def read_poc_evidence(
     models: list[dict[str, Any]], hardware: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    evidence: list[dict[str, Any]] = []
-    native = native_evidence(
-        input_path=POC / "16_matched_native_input_tp8_conc32_bf16.yaml",
-        prediction_path=POC / "17_matched_native_result_tp8_conc32_bf16.json",
-        exp_config_path=POC / "artifacts/matched_exp_config_vllm_bf16.yaml",
-        run_id="poc-20261020-tp8-c32-bf16",
+    """历史 PoC 只保留扫描器证据；原生回放已迁移为标准归档。"""
+    return sweep_rows(
+        POC / "artifacts/matched_pareto_vllm_bf16.csv",
+        source_kind="simulated_scan",
+        run_id="poc-20261020-tp8-bf16-scan",
         tool_version="0.12.1",
+        database_mode="SILICON",
         models=models,
         hardware=hardware,
-        aliases={"current": "0.24.0"},
-        declared_precision="bf16",
-        extra_notes=[
-            "N 阶段 PoC 归档；500 请求的 P99 回放",
-            "离线 Demo 的性能预测即引用本条证据",
-        ],
+        extra_notes=["扫描器结果用于候选枚举与相对比较，单点值接近原生回放的中位数"],
     )
-    if native:
-        evidence.append(native)
-    evidence.extend(
-        sweep_rows(
-            POC / "artifacts/matched_pareto_vllm_bf16.csv",
-            source_kind="simulated_scan",
-            run_id="poc-20261020-tp8-bf16-scan",
-            tool_version="0.12.1",
-            database_mode="SILICON",
-            models=models,
-            hardware=hardware,
-            extra_notes=["扫描器结果用于候选枚举与相对比较，单点值接近原生回放的中位数"],
-        )
-    )
-    return evidence
 
 
 # ---------------------------------------------------------------------------
@@ -557,8 +537,10 @@ def read_archive_evidence(
     models: list[dict[str, Any]],
     hardware: list[dict[str, Any]],
     blocked_runs: list[dict[str, Any]],
+    blocked_candidates: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     evidence: list[dict[str, Any]] = []
+    blocked_candidates = blocked_candidates if blocked_candidates is not None else []
     if not archive_root.exists():
         return evidence
     for manifest_path in sorted(archive_root.glob("*/manifest.json")):
@@ -573,56 +555,91 @@ def read_archive_evidence(
         run_id = text(manifest.get("run_id")) or run_dir.name
         spec = manifest.get("spec") or {}
         errors = manifest.get("errors") or []
-        if errors:
-            # 失败的运行即使留下了部分预测文件，也不能进入覆盖矩阵；
-            # 只保留阻塞记录，避免把半成品当成证据。
+        run_errors = manifest.get("run_errors")
+        fatal = run_errors if run_errors is not None else (errors if errors else [])
+        if fatal:
+            # 运行级失败（搜索未执行/无输出）才跳过整次运行；
+            # 候选级失败只影响对应的 predict 文件。
             blocked_runs.append(
                 {
                     "run_id": run_id,
-                    "errors": errors,
+                    "errors": fatal,
                     "manifest": rel(manifest_path),
                 }
             )
             continue
-        integrity = verify_manifest_hashes(run_dir, manifest)
-        if integrity:
-            blocked_runs.append(
-                {
-                    "run_id": run_id,
-                    "errors": ["归档完整性校验失败：" + "；".join(integrity)],
-                    "manifest": rel(manifest_path),
-                }
-            )
-            continue
+        candidate_errors = manifest.get("candidate_errors") or {}
         tool_version = text(manifest.get("tool_version"))
         database_mode = text(spec.get("database_mode"))
         aliases = {"current": "0.24.0"}
         declared_precision = precision(spec.get("precision"))
 
         predict_inputs = sorted(run_dir.glob("predict/predict_*.yaml"))
-        required: list[str] = []
-        for input_path in predict_inputs:
-            index = input_path.stem.rsplit("_", 1)[-1]
-            prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
-            required.append(str(input_path.relative_to(run_dir)))
-            if prediction_path.exists():
-                required.append(str(prediction_path.relative_to(run_dir)))
-        if required and verify_manifest_hashes(run_dir, manifest, required=required):
-            blocked_runs.append(
+        on_disk_inputs = {str(path.relative_to(run_dir)) for path in predict_inputs}
+        registered_inputs = {
+            key
+            for key in (manifest.get("inputs") or {})
+            if key.startswith("predict/predict_") and key.endswith(".yaml")
+        }
+        for missing in sorted(registered_inputs - on_disk_inputs):
+            if missing in candidate_errors:
+                continue
+            blocked_candidates.append(
                 {
                     "run_id": run_id,
-                    "errors": ["归档完整性校验失败：实际使用的预测/输入未被哈希覆盖"],
-                    "manifest": rel(manifest_path),
+                    "predict": missing,
+                    "error": "登记的 predict 输入文件不存在",
                 }
             )
-            continue
         for input_path in predict_inputs:
+            relative_input = str(input_path.relative_to(run_dir))
+            if relative_input in candidate_errors:
+                blocked_candidates.append(
+                    {
+                        "run_id": run_id,
+                        "predict": relative_input,
+                        "error": str(candidate_errors[relative_input]),
+                    }
+                )
+                continue
             index = input_path.stem.rsplit("_", 1)[-1]
             prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
+            if not prediction_path.exists():
+                blocked_candidates.append(
+                    {
+                        "run_id": run_id,
+                        "predict": relative_input,
+                        "error": "缺少对应 prediction.json",
+                    }
+                )
+                continue
+            required = [
+                relative_input,
+                str(prediction_path.relative_to(run_dir)),
+            ]
+            exp_config_path = run_dir / "exp_config.yaml"
+            registered = {
+                **(manifest.get("inputs") or {}),
+                **(manifest.get("outputs") or {}),
+            }
+            if "exp_config.yaml" in registered:
+                required.append("exp_config.yaml")
+            problems = verify_files(run_dir, manifest, required)
+            if problems:
+                blocked_candidates.append(
+                    {
+                        "run_id": run_id,
+                        "predict": relative_input,
+                        "error": "归档完整性校验失败：" + "；".join(problems),
+                    }
+                )
+                continue
             native = native_evidence(
                 input_path=input_path,
                 prediction_path=prediction_path,
-                exp_config_path=None,
+                exp_config_path=(
+                    exp_config_path if "exp_config.yaml" in registered else None
+                ),
                 run_id=run_id,
                 tool_version=tool_version,
                 models=models,
@@ -635,9 +652,24 @@ def read_archive_evidence(
                 ],
             )
             if native:
+                if native.get("database_mode") is None:
+                    # 未读取 exp_config 时，用 manifest spec 里声明的模式作提示；
+                    # 它不会被当成“从文件核验过”的身份。
+                    native["database_mode"] = database_mode
                 evidence.append(native)
 
         for csv_path in sorted(run_dir.rglob("pareto.csv")):
+            relative_csv = str(csv_path.relative_to(run_dir))
+            problems = verify_files(run_dir, manifest, [relative_csv])
+            if problems:
+                blocked_candidates.append(
+                    {
+                        "run_id": run_id,
+                        "predict": relative_csv,
+                        "error": "扫描器证据完整性校验失败：" + "；".join(problems),
+                    }
+                )
+                continue
             # pareto.csv 的负载与 spec 一致；逐行登记为扫描证据
             evidence.extend(
                 sweep_rows(
@@ -1230,7 +1262,18 @@ def render_markdown(doc: dict[str, Any]) -> str:
     lines.append(f"- SLA 可用工作点：{summary['workpoints_sla_usable']}")
     lines.append(f"- 仅参考记录：{summary['reference_only_records']}")
     lines.append(f"- 阻塞的归档运行：{summary['blocked_runs']}")
+    lines.append(
+        f"- 阻塞的候选回放：{summary.get('blocked_candidates', 0)}"
+        "（同一运行内其它成功候选仍可用）"
+    )
     lines.append("")
+    if doc.get("blocked_candidates"):
+        lines.append("阻塞候选：")
+        for item in doc["blocked_candidates"]:
+            lines.append(
+                f"- `{item.get('run_id')}` / `{item.get('predict')}`：{item.get('error')}"
+            )
+        lines.append("")
     if doc.get("blocked_runs"):
         lines.append("阻塞运行：")
         for run in doc["blocked_runs"]:
@@ -1296,14 +1339,20 @@ def build() -> dict[str, Any]:
     cost_hardware, cost_source = cost_capable_hardware()
     gaps: list[str] = []
     blocked_runs: list[dict[str, Any]] = []
+    blocked_candidates: list[dict[str, Any]] = []
 
     evidence = read_poc_evidence(models, hardware)
-    evidence.extend(read_archive_evidence(ARCHIVES, models, hardware, blocked_runs))
+    evidence.extend(
+        read_archive_evidence(
+            ARCHIVES, models, hardware, blocked_runs, blocked_candidates
+        )
+    )
     evidence.extend(public_reference_evidence(models, hardware))
     evidence.extend(db_reference_evidence(models, hardware, gaps))
 
     groups = group_workpoints(evidence)
     summary = summarize(evidence, groups, blocked_runs)
+    summary["blocked_candidates"] = len(blocked_candidates)
     static_matrix = build_static_matrix(
         models, hardware, evidence, cost_hardware
     )
@@ -1348,6 +1397,7 @@ def build() -> dict[str, Any]:
         "workpoints": groups,
         "evidence": evidence,
         "blocked_runs": blocked_runs,
+        "blocked_candidates": blocked_candidates,
         "gaps": gaps,
         "summary": summary,
     }

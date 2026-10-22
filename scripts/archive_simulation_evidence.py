@@ -148,6 +148,7 @@ def archive_predict(args: argparse.Namespace) -> Path:
         )
     }
     manifest = {
+        "archive_version": "ab-1",
         "tool": "aisimulate",
         "tool_version": args.tool_version,
         "run_id": args.name,
@@ -156,6 +157,25 @@ def archive_predict(args: argparse.Namespace) -> Path:
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": args.source or "manual live replay",
         "spec": spec_from_predict(config, args.precision, args.database_mode),
+        "workpoint": {
+            "model": engine.get("model"),
+            "system": engine.get("hardware"),
+            "precision": args.precision,
+            "input_len": (config.get("traffic") or {}).get("source", {}).get("input_tokens"),
+            "output_len": (config.get("traffic") or {}).get("source", {}).get("output_tokens"),
+            "concurrency": (config.get("traffic") or {}).get("load", {}).get("concurrency"),
+            "tp": (config.get("engine") or {}).get("workers", {}).get("aggregated", {}).get("parallelism", {}).get("tensor"),
+            "pp": (config.get("engine") or {}).get("workers", {}).get("aggregated", {}).get("parallelism", {}).get("pipeline"),
+            "dp": (config.get("engine") or {}).get("workers", {}).get("aggregated", {}).get("parallelism", {}).get("replicas"),
+            "requests": (config.get("traffic") or {}).get("stop", {}).get("requests"),
+        },
+        "predictions": [
+            {
+                "predict": "predict/predict_1.yaml",
+                "prediction": "predict/out_1/prediction.json",
+                "metrics": metrics,
+            }
+        ],
         "inputs": {
             str((target / "predict/predict_1.yaml").relative_to(target)): config_copy[
                 "sha256"
@@ -174,7 +194,10 @@ def archive_predict(args: argparse.Namespace) -> Path:
             ): prediction_copy["sha256"]
         },
         "errors": [],
+        "run_errors": [],
+        "candidate_errors": {},
         "not_aligned": {},
+        "not_replayed": {},
         "native_metrics": metrics,
         "sla_note": "P99 是否达标由本仓库的 SLA 规则判定；此处只保存预测值",
     }
@@ -232,6 +255,7 @@ def archive_work_dir(args: argparse.Namespace) -> Path:
         copied.append(copy_with_hash(path, target / relative))
 
     manifest = dict(source_manifest)
+    manifest["archive_version"] = "ab-1"
     manifest["run_id"] = args.name
     manifest["run_dir"] = str(target.relative_to(ROOT))
     manifest["work_root"] = str(target.relative_to(ROOT))
@@ -240,6 +264,40 @@ def archive_work_dir(args: argparse.Namespace) -> Path:
     )
     manifest["source_run_id"] = source_manifest.get("run_id")
     manifest["archived_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    spec = manifest.get("spec") or {}
+    manifest.setdefault(
+        "workpoint",
+        {
+            "model": spec.get("model"),
+            "system": spec.get("system"),
+            "precision": spec.get("precision"),
+            "input_len": spec.get("isl"),
+            "output_len": spec.get("osl"),
+            "concurrency": spec.get("concurrency"),
+        },
+    )
+    predictions = []
+    for prediction_path in sorted(target.glob("predict/out_*/prediction.json")):
+        index = prediction_path.parent.name.rsplit("_", 1)[-1]
+        payload = json.loads(prediction_path.read_text(encoding="utf-8"))
+        predictions.append(
+            {
+                "predict": f"predict/predict_{index}.yaml",
+                "prediction": str(prediction_path.relative_to(target)),
+                "metrics": {
+                    key: payload.get(key)
+                    for key in (
+                        "p99_ttft_ms",
+                        "p99_tpot_ms",
+                        "output_throughput_tok_s",
+                        "completed_requests",
+                        "decode_gpus_per_worker",
+                    )
+                },
+            }
+        )
+    if predictions:
+        manifest["predictions"] = predictions
     # 只保留已复制的性能证据：原 manifest 里的图片/脚本没有归档，
     # 不能继续出现在 outputs 里，否则哈希校验会指向不存在的文件。
     archived = {

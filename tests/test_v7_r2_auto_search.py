@@ -413,6 +413,10 @@ def test_scan_workload_does_not_gate_deployment_replay(tmp_path, monkeypatch):
     assert len(manifest["replay_plan"]) == 3
     assert all(item["replay_concurrency"] == 32 for item in manifest["replay_plan"])
     assert all(item["replay_input_len"] == 8192 for item in manifest["replay_plan"])
+    assert result.search_audit is not None
+    assert result.search_audit.discovered_deployments == 3
+    assert result.search_audit.replayed_deployments == 3
+    assert result.search_audit.effective_scope == "complete"
 
 
 def test_context_budget_is_not_a_search_constraint_but_a_filter():
@@ -539,3 +543,6 @@ def test_truncated_deployments_are_declared_as_incomplete(tmp_path, monkeypatch)
     )
     assert any("比较**不完整**" in item for item in result.limitations)
     assert len(manifest["not_replayed"]) == 1
+    assert result.search_audit is not None
+    assert result.search_audit.truncated_deployments == 1
+    assert result.search_audit.effective_scope == "partial"

@@ -1,0 +1,54 @@
+{
+  "archive_version": "ab-1",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "run_id": "poc-qwen3-32b-h100-tp8-c32-bf16",
+  "source": "N 阶段 PoC 原生回放迁移；原始 prediction 未修改",
+  "created_at": "2026-10-22T08:21:13+00:00",
+  "spec": {
+    "model": "Qwen/Qwen3-32B",
+    "precision": "bf16",
+    "system": "h100_sxm",
+    "isl": 8192,
+    "osl": 256,
+    "concurrency": 32,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "max_total_gpus": 8,
+    "database_mode": "SILICON"
+  },
+  "workpoint": {
+    "model": "Qwen/Qwen3-32B",
+    "system": "h100_sxm",
+    "precision": "bf16",
+    "input_len": 8192,
+    "output_len": 256,
+    "concurrency": 32,
+    "tp": 8,
+    "pp": 1,
+    "dp": 1,
+    "requests": 500
+  },
+  "inputs": {
+    "predict/predict_1.yaml": "c84198d32fd071db010d2f9f22d4d4a1cb0ddfe3a0b3ec41471f7dc30d116f68",
+    "exp_config.yaml": "c1afd887bf591f518abf7ebb19c5c61aad20185d003539ed32af845cfe53a54a",
+    "per_ops_source.json": "a6c7ccc5ccd8e930f6d5ae08369cfc8677ac52064b77fa6d8313db5455c6e07e"
+  },
+  "outputs": {
+    "predict/out_1/prediction.json": "39821385dd6708fbd50fc8cdbf22c51322d12c08ff4bfec050cdf14dde625d6d"
+  },
+  "native_metrics": {
+    "p99_ttft_ms": 5201.827252000001,
+    "p99_tpot_ms": 31.45861707450993,
+    "mean_ttft_ms": 548.0465038100006,
+    "mean_tpot_ms": 30.065770863803973,
+    "output_throughput_tok_s": 990.888548064229,
+    "completed_requests": 500,
+    "decode_gpus_per_worker": 8
+  },
+  "errors": [],
+  "run_errors": [],
+  "candidate_errors": {},
+  "not_aligned": {},
+  "not_replayed": {}
+}

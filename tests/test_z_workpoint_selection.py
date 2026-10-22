@@ -338,21 +338,19 @@ def test_gpu_limit_excludes_larger_deployment():
     assert entry.gpu_count == 4
     assert entry.tp_size == 4
 
-    # C8 只有 TP8 归档：4 卡上限下不能借用
-    assert (
-        find_archive(
-            model_id="qwen3-32b",
-            hardware_id="nvidia-h100-sxm-80gb",
-            input_len=8192,
-            output_len=256,
-            concurrency=8,
-            precision="bf16",
-            framework="vllm",
-            framework_version="0.24.0",
-            gpu_limit=4,
-        )
-        is None
+    # C8 现在也补齐了 TP4 归档：4 卡上限下选 TP4，不能借用 TP8
+    entry = find_archive(
+        model_id="qwen3-32b",
+        hardware_id="nvidia-h100-sxm-80gb",
+        input_len=8192,
+        output_len=256,
+        concurrency=8,
+        precision="bf16",
+        framework="vllm",
+        framework_version="0.24.0",
+        gpu_limit=4,
     )
+    assert entry is not None and entry.tp_size == 4
     paths = offline_simulation_paths(
         model_id="qwen3-32b",
         hardware_id="nvidia-h100-sxm-80gb",
@@ -364,7 +362,8 @@ def test_gpu_limit_excludes_larger_deployment():
         framework_version="0.24.0",
         gpu_limit=4,
     )
-    assert paths is not None and "archives" not in paths
+    assert paths is not None
+    assert all("tp4" in item["label"] for item in paths["archives"])
 
 
 def test_c32_returns_both_tp4_and_tp8():

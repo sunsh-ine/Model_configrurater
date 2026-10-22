@@ -43,6 +43,7 @@ from llm_capacity_pricing.schemas.simulation import (
     SimulationDeployment,
     SimulationMetrics,
     SimulationResult,
+    SimulationSearchAudit,
     SimulationToolIdentity,
     SimulationWorkload,
 )
@@ -543,6 +544,48 @@ def assess_verdict(candidate: SimulationCandidate, target: SimulationTarget) -> 
 
     candidate.verdict = "predicted_fail" if failures else "predicted_pass"
     candidate.verdict_reasons = reasons + failures
+    _attach_decision_quality(candidate, target)
+
+
+def _attach_decision_quality(
+    candidate: SimulationCandidate, target: SimulationTarget
+) -> None:
+    """AB3：余量、敏感性、证据状态。只影响展示，不改变 verdict。"""
+    metrics = candidate.metrics
+
+    def margin(predicted: Decimal | None, limit: Decimal | None) -> tuple[Decimal | None, Decimal | None]:
+        if predicted is None or limit is None or limit == 0:
+            return None, None
+        gap = limit - predicted
+        return gap, gap / limit
+
+    ttft_gap, ttft_ratio = margin(metrics.sim_p99_ttft_ms, target.ttft_p99_ms_max)
+    tpot_gap, tpot_ratio = margin(metrics.sim_p99_tpot_ms, target.tpot_p99_ms_max)
+    candidate.sla_margin_ttft_ms = ttft_gap
+    candidate.sla_margin_tpot_ms = tpot_gap
+    candidate.sla_margin_ttft_ratio = ttft_ratio
+    candidate.sla_margin_tpot_ratio = tpot_ratio
+
+    def sensitive(factor: Decimal) -> bool:
+        for predicted, limit in (
+            (metrics.sim_p99_ttft_ms, target.ttft_p99_ms_max),
+            (metrics.sim_p99_tpot_ms, target.tpot_p99_ms_max),
+        ):
+            if predicted is not None and limit is not None and predicted * factor > limit:
+                return True
+        return False
+
+    candidate.sensitive_10pct = sensitive(Decimal("1.1")) if candidate.verdict != "insufficient_prediction" else None
+    candidate.sensitive_20pct = sensitive(Decimal("1.2")) if candidate.verdict != "insufficient_prediction" else None
+
+    if candidate.verdict == "predicted_fail":
+        candidate.evidence_status = "predicted_fail"
+    elif candidate.verdict == "insufficient_prediction":
+        candidate.evidence_status = "insufficient_prediction"
+    elif candidate.sensitive_10pct or candidate.sensitive_20pct:
+        candidate.evidence_status = "boundary_sensitive"
+    else:
+        candidate.evidence_status = "predicted_pass"
 
 
 # ---------------------------------------------------------------------------
@@ -1297,6 +1340,16 @@ def load_archived(
     source = sweeper_csv or native_prediction
     if source is None and archives:
         source = archive_field(archives[0], "native_prediction")
+    audit = None
+    if archives:
+        native = [c for c in candidates if c.candidate_id.startswith("sim-native")]
+        audit = SimulationSearchAudit(
+            discovered_deployments=len(archives),
+            accepted_deployments=len(archives),
+            replayed_deployments=len(native),
+            effective_scope="offline_archives",
+            replayed=[c.candidate_id for c in native],
+        )
     return SimulationResult(
         status="computed",
         data_trust=SIMULATION_TRUST_LABEL,
@@ -1304,6 +1357,7 @@ def load_archived(
         candidates=candidates,
         limitations=limitations,
         source_dir=str(Path(source).parent) if source else None,
+        search_audit=audit,
     )
 
 
@@ -1621,7 +1675,12 @@ def run_two_stage(
         "inputs": {},
         "outputs": {},
         "errors": [],
+        #: 运行级错误（搜索未执行/无输出）：整次运行不可复用
+        "run_errors": [],
+        #: 候选级错误：键是候选 ID 或 predict/predict_N.yaml，只影响对应候选
+        "candidate_errors": {},
         "not_aligned": {},
+        "not_replayed": {},
     }
 
     try:
@@ -1636,7 +1695,9 @@ def run_two_stage(
             "sweeper", config_arg=search_path, save_dir=root / "search", config=tool_config
         )
     except Exception as exc:  # noqa: BLE001 - 含超时/启动失败
-        manifest["errors"].append(f"sweeper: {type(exc).__name__}: {exc}")
+        message = f"sweeper: {type(exc).__name__}: {exc}"
+        manifest["errors"].append(message)
+        manifest["run_errors"].append(message)
         (root / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -1647,7 +1708,9 @@ def run_two_stage(
 
     found = discover_outputs(search_out, "sweeper")
     if not found.get("sweeper_csv"):
-        manifest["errors"].append("sweeper: 输出目录里没有 pareto.csv / best_config_topn.csv")
+        message = "sweeper: 输出目录里没有 pareto.csv / best_config_topn.csv"
+        manifest["errors"].append(message)
+        manifest["run_errors"].append(message)
         (root / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -1688,6 +1751,23 @@ def run_two_stage(
     # AA2：搜索行只用于发现**部署配置**。扫描行的 ISL/OSL/并发/ctx 是
     # 它被搜索到时的负载，不是用户目标负载；回放统一用 spec 重新构造。
     deployments: dict[tuple[Any, ...], SimulationCandidate] = {}
+    discovered_keys: set[tuple[Any, ...]] = set()
+
+    def deployment_key(candidate: SimulationCandidate) -> tuple[Any, ...]:
+        dep = candidate.deployment
+        return (
+            dep.model_name,
+            dep.system,
+            dep.tp_size,
+            dep.pp_size,
+            dep.dp_size,
+            dep.gpu_count,
+            dep.backend,
+            dep.backend_version,
+        )
+
+    for candidate in search_candidates:
+        discovered_keys.add(deployment_key(candidate))
     manifest.setdefault("not_replayed", {})
     for candidate in search_candidates:
         reasons = deployment_identity_reasons(candidate, effective_target)
@@ -1698,9 +1778,11 @@ def run_two_stage(
         try:
             accepted = accept(candidate) if accept is not None else True
         except Exception as exc:  # noqa: BLE001 - 资格回调本身出错也不能中断整轮
-            manifest["errors"].append(
+            message = (
                 f"{candidate.candidate_id}: 资格校验异常 {type(exc).__name__}: {exc}"
             )
+            manifest["errors"].append(message)
+            manifest["candidate_errors"][candidate.candidate_id] = message
             accepted = False
         if not accepted:
             why = list(candidate.resource_reasons or [])
@@ -1776,9 +1858,14 @@ def run_two_stage(
             )
         except Exception as exc:  # noqa: BLE001
             # 单候选的任何失败（超时、启动失败、输出损坏、解析异常）都只记录，不中断
-            manifest["errors"].append(
-                f"{candidate.candidate_id}: {type(exc).__name__}: {exc}"
-            )
+            message = f"{candidate.candidate_id}: {type(exc).__name__}: {exc}"
+            manifest["errors"].append(message)
+            manifest["candidate_errors"][candidate.candidate_id] = message
+            manifest["candidate_errors"][f"predict/predict_{index}.yaml"] = message
+        else:
+            manifest.setdefault("predict_candidates", {})[
+                f"predict/predict_{index}.yaml"
+            ] = candidate.candidate_id
 
     (root / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -1803,10 +1890,36 @@ def run_two_stage(
             "详见工作目录下的 manifest.json"
         )
     status = "computed" if (search_candidates or native_candidates) else "missing_data"
+    failed_candidates = {
+        key: value
+        for key, value in manifest["candidate_errors"].items()
+        if not key.startswith("predict/")
+    }
+    if truncated:
+        effective_scope = "partial"
+    elif failed_candidates:
+        effective_scope = "partial_with_failures"
+    else:
+        effective_scope = "complete"
+    audit = SimulationSearchAudit(
+        discovered_deployments=len(discovered_keys),
+        accepted_deployments=len(pool),
+        replayed_deployments=len(native_candidates),
+        failed_deployments=len(
+            [key for key in manifest["candidate_errors"] if key.startswith("predict/")]
+        ),
+        truncated_deployments=len(truncated),
+        filtered={**manifest["not_aligned"], **manifest["not_replayed"]},
+        replayed=[candidate.candidate_id for candidate in native_candidates],
+        failed=failed_candidates,
+        truncated=[candidate.candidate_id for candidate in truncated],
+        effective_scope=effective_scope,
+    )
     return SimulationResult(
         status=status,
         tool=tool,
         candidates=search_candidates + native_candidates,
         limitations=limitations,
         source_dir=str(root),
+        search_audit=audit,
     )

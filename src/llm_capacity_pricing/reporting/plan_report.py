@@ -76,6 +76,20 @@ def _fmt(value: Any) -> str:
     return "—" if value is None else str(value)
 
 
+def _fmt_pct(value: Any) -> str:
+    return "—" if value is None else f"{float(value) * 100:.1f}%"
+
+
+def _sensitivity_text(value: bool | None, percent: int) -> str:
+    if value is None:
+        return f"上调 {percent}%：未评估（预测不足）"
+    return (
+        f"上调 {percent}% 后越过阈值"
+        if value
+        else f"上调 {percent}% 仍不越过阈值"
+    )
+
+
 _STATIC_LABEL = {
     "feasible": "可行",
     "conditional_feasible": "条件可行（需按假设复核）",
@@ -458,6 +472,14 @@ _VERDICT_LABEL = {
     "predicted_fail": "预测**未**满足阈值（模拟）",
     "insufficient_prediction": "预测不足以下结论",
 }
+_EVIDENCE_LABEL = {
+    "predicted_pass": "预测达标（有余量）",
+    "boundary_sensitive": "预测达标（边界敏感）",
+    "predicted_fail": "预测未达标",
+    "insufficient_prediction": "证据不足",
+    "observed_pass": "实测达标",
+    "observed_fail": "实测未达标",
+}
 _SIM_STATUS_LABEL = {
     "computed": "已计算",
     "not_configured": "未启用",
@@ -554,7 +576,8 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         if recommended is None:
             add(
                 "**没有候选被预测为满足你的 P99 阈值**；下面给的是推荐池里预测吞吐最高的"
-                "候选，只用来说明「最好能到哪一步」，**不是**达标建议。"
+                "参考配置，只用来说明「最好能到哪一步」，**不是**达标建议，"
+                "也不代表它距离 SLA 最近。"
             )
             add("")
             heading = "**未达标参考配置（模拟）**"
@@ -590,6 +613,35 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             f"（均值 {_fmt(metrics.sim_mean_tpot_ms)}） |"
         )
         add(f"| 预测结论 | {_VERDICT_LABEL.get(headline.verdict, headline.verdict)} |")
+        add(
+            f"| SLA 裕量 | TTFT {_fmt(headline.sla_margin_ttft_ms)} ms"
+            f"（{_fmt_pct(headline.sla_margin_ttft_ratio)}）、"
+            f"TPOT {_fmt(headline.sla_margin_tpot_ms)} ms"
+            f"（{_fmt_pct(headline.sla_margin_tpot_ratio)}） |"
+        )
+        add(
+            "| 预测敏感性 | "
+            + _sensitivity_text(headline.sensitive_10pct, 10)
+            + "；"
+            + _sensitivity_text(headline.sensitive_20pct, 20)
+            + " |"
+        )
+        add(
+            "| 证据状态 | "
+            + _EVIDENCE_LABEL.get(headline.evidence_status, headline.evidence_status)
+            + " |"
+        )
+        add(f"| 资源效率 | {_fmt(metrics.sim_tokens_per_gpu)} tok/s/GPU |")
+        min_gpu = simulation.min_gpu_for_sla()
+        add(
+            "| 满足 SLA 的最小配置 | "
+            + (
+                f"`{min_gpu.candidate_id}`（{min_gpu.deployment.gpu_count} 卡）"
+                if min_gpu is not None
+                else "没有预测达标候选"
+            )
+            + " |"
+        )
         add(
             "| 静态可行性（Sizing） | "
             + {
@@ -679,6 +731,35 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         for cid, note_list in notes:
             for note in note_list:
                 add(f"- `{cid}`：{note}")
+        add("")
+
+    audit = getattr(simulation, "search_audit", None)
+    if audit is not None:
+        add("**候选搜索与推荐有效范围**：")
+        add("")
+        add(
+            f"- 发现部署：{audit.discovered_deployments}；"
+            f"通过身份/资源筛选：{audit.accepted_deployments}；"
+            f"完成原生回放：{audit.replayed_deployments}；"
+            f"回放失败：{audit.failed_deployments}；"
+            f"因回放上限截断：{audit.truncated_deployments}"
+        )
+        add(
+            "- 有效范围："
+            + {
+                "complete": "本轮已比较全部通过筛选的部署",
+                "partial": "**不完整**：有部署因回放上限未验证 P99",
+                "partial_with_failures": "**不完整**：有候选回放失败",
+                "offline_archives": "离线归档选择（仅包含已归档的部署）",
+            }.get(audit.effective_scope, audit.effective_scope)
+        )
+        if audit.filtered:
+            add("")
+            add("未参与比较的候选及原因：")
+            for cid, reasons in list(audit.filtered.items())[:8]:
+                add(f"- `{cid}`：" + "；".join(reasons))
+            if len(audit.filtered) > 8:
+                add(f"- …… 另有 {len(audit.filtered) - 8} 条，详见 manifest。")
         add("")
 
     add("**本节结论的限制**：")

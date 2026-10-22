@@ -65,6 +65,8 @@ def test_native_p99_workpoints_are_exact_c8_c32_c64():
             item
             for item in _native(doc, concurrency)
             if item["identity"].get("tp_size") == 8
+            and item["workload"].get("input_len") == 8192
+            and item["workload"].get("output_len") == 256
         ]
         assert evidence, f"C{concurrency} 缺 TP8 原生证据"
         assert {item["metrics"]["ttft_p99_ms"] for item in evidence} == {ttft}
@@ -279,6 +281,165 @@ def test_tampered_archive_is_blocked_in_coverage(tmp_path: Path):
         encoding="utf-8",
     )
     blocked: list[dict] = []
-    evidence = read_archive_evidence(tmp_path, [], [], blocked)
+    blocked_candidates: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked, blocked_candidates)
     assert evidence == []
-    assert blocked and "完整性" in str(blocked[0]["errors"])
+    assert blocked_candidates
+    assert "完整性" in str(blocked_candidates[0]["error"])
+
+
+def test_tampered_exp_config_blocks_native_evidence(tmp_path: Path):
+    import hashlib
+
+    run = tmp_path / "exp-run"
+    (run / "predict" / "out_1").mkdir(parents=True)
+    input_path, prediction_path = _fake_native_files(tmp_path)
+    (run / "predict" / "predict_1.yaml").write_bytes(input_path.read_bytes())
+    (run / "predict" / "out_1" / "prediction.json").write_bytes(
+        prediction_path.read_bytes()
+    )
+    exp = run / "exp_config.yaml"
+    exp.write_text("database_mode: SILICON\n", encoding="utf-8")
+    manifest = {
+        "run_id": "exp-run",
+        "tool_version": "0.12.1",
+        "spec": {"precision": "bf16", "database_mode": "SILICON"},
+        "errors": [],
+        "run_errors": [],
+        "candidate_errors": {},
+        "inputs": {
+            "predict/predict_1.yaml": hashlib.sha256(
+                (run / "predict" / "predict_1.yaml").read_bytes()
+            ).hexdigest(),
+            "exp_config.yaml": hashlib.sha256(exp.read_bytes()).hexdigest(),
+        },
+        "outputs": {
+            "predict/out_1/prediction.json": hashlib.sha256(
+                (run / "predict" / "out_1" / "prediction.json").read_bytes()
+            ).hexdigest()
+        },
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    exp.write_text("database_mode: HYBRID\n", encoding="utf-8")
+    blocked: list[dict] = []
+    candidates: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked, candidates)
+    assert evidence == []
+    assert candidates and "exp_config" in candidates[0]["error"]
+
+
+def test_missing_registered_exp_config_blocks_native_evidence(tmp_path: Path):
+    import hashlib
+
+    run = tmp_path / "missing-exp"
+    (run / "predict" / "out_1").mkdir(parents=True)
+    input_path, prediction_path = _fake_native_files(tmp_path)
+    (run / "predict" / "predict_1.yaml").write_bytes(input_path.read_bytes())
+    (run / "predict" / "out_1" / "prediction.json").write_bytes(
+        prediction_path.read_bytes()
+    )
+    exp = run / "exp_config.yaml"
+    exp.write_text("database_mode: SILICON\n", encoding="utf-8")
+    manifest = {
+        "run_id": "missing-exp",
+        "tool_version": "0.12.1",
+        "spec": {"precision": "bf16", "database_mode": "SILICON"},
+        "errors": [],
+        "run_errors": [],
+        "candidate_errors": {},
+        "inputs": {
+            "predict/predict_1.yaml": hashlib.sha256(
+                (run / "predict" / "predict_1.yaml").read_bytes()
+            ).hexdigest(),
+            "exp_config.yaml": hashlib.sha256(exp.read_bytes()).hexdigest(),
+        },
+        "outputs": {
+            "predict/out_1/prediction.json": hashlib.sha256(
+                (run / "predict" / "out_1" / "prediction.json").read_bytes()
+            ).hexdigest()
+        },
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    exp.unlink()
+    blocked: list[dict] = []
+    candidates: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked, candidates)
+    assert evidence == []
+    assert candidates and "exp_config.yaml" in candidates[0]["error"]
+
+
+def test_registered_missing_predict_input_is_reported(tmp_path: Path):
+    import hashlib
+
+    run = tmp_path / "missing-input"
+    (run / "predict" / "out_1").mkdir(parents=True)
+    input_path, prediction_path = _fake_native_files(tmp_path)
+    (run / "predict" / "predict_1.yaml").write_bytes(input_path.read_bytes())
+    (run / "predict" / "out_1" / "prediction.json").write_bytes(
+        prediction_path.read_bytes()
+    )
+    manifest = {
+        "run_id": "missing-input",
+        "spec": {"precision": "bf16", "database_mode": "SILICON"},
+        "errors": [],
+        "run_errors": [],
+        "candidate_errors": {},
+        "inputs": {
+            "predict/predict_1.yaml": hashlib.sha256(
+                (run / "predict" / "predict_1.yaml").read_bytes()
+            ).hexdigest(),
+            "predict/predict_2.yaml": "deadbeef",
+        },
+        "outputs": {
+            "predict/out_1/prediction.json": hashlib.sha256(
+                (run / "predict" / "out_1" / "prediction.json").read_bytes()
+            ).hexdigest()
+        },
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    blocked: list[dict] = []
+    candidates: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked, candidates)
+    assert len(evidence) == 1
+    assert any(item["predict"] == "predict/predict_2.yaml" for item in candidates)
+
+
+def test_unregistered_exp_config_is_not_read(tmp_path: Path):
+    import hashlib
+
+    run = tmp_path / "unregistered-exp"
+    (run / "predict" / "out_1").mkdir(parents=True)
+    input_path, prediction_path = _fake_native_files(tmp_path)
+    (run / "predict" / "predict_1.yaml").write_bytes(input_path.read_bytes())
+    (run / "predict" / "out_1" / "prediction.json").write_bytes(
+        prediction_path.read_bytes()
+    )
+    # 文件存在但 manifest 未登记：不得被读取为证据身份
+    (run / "exp_config.yaml").write_text("database_mode: HYBRID\n", encoding="utf-8")
+    manifest = {
+        "run_id": "unregistered-exp",
+        "spec": {"precision": "bf16", "database_mode": "SILICON"},
+        "errors": [],
+        "run_errors": [],
+        "candidate_errors": {},
+        "inputs": {
+            "predict/predict_1.yaml": hashlib.sha256(
+                (run / "predict" / "predict_1.yaml").read_bytes()
+            ).hexdigest()
+        },
+        "outputs": {
+            "predict/out_1/prediction.json": hashlib.sha256(
+                (run / "predict" / "out_1" / "prediction.json").read_bytes()
+            ).hexdigest()
+        },
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    blocked: list[dict] = []
+    candidates: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked, candidates)
+    assert len(evidence) == 1
+    assert evidence[0]["database_mode"] == "SILICON"
+    assert all(
+        not item["path"].endswith("exp_config.yaml")
+        for item in evidence[0]["supporting_artifacts"]
+    )

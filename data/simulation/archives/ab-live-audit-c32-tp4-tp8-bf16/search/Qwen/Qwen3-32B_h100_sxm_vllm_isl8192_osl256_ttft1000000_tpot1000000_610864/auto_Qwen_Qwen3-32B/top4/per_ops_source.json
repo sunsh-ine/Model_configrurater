@@ -1,0 +1,35 @@
+{
+  "genonly_step": {
+    "generation_act_gate": "empirical",
+    "generation_add_norm_1": "empirical",
+    "generation_add_norm_2": "empirical",
+    "generation_ar_1": "empirical",
+    "generation_ar_2": "empirical",
+    "generation_attention": "silicon",
+    "generation_embedding": "empirical",
+    "generation_embedding_ar": "empirical",
+    "generation_ffn2_gemm": "silicon",
+    "generation_gate_ffn1_gemm": "silicon",
+    "generation_logits_gemm": "silicon",
+    "generation_p2p": "silicon",
+    "generation_proj_gemm": "silicon",
+    "generation_qkv_gemm": "silicon"
+  },
+  "mix_step": {
+    "context_act_gate": "empirical",
+    "context_add_norm_1": "empirical",
+    "context_add_norm_2": "empirical",
+    "context_ar_1": "empirical",
+    "context_ar_2": "empirical",
+    "context_attention (scaled)": "mixed",
+    "context_embedding": "empirical",
+    "context_embedding_ar": "empirical",
+    "context_ffn2_gemm": "silicon",
+    "context_gate_ffn1_gemm": "silicon",
+    "context_logits_gemm": "silicon",
+    "context_p2p": "silicon",
+    "context_proj_gemm": "silicon",
+    "context_qkv_gemm": "silicon",
+    "generation_attention": "silicon"
+  }
+}
