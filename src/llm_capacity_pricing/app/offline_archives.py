@@ -1,0 +1,448 @@
+"""离线模拟归档的选择规则（Z4）。
+
+目的：用户只填需求时，系统自动挑**同一工作点**的原生回放证据；
+挑不到就不放 P99，而不是拿另一个并发/长度的结果凑数。
+
+选择顺序（确定性）：
+
+1. 模型仓库、system、ISL/OSL/并发必须完全一致；
+2. 请求声明了精度/框架/版本时，必须一致；
+3. 有多个部署时，优先 GPU 数更多的部署（例如 TP8 优先于 TP4），
+   再按归档时间/名称排序。
+
+扫描器 CSV 只用于候选枚举，可以跨工作点使用；但原生 P99 只能来自
+与请求可比较的那一条归档。
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from llm_capacity_pricing.perf.aisimulate_adapter import system_for_hardware_id
+
+ROOT = Path(__file__).resolve().parents[3]
+ARCHIVE_ROOT = ROOT / "data/simulation/archives"
+MODEL_MANIFEST = ROOT / "data/models/model_manifest.yaml"
+
+POC_SWEEPER = "docs/poc/aisimulate/artifacts/matched_pareto_vllm_bf16.csv"
+POC_EXP_CONFIG = "docs/poc/aisimulate/artifacts/matched_exp_config_vllm_bf16.yaml"
+POC_PER_OPS = "docs/poc/aisimulate/artifacts/per_ops_source.json"
+POC_NATIVE = "docs/poc/aisimulate/17_matched_native_result_tp8_conc32_bf16.json"
+POC_NATIVE_INPUT = "docs/poc/aisimulate/16_matched_native_input_tp8_conc32_bf16.yaml"
+
+#: 归档里可能出现的版本槽位别名；解析成实际版本后才算身份匹配。
+VERSION_ALIASES = {"current": "0.24.0"}
+
+
+@dataclass(frozen=True)
+class ArchiveEntry:
+    name: str
+    model_name: str | None
+    system: str | None
+    precision: str | None
+    backend: str | None
+    backend_version: str | None
+    input_len: int | None
+    output_len: int | None
+    concurrency: int | None
+    gpu_count: int | None
+    tp_size: int | None
+    requests: int | None
+    native_prediction: str
+    native_input: str
+    exp_config: str | None
+    per_ops_source: str | None
+    tool_version: str | None
+    #: 实际完成请求数（P99 的真实样本窗口）；缺省视为不足，不能只信 stop.requests
+    completed_requests: int | None = None
+
+    @property
+    def sort_key(self) -> tuple[int, int, str]:
+        return (
+            self.gpu_count or 0,
+            self.completed_requests or 0,
+            self.name,
+        )
+
+
+def _completed_requests(path: Path) -> int | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    return _int(payload.get("completed_requests"))
+
+
+def _model_repo_map() -> dict[str, str]:
+    try:
+        doc = yaml.safe_load(MODEL_MANIFEST.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    return {
+        str(item.get("model_id")): str(item.get("repo_id"))
+        for item in doc.get("models") or []
+        if item.get("model_id") and item.get("repo_id")
+    }
+
+
+def _version(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return VERSION_ALIASES.get(text, text) or None
+
+
+def _int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _entry_from_paths(
+    *,
+    name: str,
+    native_prediction: Path,
+    native_input: Path,
+    exp_config: Path | None,
+    per_ops_source: Path | None,
+    model_name: str | None,
+    system: str | None,
+    precision: str | None,
+    backend: str | None,
+    backend_version: str | None,
+    input_len: int | None,
+    output_len: int | None,
+    concurrency: int | None,
+    gpu_count: int | None,
+    tp_size: int | None,
+    requests: int | None,
+    tool_version: str | None,
+    completed_requests: int | None = None,
+) -> ArchiveEntry:
+    return ArchiveEntry(
+        name=name,
+        model_name=model_name,
+        system=system,
+        precision=precision,
+        backend=backend,
+        backend_version=_version(backend_version),
+        input_len=input_len,
+        output_len=output_len,
+        concurrency=concurrency,
+        gpu_count=gpu_count,
+        tp_size=tp_size,
+        requests=requests,
+        completed_requests=(
+            completed_requests
+            if completed_requests is not None
+            else _completed_requests(native_prediction)
+        ),
+        native_prediction=str(native_prediction.relative_to(ROOT)),
+        native_input=str(native_input.relative_to(ROOT)),
+        exp_config=(
+            str(exp_config.relative_to(ROOT)) if exp_config and exp_config.exists() else None
+        ),
+        per_ops_source=(
+            str(per_ops_source.relative_to(ROOT))
+            if per_ops_source and per_ops_source.exists()
+            else None
+        ),
+        tool_version=tool_version,
+    )
+
+
+def _poc_entry() -> ArchiveEntry | None:
+    prediction = ROOT / POC_NATIVE
+    native_input = ROOT / POC_NATIVE_INPUT
+    if not prediction.exists() or not native_input.exists():
+        return None
+    cfg = yaml.safe_load(native_input.read_text(encoding="utf-8")) or {}
+    engine = cfg.get("engine") or {}
+    traffic = cfg.get("traffic") or {}
+    source = traffic.get("source") or {}
+    load = traffic.get("load") or {}
+    stop = traffic.get("stop") or {}
+    parallelism = ((engine.get("workers") or {}).get("aggregated") or {}).get(
+        "parallelism"
+    ) or {}
+    tp = _int(parallelism.get("tensor"))
+    pp = _int(parallelism.get("pipeline")) or 1
+    replicas = _int(parallelism.get("replicas")) or 1
+    return _entry_from_paths(
+        name="poc-20261020-tp8-c32-bf16",
+        native_prediction=prediction,
+        native_input=native_input,
+        exp_config=ROOT / POC_EXP_CONFIG,
+        per_ops_source=ROOT / POC_PER_OPS,
+        model_name=engine.get("model"),
+        system=engine.get("hardware"),
+        precision="bf16",
+        backend=engine.get("backend"),
+        backend_version=engine.get("backend_version"),
+        input_len=_int(source.get("input_tokens")),
+        output_len=_int(source.get("output_tokens")),
+        concurrency=_int(load.get("concurrency")),
+        gpu_count=(tp * pp * replicas) if tp else None,
+        tp_size=tp,
+        requests=_int(stop.get("requests")),
+        tool_version="0.12.1",
+    )
+
+
+def archive_entries() -> list[ArchiveEntry]:
+    """列出所有可用的原生回放归档（PoC + Z 阶段实时归档）。"""
+    entries: list[ArchiveEntry] = []
+    poc = _poc_entry()
+    if poc is not None:
+        entries.append(poc)
+    if not ARCHIVE_ROOT.exists():
+        return entries
+    for manifest_path in sorted(ARCHIVE_ROOT.glob("*/manifest.json")):
+        run_dir = manifest_path.parent
+        try:
+            manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        spec = manifest.get("spec") or {}
+        if manifest.get("errors"):
+            continue
+        exp_config = run_dir / "exp_config.yaml"
+        for input_path in sorted(run_dir.glob("predict/predict_*.yaml")):
+            index = input_path.stem.rsplit("_", 1)[-1]
+            prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
+            if not prediction_path.exists():
+                continue
+            cfg = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
+            engine = cfg.get("engine") or {}
+            traffic = cfg.get("traffic") or {}
+            source = traffic.get("source") or {}
+            load = traffic.get("load") or {}
+            stop = traffic.get("stop") or {}
+            parallel = ((engine.get("workers") or {}).get("aggregated") or {}).get(
+                "parallelism"
+            ) or {}
+            run_name = str(manifest.get("run_id") or run_dir.name)
+            entries.append(
+                _entry_from_paths(
+                    # 多候选用 run_id + 预测序号区分，避免同名覆盖
+                    name=f"{run_name}:predict_{index}",
+                    native_prediction=prediction_path,
+                    native_input=input_path,
+                    exp_config=exp_config,
+                    per_ops_source=None,
+                    model_name=engine.get("model") or spec.get("model"),
+                    system=engine.get("hardware") or spec.get("system"),
+                    precision=spec.get("precision"),
+                    backend=engine.get("backend") or spec.get("backend"),
+                    backend_version=engine.get("backend_version")
+                    or spec.get("backend_version"),
+                    input_len=_int(source.get("input_tokens") or spec.get("isl")),
+                    output_len=_int(source.get("output_tokens") or spec.get("osl")),
+                    concurrency=_int(
+                        load.get("concurrency") or spec.get("concurrency")
+                    ),
+                    gpu_count=(
+                        (_int(parallel.get("tensor")) or 0)
+                        * (_int(parallel.get("pipeline")) or 1)
+                        * (_int(parallel.get("replicas")) or 1)
+                    )
+                    or None,
+                    tp_size=_int(parallel.get("tensor")),
+                    requests=_int(stop.get("requests")),
+                    tool_version=manifest.get("tool_version"),
+                )
+            )
+    return entries
+
+
+def find_archive(
+    *,
+    model_id: str,
+    hardware_id: str,
+    input_len: int,
+    output_len: int,
+    concurrency: int,
+    precision: str | None = None,
+    framework: str | None = None,
+    framework_version: str | None = None,
+    min_requests: int = 100,
+    match_identity: bool = True,
+    gpu_limit: int | None = None,
+    tp_sizes: tuple[int, ...] | None = None,
+) -> ArchiveEntry | None:
+    """找与请求**同一工作点**的原生 P99 证据；找不到返回 ``None``。
+
+    ``match_identity=False`` 时只匹配工作点（模型/硬件/长度/并发），
+    用于把“精度或框架不一致”的归档展示成**不可比**证据，而不是静默丢弃。
+
+    ``gpu_limit`` 是用户可用卡数上限：超过上限的部署不能被当作可比证据；
+    卡数未知的归档在给出上限时同样拒绝（fail-closed）。
+    ``tp_sizes`` 是用户允许的 TP 列表；列表外或未声明 TP 的归档不选。
+    """
+    model_repo = _model_repo_map().get(model_id)
+    system = system_for_hardware_id(hardware_id)
+    if not model_repo or not system:
+        return None
+
+    candidates = [
+        entry
+        for entry in archive_entries()
+        if entry.model_name == model_repo
+        and entry.system == system
+        and entry.input_len == input_len
+        and entry.output_len == output_len
+        and entry.concurrency == concurrency
+        and (entry.completed_requests or 0) >= min_requests
+        and entry.gpu_count is not None
+        and (gpu_limit is None or entry.gpu_count <= gpu_limit)
+        and (
+            tp_sizes is None
+            or (entry.tp_size is not None and entry.tp_size in tp_sizes)
+        )
+        and (
+            not match_identity
+            or (
+                (
+                    precision is None
+                    or (entry.precision is not None and entry.precision == precision)
+                )
+                and (
+                    framework is None
+                    or (entry.backend is not None and entry.backend == framework)
+                )
+                and (
+                    framework_version is None
+                    or (
+                        entry.backend_version is not None
+                        and entry.backend_version == framework_version
+                    )
+                )
+            )
+        )
+    ]
+    if not candidates:
+        return None
+    # 同一工作点有多个部署时取 GPU 数最多的（例如 TP8 优先于 TP4），确定性排序
+    return max(candidates, key=lambda entry: entry.sort_key)
+
+
+def available_workpoints(
+    *, model_id: str, hardware_id: str, min_requests: int = 100
+) -> list[dict[str, Any]]:
+    """列出该模型/硬件上已有原生 P99 的工作点（用于报告缺口说明）。"""
+    model_repo = _model_repo_map().get(model_id)
+    system = system_for_hardware_id(hardware_id)
+    if not model_repo or not system:
+        return []
+    seen: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for entry in archive_entries():
+        if (
+            entry.model_name != model_repo
+            or entry.system != system
+            or (entry.completed_requests or 0) < min_requests
+        ):
+            continue
+        key = (
+            entry.input_len,
+            entry.output_len,
+            entry.concurrency,
+            entry.precision,
+        )
+        if key in seen:
+            continue
+        seen[key] = {
+            "input_len": entry.input_len,
+            "output_len": entry.output_len,
+            "concurrency": entry.concurrency,
+            "precision": entry.precision,
+            "gpu_count": entry.gpu_count,
+            "requests": entry.requests,
+        }
+    return sorted(
+        seen.values(),
+        key=lambda item: (
+            item["input_len"] or 0,
+            item["output_len"] or 0,
+            item["concurrency"] or 0,
+        ),
+    )
+
+
+def offline_simulation_paths(
+    *,
+    model_id: str,
+    hardware_id: str,
+    input_len: int,
+    output_len: int,
+    concurrency: int,
+    precision: str | None,
+    framework: str | None,
+    framework_version: str | None,
+    gpu_limit: int | None = None,
+    tp_sizes: tuple[int, ...] | None = None,
+) -> dict[str, Any] | None:
+    """构造离线 ``PlanSimulationInput`` 的字段；没有匹配的原生证据就不放 P99。
+
+    扫描器 CSV 只覆盖 Qwen3-32B / H100 SXM / ISL8192 / OSL256；其他模型、
+    硬件或长度既不套用该扫描器，也不套用其他工作点的 P99，返回 ``None``。
+    """
+    sweeper_applicable = (
+        model_id == "qwen3-32b"
+        and hardware_id == "nvidia-h100-sxm-80gb"
+        and input_len == 8192
+        and output_len == 256
+    )
+    paths: dict[str, Any] = {
+        "native_model_precision": precision,
+        "tool_version": "0.12.1",
+        "backend_version_aliases": dict(VERSION_ALIASES),
+    }
+    if sweeper_applicable:
+        paths["sweeper_csv"] = POC_SWEEPER
+    entry = find_archive(
+        model_id=model_id,
+        hardware_id=hardware_id,
+        input_len=input_len,
+        output_len=output_len,
+        concurrency=concurrency,
+        precision=precision,
+        framework=framework,
+        framework_version=framework_version,
+        gpu_limit=gpu_limit,
+        tp_sizes=tp_sizes,
+    )
+    if entry is None:
+        # 同一工作点存在、但精度/框架不一致：仍然展示为“不可比”证据，
+        # 由 check_comparability 明确写出原因；绝不把它当成可比 P99。
+        entry = find_archive(
+            model_id=model_id,
+            hardware_id=hardware_id,
+            input_len=input_len,
+            output_len=output_len,
+            concurrency=concurrency,
+            match_identity=False,
+            gpu_limit=gpu_limit,
+            tp_sizes=tp_sizes,
+        )
+    if entry is None:
+        return paths if "sweeper_csv" in paths else None
+    paths.update(
+        {
+            "native_prediction": entry.native_prediction,
+            "native_input": entry.native_input,
+            # 不得用请求值补归档缺失的精度：那会把“未声明”伪造成“已核实”。
+            "native_model_precision": entry.precision,
+            "tool_version": entry.tool_version or "0.12.1",
+        }
+    )
+    if entry.exp_config:
+        paths["exp_config"] = entry.exp_config
+    if entry.per_ops_source:
+        paths["per_ops_source"] = entry.per_ops_source
+    return paths

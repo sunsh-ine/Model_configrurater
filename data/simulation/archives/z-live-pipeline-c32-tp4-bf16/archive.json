@@ -1,0 +1,48 @@
+{
+  "archived_at": "2026-10-22T03:49:48+00:00",
+  "kind": "auto_search_work_dir",
+  "tool_version": "0.12.1",
+  "source_work_dir": "data/exports/z2_live_pipeline/sim_work",
+  "files": [
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/predict/out_1/prediction.json",
+      "sha256": "f13e535018ccb2cc77515b29b55a3e9ffd4a17e9c546be5750b0ecb3c2b490d9"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/predict/predict_1.yaml",
+      "sha256": "1603dafe9d2fe86c00d0f45939d3ba0ce14c1cca062b7d634b1b37e694e400c2"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/best_config_topn.csv",
+      "sha256": "0639aa93d662da1326fcef5c879cc2ff244818ece2062a85fd3468a18fc1dd2d"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/exp_config.yaml",
+      "sha256": "72dccae87f8128d829554b50deaf966056196b6456aeba6c57b5d87bb2eb243c"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/pareto.csv",
+      "sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/top1/per_ops_source.json",
+      "sha256": "a6c7ccc5ccd8e930f6d5ae08369cfc8677ac52064b77fa6d8313db5455c6e07e"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/top2/per_ops_source.json",
+      "sha256": "a6c7ccc5ccd8e930f6d5ae08369cfc8677ac52064b77fa6d8313db5455c6e07e"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/top3/per_ops_source.json",
+      "sha256": "a6c7ccc5ccd8e930f6d5ae08369cfc8677ac52064b77fa6d8313db5455c6e07e"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_75795/auto_Qwen_Qwen3-32B/top4/per_ops_source.json",
+      "sha256": "87fb9da366f5ced623abe3db7b3dabf5d86a0800b8fd2579f483dbfef6e5cfe3"
+    },
+    {
+      "path": "data/simulation/archives/z-live-pipeline-c32-tp4-bf16/search_input.yaml",
+      "sha256": "eb1358f136fe88a724a45c50d4dd3dcf994cf861898915a954341301c043c24a"
+    }
+  ]
+}

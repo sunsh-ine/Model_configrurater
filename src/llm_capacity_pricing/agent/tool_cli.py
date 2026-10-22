@@ -38,11 +38,11 @@ from llm_capacity_pricing.app.demo_service import (
 ROOT = Path(__file__).resolve().parents[3]
 RUNS = ROOT / "data/agent_runs"
 TASKS = ROOT / "data/agent_tasks"
-_SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 def _safe_id(value: str | None, fallback: str) -> str:
-    if value and _SAFE_ID.match(value):
+    if value and _SAFE_ID.fullmatch(value):
         return value
     return fallback
 

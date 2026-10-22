@@ -1,0 +1,19 @@
+{
+  "archived_at": "2026-10-22T03:22:16+00:00",
+  "kind": "native_replay",
+  "tool_version": "0.12.1",
+  "files": [
+    {
+      "path": "data/simulation/archives/z-live-c32-tp8-isl8192-osl256-bf16/predict/predict_1.yaml",
+      "sha256": "ca86398c693a68a0debd2dc971970624423df7cbd4edc6aeb9b71686eb22c85c"
+    },
+    {
+      "path": "data/simulation/archives/z-live-c32-tp8-isl8192-osl256-bf16/predict/out_1/prediction.json",
+      "sha256": "bc776a31e8a1b6c65d3a293b93893f257a2c783d8aaeaaf0a78e87eb7ec10f58"
+    },
+    {
+      "path": "data/simulation/archives/z-live-c32-tp8-isl8192-osl256-bf16/exp_config.yaml",
+      "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+    }
+  ]
+}

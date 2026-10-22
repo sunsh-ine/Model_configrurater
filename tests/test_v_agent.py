@@ -660,6 +660,8 @@ def test_sandbox_binds_exclude_private_data(monkeypatch, tmp_path):
     assert "data/private" not in joined
     assert "local.db" not in joined
     assert "data/agent_runs" in joined
+    # Z 阶段：MCP 工具需要按工作点读取已归档的模拟证据
+    assert "data/simulation" in joined
     monkeypatch.setenv("COMMAND_CODE_SANDBOX", "0")
     assert (
         client._sandbox_command(
@@ -719,3 +721,92 @@ def test_service_rejects_inconsistent_artifacts(isolated_store, capsys):
     run = AgentService(client=_FakeClient("ses_bad"), transport="opencode").run("自然语言需求")
     assert not run.completed
     assert "产物不一致" in (run.task.error or "")
+
+
+# ----------------------------------------------------------------------
+# Z0：任务 ID 与沙箱目录边界
+# ----------------------------------------------------------------------
+
+
+def _source_home(tmp_path: Path) -> Path:
+    source = tmp_path / "source-home"
+    (source / ".commandcode").mkdir(parents=True)
+    (source / ".commandcode/auth.json").write_text("{}", encoding="utf-8")
+    (source / ".commandcode/mcp.json").write_text(
+        json.dumps(
+            {"mcpServers": {"lcp": {"transport": "stdio", "command": "x", "args": []}}}
+        ),
+        encoding="utf-8",
+    )
+    return source
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["", ".", "..", "../escape", "a/b", ".hidden", "-flag", "cc id", "x" * 129],
+)
+def test_invalid_task_ids_never_reach_sandbox_paths(tmp_path, monkeypatch, bad):
+    homes = tmp_path / "homes"
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", homes)
+    client = cc_module.CommandCodeClient(
+        source_home=_source_home(tmp_path), workspace=tmp_path / "ws"
+    )
+    with pytest.raises(ValueError, match="非法 task_id"):
+        client._prepare_sandbox(bad)
+    with pytest.raises(ValueError, match="非法 task_id"):
+        client.cleanup(bad)
+    assert not homes.exists() or list(homes.iterdir()) == []
+
+
+def test_cleanup_removes_only_the_target_home(tmp_path, monkeypatch):
+    homes = tmp_path / "homes"
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", homes)
+    client = cc_module.CommandCodeClient(
+        source_home=_source_home(tmp_path), workspace=tmp_path / "ws"
+    )
+    one = client._prepare_sandbox("cc-one")
+    two = client._prepare_sandbox("cc-two")
+
+    client.cleanup("cc-one")
+
+    assert not one.exists()
+    assert two.is_dir()
+    assert (two / ".commandcode/auth.json").exists()
+    assert homes.is_dir()  # 不能把整个 cc-homes 删掉
+
+
+def test_symlinked_task_home_is_rejected(tmp_path, monkeypatch):
+    homes = tmp_path / "homes"
+    homes.mkdir()
+    target = tmp_path / "outside"
+    target.mkdir()
+    (target / "keep.txt").write_text("keep", encoding="utf-8")
+    (homes / "cc-link").symlink_to(target, target_is_directory=True)
+
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", homes)
+    client = cc_module.CommandCodeClient(
+        source_home=_source_home(tmp_path), workspace=tmp_path / "ws"
+    )
+    with pytest.raises(ValueError, match="符号链接"):
+        client._prepare_sandbox("cc-link")
+    with pytest.raises(ValueError, match="符号链接"):
+        client.cleanup("cc-link")
+    assert (target / "keep.txt").exists()
+
+
+def test_continue_rejects_invalid_task_id_without_calling_agent():
+    class ExplodingClient:
+        def run(self, *args, **kwargs):  # pragma: no cover - 不应被调用
+            raise AssertionError("非法 task_id 不应调用 Agent")
+
+    service = AgentService(client=ExplodingClient(), transport="commandcode")
+    run = service.continue_run("补充信息", task_id="../escape", session_id="s")
+    assert not run.completed
+    assert run.task.status == "failed"
+    assert "非法 task_id" in (run.task.error or "")
+
+
+def test_report_rejects_dot_as_task_id(isolated_store, capsys):
+    payload = _run_cli(capsys, ["report", "--run-id", "r1", "--task-id", "."])
+    assert payload["status"] == "failed"
+    assert "非法 task_id" in (payload["error"] or "")

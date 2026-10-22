@@ -1,0 +1,40 @@
+{
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "run_id": "z-live-c8-tp8-isl8192-osl256-bf16",
+  "run_dir": "data/simulation/archives/z-live-c8-tp8-isl8192-osl256-bf16",
+  "work_root": "data/simulation/archives/z-live-c8-tp8-isl8192-osl256-bf16",
+  "created_at": "2026-10-22T03:22:16+00:00",
+  "source": "Z2/Z3 live native replay",
+  "spec": {
+    "model": "Qwen/Qwen3-32B",
+    "precision": "bf16",
+    "system": "h100_sxm",
+    "isl": 8192,
+    "osl": 256,
+    "concurrency": 8,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "max_total_gpus": null,
+    "database_mode": "SILICON"
+  },
+  "inputs": {
+    "predict/predict_1.yaml": "a6031bd019c9f86a8babed52715931453f3d56df97baa41edcca435e66185aa5",
+    "exp_config.yaml": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+  },
+  "outputs": {
+    "predict/out_1/prediction.json": "1a069690fe2524f51ea0543e43d2a4671f371e277884ebfbcf8fef47562b4b97"
+  },
+  "errors": [],
+  "not_aligned": {},
+  "native_metrics": {
+    "p99_ttft_ms": 727.2969240000001,
+    "p99_tpot_ms": 11.230072717647314,
+    "mean_ttft_ms": 336.1583340260002,
+    "mean_tpot_ms": 10.66501711787458,
+    "output_throughput_tok_s": 667.5295614199107,
+    "completed_requests": 500,
+    "decode_gpus_per_worker": 8
+  },
+  "sla_note": "P99 是否达标由本仓库的 SLA 规则判定；此处只保存预测值"
+}

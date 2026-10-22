@@ -17,6 +17,7 @@ from llm_capacity_pricing.agent.commandcode_client import (
     CommandCodeUnavailable,
     build_continuation_prompt,
     build_prompt,
+    validate_task_id,
 )
 from llm_capacity_pricing.agent.opencode_client import (
     OpenCodeClient,
@@ -136,6 +137,10 @@ class AgentService:
         """在同一 Command Code 会话里补充信息，继续原任务。"""
         if self.transport != "commandcode":
             return self._failed(task_id, "当前 transport 不支持继续补充信息")
+        try:
+            validate_task_id(task_id)
+        except ValueError as exc:
+            return self._failed(task_id, str(exc))
         prompt = build_continuation_prompt(task_id, additional)
         run = self._run_cc_prompt(
             prompt, task_id=task_id, timeout=timeout, session_id=session_id
@@ -157,7 +162,11 @@ class AgentService:
         client = self.client or self._get_client()
         cleanup = getattr(client, "cleanup", None)
         if cleanup is not None:
-            cleanup(task_id)
+            try:
+                cleanup(task_id)
+            except ValueError:
+                # 非法 ID 不可能创建过 HOME，清理失败不应影响已完成的业务结果。
+                return
 
     def _run_cc_prompt(
         self,

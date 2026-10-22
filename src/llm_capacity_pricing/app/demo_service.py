@@ -16,6 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
 
+from llm_capacity_pricing.app.offline_archives import offline_simulation_paths
 from llm_capacity_pricing.reporting.plan_report import build_plan_report
 from llm_capacity_pricing.reporting.proposal import build_deployment_proposal
 from llm_capacity_pricing.schemas.plan import (
@@ -137,9 +138,26 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
         )
     simulation: PlanSimulationInput | None = None
     if inputs.mode == "offline":
-        simulation = PlanSimulationInput(
-            **OFFLINE_SIM, top_n=inputs.top_n, ranking=inputs.ranking
+        # 只挑与请求**同一工作点**的原生 P99；挑不到就只保留扫描器枚举，
+        # 绝不用另一个并发/长度的预测凑数，也不用超过卡数上限的部署。
+        offline_paths = offline_simulation_paths(
+            model_id=inputs.model_id,
+            hardware_id=inputs.hardware_id,
+            input_len=inputs.input_len,
+            output_len=inputs.output_len,
+            concurrency=inputs.concurrency,
+            precision=inputs.weight_precision,
+            framework=inputs.framework,
+            framework_version=inputs.framework_version,
+            gpu_limit=inputs.gpu_count,
+            tp_sizes=tuple(inputs.tp_sizes),
         )
+        if offline_paths is not None:
+            simulation = PlanSimulationInput(
+                **offline_paths,
+                top_n=inputs.top_n,
+                ranking=inputs.ranking,
+            )
     elif inputs.mode == "live":
         simulation = PlanSimulationInput(
             enable_external=True,

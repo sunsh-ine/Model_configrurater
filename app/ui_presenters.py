@@ -195,7 +195,42 @@ def safe_url(value: object) -> str | None:
 
 
 def offline_mismatches(current: dict[str, Any]) -> list[str]:
-    """当前表单与离线归档工作点的差异（覆盖模型/GPU/框架/精度/负载/并发）。"""
+    """当前表单与原生 P99 归档工作点的差异。
+
+    Z 阶段起离线归档不再只有 C32 一个工作点：先按请求精确匹配；
+    匹配到时不再提示差异，匹配不到时列出已有工作点，避免误以为“归档坏了”。
+    """
+    from llm_capacity_pricing.app.offline_archives import (
+        available_workpoints,
+        find_archive,
+    )
+
+    model_id = str(current.get("model_id") or "")
+    hardware_id = str(current.get("hardware_id") or "")
+    try:
+        entry = find_archive(
+            model_id=model_id,
+            hardware_id=hardware_id,
+            input_len=int(current.get("input_len") or 0),
+            output_len=int(current.get("output_len") or 0),
+            concurrency=int(current.get("concurrency") or 0),
+            precision=current.get("weight_precision") or None,
+            framework=current.get("framework") or None,
+            framework_version=current.get("framework_version") or None,
+            gpu_limit=int(current.get("gpu_count") or 0) or None,
+        )
+    except (TypeError, ValueError):
+        entry = None
+    if entry is not None:
+        return []
+    available = available_workpoints(model_id=model_id, hardware_id=hardware_id)
+    if available:
+        covered = "、".join(
+            f"ISL{item['input_len']}/OSL{item['output_len']}/C{item['concurrency']}"
+            for item in available
+        )
+        return [f"当前工作点没有可比较的原生 P99 证据；已有：{covered}"]
+    # 模型/硬件本身就不在归档覆盖范围内：逐维度说明差在哪
     out = []
     for key, expected in OFFLINE_WORKPOINT.items():
         actual = current.get(key)
@@ -203,7 +238,7 @@ def offline_mismatches(current: dict[str, Any]) -> list[str]:
             continue
         if str(actual) != str(expected):
             out.append(f"{WORKPOINT_LABELS[key]}：当前 {actual}，归档 {expected}")
-    return out
+    return out or ["当前模型/硬件没有原生 P99 归档，只能给静态结论"]
 
 
 def resource_condition(candidate: Any, gpu_cap: int | None) -> tuple[str, str]:

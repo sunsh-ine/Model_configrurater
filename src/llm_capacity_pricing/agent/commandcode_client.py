@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -22,6 +23,28 @@ WORKSPACE = ROOT / "data/agent/cc-workspace"
 SANDBOX_HOME = ROOT / "data/agent/cc-homes"
 TASKS = ROOT / "data/agent_tasks"
 DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
+
+#: 任务 ID 只允许字母/数字开头，禁止 ``.``、``..``、路径分隔符与空串。
+_TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def validate_task_id(task_id: str) -> str:
+    """校验任务 ID；非法值一律拒绝，避免拼进沙箱目录或任务文件路径。"""
+    if not isinstance(task_id, str) or not _TASK_ID_RE.fullmatch(task_id):
+        raise ValueError(f"非法 task_id：{task_id!r}")
+    return task_id
+
+
+def _sandbox_home(task_id: str) -> Path:
+    """返回 ``cc-homes`` 的直接子目录；拒绝任何越界或符号链接。"""
+    validate_task_id(task_id)
+    base = SANDBOX_HOME.resolve()
+    home = base / task_id
+    if home.parent != base:
+        raise ValueError(f"非法 task_id：{task_id!r}")
+    if home.is_symlink():
+        raise ValueError(f"非法 task_id：{task_id!r}（符号链接）")
+    return home
 
 
 class CommandCodeUnavailable(RuntimeError):
@@ -124,7 +147,7 @@ class CommandCodeClient:
 
     def _prepare_sandbox(self, task_id: str) -> Path:
         """每个任务一个隔离 HOME，避免并发任务共用 Session/状态库。"""
-        home = SANDBOX_HOME / task_id
+        home = _sandbox_home(task_id)
         (home / ".commandcode").mkdir(parents=True, exist_ok=True)
         (home / ".cache").mkdir(parents=True, exist_ok=True)
         (home / ".local/share").mkdir(parents=True, exist_ok=True)
@@ -168,9 +191,8 @@ class CommandCodeClient:
 
     def cleanup(self, task_id: str) -> None:
         """删除该任务的凭据副本；只动 data/agent/cc-homes，不碰真实 HOME。"""
-        if not task_id or "/" in task_id or ".." in task_id:
-            return
-        shutil.rmtree(SANDBOX_HOME / task_id, ignore_errors=True)
+        home = _sandbox_home(task_id)
+        shutil.rmtree(home, ignore_errors=True)
 
     def _cleanup_stale(self, max_age_hours: int = 24) -> None:
         if not SANDBOX_HOME.exists():
@@ -180,7 +202,11 @@ class CommandCodeClient:
         cutoff = time.time() - max_age_hours * 3600
         for entry in SANDBOX_HOME.iterdir():
             try:
-                if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                if (
+                    entry.is_dir()
+                    and not entry.is_symlink()
+                    and entry.stat().st_mtime < cutoff
+                ):
                     shutil.rmtree(entry, ignore_errors=True)
             except OSError:
                 continue
@@ -217,6 +243,7 @@ class CommandCodeClient:
             str(ROOT / "data/raw/vendor"),
             str(ROOT / "data/sources"),
             str(ROOT / "data/fixtures"),
+            str(ROOT / "data/simulation"),
             str(ROOT / "docs/poc"),
         ]
         rw_dirs = [
@@ -314,6 +341,7 @@ class CommandCodeClient:
         session_id: str | None = None,
         timeout: float | None = None,
     ) -> CommandCodeRun:
+        validate_task_id(task_id)
         path = shutil.which(self.binary)
         if not path:
             raise CommandCodeUnavailable(f"未找到 {self.binary}")
@@ -363,7 +391,7 @@ class CommandCodeClient:
                 }
                 | {
                     "HOME": (
-                        str(SANDBOX_HOME / task_id)
+                        str(_sandbox_home(task_id))
                         if sandboxed
                         else str(Path.home())
                     )
@@ -394,4 +422,4 @@ class CommandCodeClient:
 
     @staticmethod
     def task_path(task_id: str) -> Path:
-        return TASKS / f"{task_id}.json"
+        return TASKS / f"{validate_task_id(task_id)}.json"
