@@ -1,0 +1,71 @@
+{
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+  "run_dir": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16",
+  "work_root": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16",
+  "created_at": "2026-10-22T06:20:58+00:00",
+  "spec": {
+    "model": "Qwen/Qwen3-32B",
+    "precision": "bf16",
+    "system": "h100_sxm",
+    "isl": 8192,
+    "osl": 256,
+    "concurrency": 32,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "max_total_gpus": 8,
+    "database_mode": "SILICON"
+  },
+  "inputs": {
+    "predict/predict_1.yaml": "ca86398c693a68a0debd2dc971970624423df7cbd4edc6aeb9b71686eb22c85c",
+    "predict/predict_2.yaml": "1603dafe9d2fe86c00d0f45939d3ba0ce14c1cca062b7d634b1b37e694e400c2",
+    "search_input.yaml": "eb1358f136fe88a724a45c50d4dd3dcf994cf861898915a954341301c043c24a"
+  },
+  "outputs": {
+    "predict/out_1/prediction.json": "170876bd5f475d7dd47d963449d70f24092533e88aa43292ce19c66953c1cf66",
+    "predict/out_2/prediction.json": "a5beb7368823cd02b624a7e6c13b8dcc04447f15689956a62babdb291bfcd578",
+    "search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a"
+  },
+  "errors": [],
+  "not_aligned": {},
+  "not_replayed": {
+    "sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp2pp1dp1etp1ep1-c32-ctx8192": [
+      "静态结论 infeasible（Sizing 口径 2 卡）",
+      "每卡需求 75878363136 字节 > 可用 72000000000 字节（超出 3878363136 字节）"
+    ],
+    "sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp2pp1dp1etp1ep1-c28-ctx8192": [
+      "静态结论 infeasible（Sizing 口径 2 卡）",
+      "每卡需求 75878363136 字节 > 可用 72000000000 字节（超出 3878363136 字节）"
+    ],
+    "sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp2pp1dp1etp1ep1-c24-ctx8192": [
+      "静态结论 infeasible（Sizing 口径 2 卡）",
+      "每卡需求 75878363136 字节 > 可用 72000000000 字节（超出 3878363136 字节）"
+    ]
+  },
+  "replay_plan": [
+    {
+      "candidate_id": "sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp8pp1dp1etp1ep1-c16-ctx8192",
+      "tp": 8,
+      "pp": 1,
+      "dp": 1,
+      "gpu_count": 8,
+      "replay_input_len": 8192,
+      "replay_output_len": 256,
+      "replay_concurrency": 32
+    },
+    {
+      "candidate_id": "sim-sweeper:Qwen/Qwen3-32B@h100_sxm-tp4pp1dp1etp1ep1-c96-ctx8192",
+      "tp": 4,
+      "pp": 1,
+      "dp": 1,
+      "gpu_count": 4,
+      "replay_input_len": 8192,
+      "replay_output_len": 256,
+      "replay_concurrency": 32
+    }
+  ],
+  "source_run_id": "run_20261022T062058Z_0b64a9",
+  "archived_at": "2026-10-22T06:21:40+00:00",
+  "archive_note": "只归档性能证据（输入、预测、Pareto 表、配置）；图片与运行脚本未复制"
+}

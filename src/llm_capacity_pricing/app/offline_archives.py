@@ -23,6 +23,7 @@ from typing import Any
 
 import yaml
 
+from llm_capacity_pricing.app.archive_integrity import verify_manifest_hashes
 from llm_capacity_pricing.perf.aisimulate_adapter import system_for_hardware_id
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -60,6 +61,23 @@ class ArchiveEntry:
     tool_version: str | None
     #: 实际完成请求数（P99 的真实样本窗口）；缺省视为不足，不能只信 stop.requests
     completed_requests: int | None = None
+    pp_size: int | None = None
+    dp_size: int | None = None
+
+    @property
+    def deployment_key(self) -> tuple[Any, ...]:
+        """同一部署的归档只保留一条，不重复算成多个方案。"""
+        return (
+            self.model_name,
+            self.system,
+            self.precision,
+            self.backend,
+            self.backend_version,
+            self.gpu_count,
+            self.tp_size,
+            self.pp_size,
+            self.dp_size,
+        )
 
     @property
     def sort_key(self) -> tuple[int, int, str]:
@@ -124,6 +142,8 @@ def _entry_from_paths(
     requests: int | None,
     tool_version: str | None,
     completed_requests: int | None = None,
+    pp_size: int | None = None,
+    dp_size: int | None = None,
 ) -> ArchiveEntry:
     return ArchiveEntry(
         name=name,
@@ -143,6 +163,8 @@ def _entry_from_paths(
             if completed_requests is not None
             else _completed_requests(native_prediction)
         ),
+        pp_size=pp_size,
+        dp_size=dp_size,
         native_prediction=str(native_prediction.relative_to(ROOT)),
         native_input=str(native_input.relative_to(ROOT)),
         exp_config=(
@@ -190,6 +212,8 @@ def _poc_entry() -> ArchiveEntry | None:
         concurrency=_int(load.get("concurrency")),
         gpu_count=(tp * pp * replicas) if tp else None,
         tp_size=tp,
+        pp_size=pp,
+        dp_size=replicas,
         requests=_int(stop.get("requests")),
         tool_version="0.12.1",
     )
@@ -212,11 +236,23 @@ def archive_entries() -> list[ArchiveEntry]:
         spec = manifest.get("spec") or {}
         if manifest.get("errors"):
             continue
+        if verify_manifest_hashes(run_dir, manifest):
+            # 文件缺失/哈希不符的归档不得作为 P99 证据；覆盖矩阵会单独报阻塞。
+            continue
         exp_config = run_dir / "exp_config.yaml"
         for input_path in sorted(run_dir.glob("predict/predict_*.yaml")):
             index = input_path.stem.rsplit("_", 1)[-1]
             prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
             if not prediction_path.exists():
+                continue
+            required = [
+                str(input_path.relative_to(run_dir)),
+                str(prediction_path.relative_to(run_dir)),
+            ]
+            if exp_config.exists():
+                required.append(str(exp_config.relative_to(run_dir)))
+            if verify_manifest_hashes(run_dir, manifest, required=required):
+                # 实际要读的文件必须被哈希覆盖；只登记别的文件不算数。
                 continue
             cfg = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
             engine = cfg.get("engine") or {}
@@ -254,6 +290,8 @@ def archive_entries() -> list[ArchiveEntry]:
                     )
                     or None,
                     tp_size=_int(parallel.get("tensor")),
+                    pp_size=_int(parallel.get("pipeline")) or 1,
+                    dp_size=_int(parallel.get("replicas")) or 1,
                     requests=_int(stop.get("requests")),
                     tool_version=manifest.get("tool_version"),
                 )
@@ -261,7 +299,7 @@ def archive_entries() -> list[ArchiveEntry]:
     return entries
 
 
-def find_archive(
+def find_archives(
     *,
     model_id: str,
     hardware_id: str,
@@ -275,22 +313,19 @@ def find_archive(
     match_identity: bool = True,
     gpu_limit: int | None = None,
     tp_sizes: tuple[int, ...] | None = None,
-) -> ArchiveEntry | None:
-    """找与请求**同一工作点**的原生 P99 证据；找不到返回 ``None``。
+) -> list[ArchiveEntry]:
+    """返回与请求**同一工作点**的全部有效部署证据（不是只挑一条）。
 
-    ``match_identity=False`` 时只匹配工作点（模型/硬件/长度/并发），
-    用于把“精度或框架不一致”的归档展示成**不可比**证据，而不是静默丢弃。
-
-    ``gpu_limit`` 是用户可用卡数上限：超过上限的部署不能被当作可比证据；
-    卡数未知的归档在给出上限时同样拒绝（fail-closed）。
-    ``tp_sizes`` 是用户允许的 TP 列表；列表外或未声明 TP 的归档不选。
+    ``gpu_limit`` / ``tp_sizes`` 是用户约束；超限、未知卡数、列表外 TP
+    一律不进入候选。同一部署的多份归档只保留证据最完整/最新的一份，
+    避免把重复归档算成多个方案。
     """
     model_repo = _model_repo_map().get(model_id)
     system = system_for_hardware_id(hardware_id)
     if not model_repo or not system:
-        return None
+        return []
 
-    candidates = [
+    matches = [
         entry
         for entry in archive_entries()
         if entry.model_name == model_repo
@@ -326,10 +361,23 @@ def find_archive(
             )
         )
     ]
-    if not candidates:
+    deduped: dict[tuple[Any, ...], ArchiveEntry] = {}
+    for entry in matches:
+        current = deduped.get(entry.deployment_key)
+        if current is None or entry.sort_key > current.sort_key:
+            deduped[entry.deployment_key] = entry
+    return sorted(
+        deduped.values(),
+        key=lambda entry: (entry.gpu_count or 0, entry.name),
+    )
+
+
+def find_archive(**kwargs: Any) -> ArchiveEntry | None:
+    """单条便捷接口（兼容旧调用）；业务选择应使用 :func:`find_archives`。"""
+    entries = find_archives(**kwargs)
+    if not entries:
         return None
-    # 同一工作点有多个部署时取 GPU 数最多的（例如 TP8 优先于 TP4），确定性排序
-    return max(candidates, key=lambda entry: entry.sort_key)
+    return max(entries, key=lambda entry: entry.sort_key)
 
 
 def available_workpoints(
@@ -399,13 +447,13 @@ def offline_simulation_paths(
         and output_len == 256
     )
     paths: dict[str, Any] = {
-        "native_model_precision": precision,
+        "native_model_precision": None,
         "tool_version": "0.12.1",
         "backend_version_aliases": dict(VERSION_ALIASES),
     }
     if sweeper_applicable:
         paths["sweeper_csv"] = POC_SWEEPER
-    entry = find_archive(
+    entries = find_archives(
         model_id=model_id,
         hardware_id=hardware_id,
         input_len=input_len,
@@ -417,10 +465,10 @@ def offline_simulation_paths(
         gpu_limit=gpu_limit,
         tp_sizes=tp_sizes,
     )
-    if entry is None:
+    if not entries:
         # 同一工作点存在、但精度/框架不一致：仍然展示为“不可比”证据，
         # 由 check_comparability 明确写出原因；绝不把它当成可比 P99。
-        entry = find_archive(
+        entries = find_archives(
             model_id=model_id,
             hardware_id=hardware_id,
             input_len=input_len,
@@ -430,19 +478,23 @@ def offline_simulation_paths(
             gpu_limit=gpu_limit,
             tp_sizes=tp_sizes,
         )
-    if entry is None:
+    if not entries:
         return paths if "sweeper_csv" in paths else None
-    paths.update(
+    paths["archives"] = [
         {
             "native_prediction": entry.native_prediction,
             "native_input": entry.native_input,
             # 不得用请求值补归档缺失的精度：那会把“未声明”伪造成“已核实”。
             "native_model_precision": entry.precision,
-            "tool_version": entry.tool_version or "0.12.1",
+            "tool_version": entry.tool_version,
+            "label": entry.name,
+            **({"exp_config": entry.exp_config} if entry.exp_config else {}),
+            **(
+                {"per_ops_source": entry.per_ops_source}
+                if entry.per_ops_source
+                else {}
+            ),
         }
-    )
-    if entry.exp_config:
-        paths["exp_config"] = entry.exp_config
-    if entry.per_ops_source:
-        paths["per_ops_source"] = entry.per_ops_source
+        for entry in entries
+    ]
     return paths

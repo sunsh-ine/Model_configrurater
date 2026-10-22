@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-22T05:05:49+00:00",
+  "generated_at": "2026-10-22T07:01:36+00:00",
   "generator": "scripts/build_performance_coverage.py",
   "level_definitions": {
     "1": {
@@ -180,8 +180,8 @@
         "simulated_scan_only",
         "simulated_native_p99"
       ],
-      "evidence_count": 92,
-      "sla_usable_evidence": 5,
+      "evidence_count": 130,
+      "sla_usable_evidence": 7,
       "cost_analysis_possible": true,
       "cost_note": "仓库内只有合成示例成本项；可算 TCO，但不能当真实报价"
     },
@@ -228,11 +228,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:52",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:37",
         "z-live-pipeline-c32-tp4-bf16:scan:37"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -276,11 +278,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:51",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:36",
         "z-live-pipeline-c32-tp4-bf16:scan:36"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -324,11 +328,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:50",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:35",
         "z-live-pipeline-c32-tp4-bf16:scan:35"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -372,11 +378,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:48",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:33",
         "z-live-pipeline-c32-tp4-bf16:scan:33"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -420,11 +428,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:49",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:34",
         "z-live-pipeline-c32-tp4-bf16:scan:34"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -468,11 +478,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:47",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:32",
         "z-live-pipeline-c32-tp4-bf16:scan:32"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -516,11 +528,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:45",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:30",
         "z-live-pipeline-c32-tp4-bf16:scan:30"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -564,11 +578,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:46",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:31",
         "z-live-pipeline-c32-tp4-bf16:scan:31"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -612,11 +628,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:44",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:29",
         "z-live-pipeline-c32-tp4-bf16:scan:29"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -659,7 +677,7 @@
         "dataset": "synthetic"
       },
       "evidence_ids": [
-        "z-live-c8-tp8-isl8192-osl256-bf16:native"
+        "z-live-c8-tp8-isl8192-osl256-bf16:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
@@ -704,11 +722,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:42",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:27",
         "z-live-pipeline-c32-tp4-bf16:scan:27"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -752,11 +772,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:43",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:28",
         "z-live-pipeline-c32-tp4-bf16:scan:28"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -800,11 +822,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:41",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:26",
         "z-live-pipeline-c32-tp4-bf16:scan:26"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -847,11 +871,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:18",
         "z-live-pipeline-c32-tp4-bf16:scan:18"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -894,11 +920,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:40",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:25",
         "z-live-pipeline-c32-tp4-bf16:scan:25"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -941,11 +969,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:17",
         "z-live-pipeline-c32-tp4-bf16:scan:17"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -988,11 +1018,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:39",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:24",
         "z-live-pipeline-c32-tp4-bf16:scan:24"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1035,11 +1067,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:16",
         "z-live-pipeline-c32-tp4-bf16:scan:16"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1082,11 +1116,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:38",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:23",
         "z-live-pipeline-c32-tp4-bf16:scan:23"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1129,11 +1165,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:15",
         "z-live-pipeline-c32-tp4-bf16:scan:15"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1176,11 +1214,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:37",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:22",
         "z-live-pipeline-c32-tp4-bf16:scan:22"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1223,11 +1263,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:14",
         "z-live-pipeline-c32-tp4-bf16:scan:14"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1270,11 +1312,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:36",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:21",
         "z-live-pipeline-c32-tp4-bf16:scan:21"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1317,11 +1361,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:13",
         "z-live-pipeline-c32-tp4-bf16:scan:13"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1364,11 +1410,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:35",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:20",
         "z-live-pipeline-c32-tp4-bf16:scan:20"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1411,11 +1459,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:12",
         "z-live-pipeline-c32-tp4-bf16:scan:12"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1458,11 +1508,13 @@
       },
       "evidence_ids": [
         "poc-20261020-tp8-bf16-scan:scan:34",
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:19",
         "z-live-pipeline-c32-tp4-bf16:scan:19"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2,
         2
       ],
@@ -1505,11 +1557,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:11",
         "z-live-pipeline-c32-tp4-bf16:scan:11"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1597,11 +1651,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:10",
         "z-live-pipeline-c32-tp4-bf16:scan:10"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1735,11 +1791,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:5",
         "z-live-pipeline-c32-tp4-bf16:scan:5"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1781,11 +1839,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:9",
         "z-live-pipeline-c32-tp4-bf16:scan:9"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1919,11 +1979,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:4",
         "z-live-pipeline-c32-tp4-bf16:scan:4"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -1965,11 +2027,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:8",
         "z-live-pipeline-c32-tp4-bf16:scan:8"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -2057,12 +2121,14 @@
         "dataset": "synthetic"
       },
       "evidence_ids": [
-        "poc-20261020-tp8-c32-bf16:native",
-        "z-live-c32-tp8-isl8192-osl256-bf16:native"
+        "poc-20261020-tp8-c32-bf16:native:16_matched_native_input_tp8_conc32_bf16",
+        "aa-live-multi-c32-tp4-tp8-bf16:native:predict_1",
+        "z-live-c32-tp8-isl8192-osl256-bf16:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
       "levels": [
+        3,
         3,
         3
       ],
@@ -2103,11 +2169,13 @@
         "dataset": "synthetic"
       },
       "evidence_ids": [
-        "z-live-pipeline-c32-tp4-bf16:native"
+        "aa-live-multi-c32-tp4-tp8-bf16:native:predict_2",
+        "z-live-pipeline-c32-tp4-bf16:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
       "levels": [
+        3,
         3
       ],
       "sla_usable": true,
@@ -2193,11 +2261,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:3",
         "z-live-pipeline-c32-tp4-bf16:scan:3"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -2239,11 +2309,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:7",
         "z-live-pipeline-c32-tp4-bf16:scan:7"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -2377,11 +2449,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:6",
         "z-live-pipeline-c32-tp4-bf16:scan:6"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -2653,7 +2727,7 @@
         "dataset": "synthetic"
       },
       "evidence_ids": [
-        "z-live-c64-tp8-isl8192-osl256-bf16:native"
+        "z-live-c64-tp8-isl8192-osl256-bf16:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
@@ -2927,11 +3001,13 @@
         "dataset": null
       },
       "evidence_ids": [
+        "aa-live-multi-c32-tp4-tp8-bf16:scan:2",
         "z-live-pipeline-c32-tp4-bf16:scan:2"
       ],
       "best_level": 2,
       "best_level_key": "simulated_scan_only",
       "levels": [
+        2,
         2
       ],
       "sla_usable": false,
@@ -3548,7 +3624,7 @@
   ],
   "evidence": [
     {
-      "evidence_id": "poc-20261020-tp8-c32-bf16:native",
+      "evidence_id": "poc-20261020-tp8-c32-bf16:native:16_matched_native_input_tp8_conc32_bf16",
       "source_kind": "simulated_native",
       "coverage_level": 3,
       "coverage_level_key": "simulated_native_p99",
@@ -6725,7 +6801,2327 @@
       }
     },
     {
-      "evidence_id": "z-live-c32-tp8-isl8192-osl256-bf16:native",
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/predict/out_1/prediction.json",
+      "artifact_sha256": "170876bd5f475d7dd47d963449d70f24092533e88aa43292ce19c66953c1cf66",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/predict/predict_1.yaml",
+          "sha256": "ca86398c693a68a0debd2dc971970624423df7cbd4edc6aeb9b71686eb22c85c"
+        }
+      ],
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": null,
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "5201.827252000001",
+        "tpot_p99_ms": "31.45861707450993",
+        "ttft_mean_ms": "548.0465038100004",
+        "tpot_mean_ms": "30.06577086380397",
+        "output_throughput_tok_s": "990.888548064229",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:native:predict_2",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/predict/out_2/prediction.json",
+      "artifact_sha256": "a5beb7368823cd02b624a7e6c13b8dcc04447f15689956a62babdb291bfcd578",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/predict/predict_2.yaml",
+          "sha256": "1603dafe9d2fe86c00d0f45939d3ba0ce14c1cca062b7d634b1b37e694e400c2"
+        }
+      ],
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": null,
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "8359.441161",
+        "tpot_p99_ms": "50.170601298039216",
+        "ttft_mean_ms": "880.6915765020028",
+        "tpot_mean_ms": "47.89112806477654",
+        "output_throughput_tok_s": "621.8971855351141",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:2",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 2,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 96,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "629.332",
+        "tpot_mean_ms": "126.978",
+        "output_throughput_tok_s": "741.622",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:3",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 3,
+        "parallel": "tp2pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 2,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "878.069",
+        "tpot_mean_ms": "83.717",
+        "output_throughput_tok_s": "367.138",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:4",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 4,
+        "parallel": "tp2pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 2,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 28,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "862.595",
+        "tpot_mean_ms": "75.114",
+        "output_throughput_tok_s": "356.703",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:5",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 5,
+        "parallel": "tp2pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 2,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 24,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "845.198",
+        "tpot_mean_ms": "66.514",
+        "output_throughput_tok_s": "343.701",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:6",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 6,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 40,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "555.724",
+        "tpot_mean_ms": "57.83",
+        "output_throughput_tok_s": "666.567",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:7",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 7,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "539.72",
+        "tpot_mean_ms": "48.436",
+        "output_throughput_tok_s": "633.0",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:8",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 8,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 28,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "530.418",
+        "tpot_mean_ms": "43.459",
+        "output_throughput_tok_s": "614.857",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:9",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 9,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 24,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "519.926",
+        "tpot_mean_ms": "38.491",
+        "output_throughput_tok_s": "592.153",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:10",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 10,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 20,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "507.804",
+        "tpot_mean_ms": "33.539",
+        "output_throughput_tok_s": "562.9",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:11",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 11,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 16,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "493.319",
+        "tpot_mean_ms": "28.507",
+        "output_throughput_tok_s": "525.592",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:12",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 12,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 15,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "489.192",
+        "tpot_mean_ms": "26.862",
+        "output_throughput_tok_s": "521.185",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:13",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 13,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 14,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "484.806",
+        "tpot_mean_ms": "25.649",
+        "output_throughput_tok_s": "508.159",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:14",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 14,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 13,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "480.122",
+        "tpot_mean_ms": "24.763",
+        "output_throughput_tok_s": "487.888",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:15",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 15,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 12,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "475.092",
+        "tpot_mean_ms": "23.259",
+        "output_throughput_tok_s": "477.672",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:16",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 16,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 11,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "469.657",
+        "tpot_mean_ms": "22.051",
+        "output_throughput_tok_s": "460.396",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:17",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 17,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 10,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "463.736",
+        "tpot_mean_ms": "20.831",
+        "output_throughput_tok_s": "441.502",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:18",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 18,
+        "parallel": "tp4pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 9,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "457.23",
+        "tpot_mean_ms": "19.542",
+        "output_throughput_tok_s": "421.836",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:19",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 19,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 16,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "339.251",
+        "tpot_mean_ms": "18.142",
+        "output_throughput_tok_s": "821.667",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:20",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 20,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 15,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "336.393",
+        "tpot_mean_ms": "17.268",
+        "output_throughput_tok_s": "807.007",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:21",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 21,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 14,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "333.356",
+        "tpot_mean_ms": "16.458",
+        "output_throughput_tok_s": "788.07",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:22",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 22,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 13,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "330.115",
+        "tpot_mean_ms": "15.667",
+        "output_throughput_tok_s": "766.425",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:23",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 23,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 12,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "326.636",
+        "tpot_mean_ms": "14.877",
+        "output_throughput_tok_s": "742.676",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:24",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 24,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 11,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "322.879",
+        "tpot_mean_ms": "14.022",
+        "output_throughput_tok_s": "719.531",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:25",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 25,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 10,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "318.789",
+        "tpot_mean_ms": "13.399",
+        "output_throughput_tok_s": "682.636",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:26",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 26,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 9,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "314.296",
+        "tpot_mean_ms": "12.414",
+        "output_throughput_tok_s": "659.523",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:27",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 27,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "309.43",
+        "tpot_mean_ms": "11.542",
+        "output_throughput_tok_s": "627.163",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:28",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 28,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": 16384,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "538.317",
+        "tpot_mean_ms": "11.526",
+        "output_throughput_tok_s": "586.651",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:29",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 29,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 7,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "303.927",
+        "tpot_mean_ms": "10.837",
+        "output_throughput_tok_s": "581.916",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:30",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 30,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 6,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "297.591",
+        "tpot_mean_ms": "10.087",
+        "output_throughput_tok_s": "533.154",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:31",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 31,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 6,
+        "ctx_tokens": 16384,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "517.846",
+        "tpot_mean_ms": "10.074",
+        "output_throughput_tok_s": "495.673",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:32",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 32,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 5,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "290.117",
+        "tpot_mean_ms": "9.462",
+        "output_throughput_tok_s": "471.729",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:33",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 33,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 4,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "281.051",
+        "tpot_mean_ms": "8.606",
+        "output_throughput_tok_s": "412.012",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:34",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 34,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 4,
+        "ctx_tokens": 16384,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "489.197",
+        "tpot_mean_ms": "8.597",
+        "output_throughput_tok_s": "380.379",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:35",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 35,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 3,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "269.37",
+        "tpot_mean_ms": "8.0",
+        "output_throughput_tok_s": "331.277",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:36",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 36,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 2,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "252.848",
+        "tpot_mean_ms": "7.256",
+        "output_throughput_tok_s": "242.482",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "aa-live-multi-c32-tp4-tp8-bf16:scan:37",
+      "source_kind": "simulated_scan",
+      "coverage_level": 2,
+      "coverage_level_key": "simulated_scan_only",
+      "artifact": "data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16/search/Qwen/Qwen3-32B_h100_sxm_vllm_isl8192_osl256_ttft1000000_tpot1000000_493852/auto_Qwen_Qwen3-32B/pareto.csv",
+      "artifact_sha256": "9967546f804acc0bbb9b85cdf1be396e42eeb48f51774c89509566120b52904a",
+      "locator": {
+        "row": 37,
+        "parallel": "tp8pp1dp1etp1ep1"
+      },
+      "run_id": "aa-live-multi-c32-tp4-tp8-bf16",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dp_size": 1,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 1,
+        "ctx_tokens": 8192,
+        "requests": null,
+        "dataset": null
+      },
+      "metrics": {
+        "ttft_p99_ms": null,
+        "tpot_p99_ms": null,
+        "ttft_mean_ms": "223.684",
+        "tpot_mean_ms": "5.907",
+        "output_throughput_tok_s": "147.4",
+        "completed_requests": null
+      },
+      "sla_usable": false,
+      "sla_blockers": [
+        "扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定"
+      ],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/aa-live-multi-c32-tp4-tp8-bf16"
+      ],
+      "metrics_available": {
+        "ttft_p99": false,
+        "tpot_p99": false,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "z-live-c32-tp8-isl8192-osl256-bf16:native:predict_1",
       "source_kind": "simulated_native",
       "coverage_level": 3,
       "coverage_level_key": "simulated_native_p99",
@@ -6787,7 +9183,7 @@
       }
     },
     {
-      "evidence_id": "z-live-c64-tp8-isl8192-osl256-bf16:native",
+      "evidence_id": "z-live-c64-tp8-isl8192-osl256-bf16:native:predict_1",
       "source_kind": "simulated_native",
       "coverage_level": 3,
       "coverage_level_key": "simulated_native_p99",
@@ -6849,7 +9245,7 @@
       }
     },
     {
-      "evidence_id": "z-live-c8-tp8-isl8192-osl256-bf16:native",
+      "evidence_id": "z-live-c8-tp8-isl8192-osl256-bf16:native:predict_1",
       "source_kind": "simulated_native",
       "coverage_level": 3,
       "coverage_level_key": "simulated_native_p99",
@@ -6911,7 +9307,7 @@
       }
     },
     {
-      "evidence_id": "z-live-pipeline-c32-tp4-bf16:native",
+      "evidence_id": "z-live-pipeline-c32-tp4-bf16:native:predict_1",
       "source_kind": "simulated_native",
       "coverage_level": 3,
       "coverage_level_key": "simulated_native_p99",
@@ -10067,7 +12463,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10133,7 +12529,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10199,7 +12595,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10265,7 +12661,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10331,7 +12727,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10397,7 +12793,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10463,7 +12859,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10529,7 +12925,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10595,7 +12991,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10661,7 +13057,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10727,7 +13123,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10793,7 +13189,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10859,7 +13255,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10925,7 +13321,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -10991,7 +13387,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11057,7 +13453,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11123,7 +13519,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11189,7 +13585,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11255,7 +13651,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11321,7 +13717,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11387,7 +13783,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11453,7 +13849,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11519,7 +13915,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11585,7 +13981,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11651,7 +14047,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11717,7 +14113,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11783,7 +14179,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11849,7 +14245,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11915,7 +14311,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -11981,7 +14377,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12047,7 +14443,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12113,7 +14509,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12179,7 +14575,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12245,7 +14641,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12311,7 +14707,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12377,7 +14773,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "8ef932ea7e35c9bbfdcfa99beb413c0e6d398f898e01523a81a6bd803a64159d",
+      "artifact_sha256": "b0967f8036560f783480e9e66535aa9cac0e7d7b0ae678f2d5b8ab8617b140d7",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -12447,17 +14843,17 @@
     "没有目标配置的真实 Benchmark：所有实测型记录都缺身份或属于参考数据"
   ],
   "summary": {
-    "evidence_total": 142,
+    "evidence_total": 180,
     "evidence_by_kind": {
       "measured_internal": 36,
       "measured_public": 14,
-      "simulated_native": 5,
-      "simulated_scan": 87
+      "simulated_native": 7,
+      "simulated_scan": 123
     },
     "evidence_by_level": {
       "static_only": 0,
-      "simulated_scan_only": 87,
-      "simulated_native_p99": 5,
+      "simulated_scan_only": 123,
+      "simulated_native_p99": 7,
       "measured_benchmark": 0
     },
     "workpoints_total": 72,

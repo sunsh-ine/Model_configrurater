@@ -78,7 +78,9 @@ def test_relaxed_sla_recommends_predicted_pass_without_changing_predictions(tmp_
 
     def native(result):
         return next(
-            c for c in result.simulation.candidates if c.candidate_id.startswith("sim-native")
+            c
+            for c in result.simulation.candidates
+            if "sim-native" in c.candidate_id and "tp8pp1dp1" in c.candidate_id
         )
 
     before, after = native(strict.result), native(relaxed.result)

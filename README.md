@@ -375,19 +375,24 @@ CLI 同样支持：
 三组完整报告在 `docs/demo_scenarios/`，场景说明与成本门禁解释见
 [`docs/demo_scenarios.md`](docs/demo_scenarios.md)。
 
-### 1.5.1 当前可用的预测工作点（Z 阶段）
+### 1.5.1 当前可用的预测工作点（Z/AA 阶段）
 
-离线模式会按请求自动选择**同一工作点**的原生 P99，不再固定 C32：
+离线模式会按请求自动选择**同一工作点**的全部有效部署，不再只挑一条或固定 C32：
 
-| 模型 / 硬件 / 精度 / 框架 | TP8 部署下的并发点 | 原生 P99 证据 |
+| 模型 / 硬件 / 精度 / 框架 | 工作点 | 原生 P99 证据 |
 | --- | --- | --- |
 | Qwen3-32B / H100 SXM / bf16 / vLLM 0.24.0 | C8、C32、C64（ISL8192 / OSL256） | `data/simulation/archives/` |
+| 同上，C32 | TP4（4 卡）与 TP8（8 卡） | TP4 未达标、TP8 预测达标 |
 
+* 先按 GPU 上限、TP 白名单、Sizing 静态可行性与 P99 门禁筛选，再按吞吐或
+  已确认成本排序；成本不可比时降级为吞吐优先；
 * 预测达标与否由本仓库的 SLA 规则判定；**不是实测**；
 * 没有原生证据的并发点（例如 C16）只给扫描器枚举与静态结论，并明确写出缺口；
 * 完整覆盖矩阵（含公开参考与历史 Excel 记录）见
   [`docs/performance_coverage.md`](docs/performance_coverage.md)，
-  机器可读版本为 `docs/performance_coverage.json`。
+  机器可读版本为 `docs/performance_coverage.json`；
+* 多候选比较规则与实时回放证据见
+  [`docs/aa_candidate_comparison.md`](docs/aa_candidate_comparison.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -715,6 +720,8 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/system_demo_validation.md`](docs/system_demo_validation.md) | **S2–S5** 一键 Demo、单页界面与验收记录 |
 | [`docs/performance_coverage.md`](docs/performance_coverage.md) | **Z1** 性能预测证据覆盖矩阵（自动生成，含工作点与缺口） |
 | [`docs/z_phase_validation.md`](docs/z_phase_validation.md) | **Z0–Z4** 任务 ID 边界、实时 AISimulate、C8/C32/C64 与集成验收 |
+| [`docs/aa_candidate_comparison.md`](docs/aa_candidate_comparison.md) | **AA1–AA3** 多部署候选比较、TP4/TP8 门禁与排序规则 |
+| [`docs/aa_phase_validation.md`](docs/aa_phase_validation.md) | **AA0–AA4** 归档完整性、多候选、实时回放与一致性验收 |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

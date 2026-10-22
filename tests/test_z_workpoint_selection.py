@@ -24,6 +24,12 @@ from llm_capacity_pricing.app.offline_archives import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sha(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 @pytest.fixture()
 def isolated_agent_store(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
@@ -74,9 +80,9 @@ def test_exact_workpoint_has_native_evidence(concurrency):
         framework="vllm",
         framework_version="0.24.0",
     )
-    assert "native_prediction" in paths
-    assert "native_input" in paths
-    assert paths["native_model_precision"] == "bf16"
+    assert paths["archives"]
+    assert all(item["native_model_precision"] == "bf16" for item in paths["archives"])
+    assert all(item["native_prediction"].endswith("prediction.json") for item in paths["archives"])
 
 
 def test_unknown_workpoint_does_not_borrow_another_p99():
@@ -156,8 +162,8 @@ def test_missing_archive_precision_is_not_an_identity_match(monkeypatch):
         framework_version="0.24.0",
     )
     # 仍可展示为不可比证据，但绝不能把请求精度写成归档精度
-    assert "native_prediction" in paths
-    assert paths["native_model_precision"] is None
+    assert paths["archives"]
+    assert paths["archives"][0]["native_model_precision"] is None
 
 
 def test_archive_with_known_identity_matches(monkeypatch):
@@ -200,9 +206,9 @@ def test_manual_offline_workpoint_verdicts(
         out_dir=tmp_path / f"manual-c{concurrency}-{ttft}-{tpot}",
     )
     natives = _native(outcome.result)
-    assert len(natives) == 1
-    assert natives[0].verdict == expected
-    assert natives[0].comparable is True
+    assert natives
+    assert any(candidate.verdict == expected for candidate in natives)
+    assert all(candidate.comparable is True for candidate in natives)
 
 
 def test_manual_offline_without_prediction_reports_gap(tmp_path):
@@ -358,7 +364,26 @@ def test_gpu_limit_excludes_larger_deployment():
         framework_version="0.24.0",
         gpu_limit=4,
     )
-    assert paths is not None and "native_prediction" not in paths
+    assert paths is not None and "archives" not in paths
+
+
+def test_c32_returns_both_tp4_and_tp8():
+    from llm_capacity_pricing.app.offline_archives import find_archives
+
+    entries = find_archives(
+        model_id="qwen3-32b",
+        hardware_id="nvidia-h100-sxm-80gb",
+        input_len=8192,
+        output_len=256,
+        concurrency=32,
+        precision="bf16",
+        framework="vllm",
+        framework_version="0.24.0",
+        gpu_limit=8,
+        tp_sizes=(4, 8),
+    )
+    assert {entry.tp_size for entry in entries} == {4, 8}
+    assert {entry.gpu_count for entry in entries} == {4, 8}
 
 
 def test_unknown_model_has_no_offline_simulation():
@@ -488,6 +513,18 @@ def test_multi_candidate_archive_is_indexed(tmp_path, monkeypatch):
                 "tool_version": "0.12.1",
                 "spec": {"precision": "bf16", "database_mode": "SILICON"},
                 "errors": [],
+                "inputs": {
+                    f"predict/predict_{index}.yaml": _sha(
+                        run / "predict" / f"predict_{index}.yaml"
+                    )
+                    for index in (1, 2)
+                },
+                "outputs": {
+                    f"predict/out_{index}/prediction.json": _sha(
+                        run / "predict" / f"out_{index}" / "prediction.json"
+                    )
+                    for index in (1, 2)
+                },
             }
         ),
         encoding="utf-8",
@@ -591,6 +628,16 @@ def test_pipeline_parallelism_counts_toward_gpu_total(tmp_path, monkeypatch):
                 "tool_version": "0.12.1",
                 "spec": {"precision": "bf16", "database_mode": "SILICON"},
                 "errors": [],
+                "inputs": {
+                    "predict/predict_1.yaml": _sha(
+                        run / "predict" / "predict_1.yaml"
+                    )
+                },
+                "outputs": {
+                    "predict/out_1/prediction.json": _sha(
+                        run / "predict" / "out_1" / "prediction.json"
+                    )
+                },
             }
         ),
         encoding="utf-8",

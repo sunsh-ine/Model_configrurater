@@ -135,7 +135,9 @@ def test_preset_modes_keep_the_same_predictions(tmp_path):
 
     def native(result):
         return next(
-            c for c in result.simulation.candidates if c.candidate_id.startswith("sim-native")
+            c
+            for c in result.simulation.candidates
+            if "sim-native" in c.candidate_id and "tp8pp1dp1" in c.candidate_id
         )
 
     assert native(strict).metrics.sim_p99_ttft_ms == native(relaxed).metrics.sim_p99_ttft_ms

@@ -49,7 +49,8 @@ fi
 
 fail=0
 grep -qE '模拟状态：\*\*已计算\*\*' "$OUT/auto_report.md" || { printf '缺少：模拟已计算\n'; fail=1; }
-grep -qE '回放的工作点来自搜索结果' "$OUT/auto_report.md" || { printf '缺少：回放与搜索工作点的关联说明\n'; fail=1; }
+grep -qE '部署来自搜索结果' "$OUT/auto_report.md" || { printf '缺少：回放与搜索部署的关联说明\n'; fail=1; }
+grep -qE '回放负载按目标' "$OUT/auto_report.md" || { printf '缺少：回放负载按目标工作点构造的说明\n'; fail=1; }
 if ! grep -q 'sim-native' "$OUT/auto_result.json"; then
   printf '缺少：原生回放候选\n'; fail=1
 fi

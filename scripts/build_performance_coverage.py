@@ -37,6 +37,8 @@ from typing import Any, Iterable
 
 import yaml
 
+from llm_capacity_pricing.app.archive_integrity import verify_manifest_hashes
+
 ROOT = Path(__file__).resolve().parents[1]
 
 LEVEL_LABELS = {
@@ -476,7 +478,7 @@ def native_evidence(
     if not usable and backend_version is None:
         notes.append("后端版本槽位未解析成实际版本")
     item = {
-        "evidence_id": f"{run_id or 'poc'}:native",
+        "evidence_id": f"{run_id or 'poc'}:native:{input_path.stem}",
         "source_kind": "simulated_native",
         # 原生回放有 P99 但身份不完整时，既不是 3 级（不可比较），
         # 也不是 2 级（扫描器）；单列"不完整原生证据"，不参与级别统计。
@@ -582,12 +584,38 @@ def read_archive_evidence(
                 }
             )
             continue
+        integrity = verify_manifest_hashes(run_dir, manifest)
+        if integrity:
+            blocked_runs.append(
+                {
+                    "run_id": run_id,
+                    "errors": ["归档完整性校验失败：" + "；".join(integrity)],
+                    "manifest": rel(manifest_path),
+                }
+            )
+            continue
         tool_version = text(manifest.get("tool_version"))
         database_mode = text(spec.get("database_mode"))
         aliases = {"current": "0.24.0"}
         declared_precision = precision(spec.get("precision"))
 
         predict_inputs = sorted(run_dir.glob("predict/predict_*.yaml"))
+        required: list[str] = []
+        for input_path in predict_inputs:
+            index = input_path.stem.rsplit("_", 1)[-1]
+            prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
+            required.append(str(input_path.relative_to(run_dir)))
+            if prediction_path.exists():
+                required.append(str(prediction_path.relative_to(run_dir)))
+        if required and verify_manifest_hashes(run_dir, manifest, required=required):
+            blocked_runs.append(
+                {
+                    "run_id": run_id,
+                    "errors": ["归档完整性校验失败：实际使用的预测/输入未被哈希覆盖"],
+                    "manifest": rel(manifest_path),
+                }
+            )
+            continue
         for input_path in predict_inputs:
             index = input_path.stem.rsplit("_", 1)[-1]
             prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
@@ -1215,8 +1243,39 @@ def render_markdown(doc: dict[str, Any]) -> str:
         lines.append("")
     lines.append("## 6. 结论边界")
     lines.append("")
-    lines.append("1. 当前只有 Qwen3-32B / H100 SXM / vLLM 0.24.0 / BF16 在 C32、")
-    lines.append("   ISL8192/OSL256 上有可比较的原生 P99 预测。")
+    usable = [
+        group
+        for group in doc["workpoints"]
+        if group.get("best_level", 0) >= 3 and group.get("sla_usable")
+    ]
+    if usable:
+        lines.append(f"1. 当前有 {len(usable)} 个可比较的原生 P99 工作点：")
+        for group in usable:
+            ident = group["identity"]
+            load = group["workload"]
+            metrics = group.get("metrics") or {}
+            lines.append(
+                "   - {model} / {hw} / {prec} / {fw} {ver} / "
+                "TP{tp}×PP{pp}×DP{dp} / C{conc} / ISL{isl} / OSL{osl}"
+                " → TTFT P99 {ttft} ms、TPOT P99 {tpot} ms、吞吐 {tput} tok/s".format(
+                    model=fmt(ident.get("model_name") or ident.get("model_id")),
+                    hw=fmt(ident.get("hardware_id") or ident.get("system")),
+                    prec=fmt(ident.get("precision")),
+                    fw=fmt(ident.get("framework")),
+                    ver=fmt(ident.get("framework_version")),
+                    tp=fmt(ident.get("tp_size")),
+                    pp=fmt(ident.get("pp_size")),
+                    dp=fmt(ident.get("dp_size")),
+                    conc=fmt(load.get("concurrency")),
+                    isl=fmt(load.get("input_len")),
+                    osl=fmt(load.get("output_len")),
+                    ttft=fmt(metrics.get("ttft_p99_ms")),
+                    tpot=fmt(metrics.get("tpot_p99_ms")),
+                    tput=fmt(metrics.get("output_throughput_tok_s")),
+                )
+            )
+    else:
+        lines.append("1. 当前没有可比较的原生 P99 工作点。")
     lines.append("2. 其余模型、硬件与工作点最多只能做静态规划；没有 P99 时报告必须")
     lines.append("   给出缺口，不能推荐“达标”。")
     lines.append("3. 扫描器数据只用于候选枚举与相对排序，不能拿来判 SLA。")

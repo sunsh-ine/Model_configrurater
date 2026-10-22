@@ -128,13 +128,14 @@ def test_aligned_candidate_produces_a_predict_config():
     assert cfg["traffic"]["stop"] == {"requests": 200}
 
 
-def test_ctx_tokens_difference_prevents_alignment():
-    """每步上下文预算不同 = 不同口径，不能拿回放去"验证"这条搜索。"""
+def test_ctx_tokens_is_not_a_deployment_identity():
+    """扫描行的 ctx 是当时工作点，不是部署身份；回放按目标负载重造。"""
     candidate = _candidate(ctx_tokens=16384)
-    reasons = native_alignment_reasons(candidate, _spec())
-    assert any("ctx_tokens" in r for r in reasons)
-    with pytest.raises(ValueError):
-        build_predict_config(_spec(), candidate)
+    assert any("ctx_tokens" in r for r in native_alignment_reasons(candidate, _spec()))
+    cfg = build_predict_config(_spec(), candidate)
+    assert cfg["traffic"]["source"]["input_tokens"] == _spec().input_len
+    assert cfg["traffic"]["source"]["output_tokens"] == _spec().output_len
+    assert cfg["traffic"]["load"]["concurrency"] == _spec().concurrency
 
 
 def test_data_parallel_cannot_be_aligned():
@@ -144,7 +145,7 @@ def test_data_parallel_cannot_be_aligned():
 
 def test_missing_or_mismatched_backend_version_prevents_alignment():
     candidate = _candidate(backend_version=None)
-    assert any("版本未声明" in r for r in native_alignment_reasons(candidate, _spec()))
+    assert any("未声明后端版本" in r for r in native_alignment_reasons(candidate, _spec()))
     candidate = _candidate(backend_version="0.23.0")
     assert any("后端版本不同" in r for r in native_alignment_reasons(candidate, _spec()))
 
@@ -384,11 +385,12 @@ def test_timeout_is_converted_to_a_controlled_error(monkeypatch):
         adapter.subprocess.run = original
 
 
-def test_unaligned_candidates_do_not_consume_the_replay_quota(tmp_path, monkeypatch):
-    """反例：吞吐最高但 ctx_tokens 不一致的候选不得占用 Top-N 名额（F3）。
+def test_scan_workload_does_not_gate_deployment_replay(tmp_path, monkeypatch):
+    """AA2：扫描行只提供部署；回放负载必须按目标请求重新构造。
 
-    构造三条：A 吞吐最高但 ctx=16384（不可对齐）；B 次高且可对齐；C 最低。
-    top_n=1 时必须回放 B。
+    三条扫描行的 ctx 不同（其中 tp8 是 16384），但它们代表三个不同部署。
+    所有部署都应在目标 ISL/OSL/并发下各回放一次，不能把扫描行当时的
+    ctx/并发当成目标工作点，也不能只挑一条。
     """
     csv_text = _csv_rows([
         {"tp": "8", "tokens/s": "1500", "ctx_tokens": "16384", "parallel": "tp8pp1dp1"},
@@ -403,15 +405,14 @@ def test_unaligned_candidates_do_not_consume_the_replay_quota(tmp_path, monkeypa
     )
     manifest = json.loads((_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8"))
     natives = [c for c in result.candidates if c.candidate_id.startswith("sim-native")]
-    assert len(natives) == 1
-    assert "tp4" in (natives[0].linked_search_candidate_id or ""), natives[0].linked_search_candidate_id
-    # 不可对齐的那条仍然留在结果里，并说明原因
-    assert any("tp8" in key for key in manifest["not_aligned"])
-    non_aligned = [
-        c for c in result.candidates
-        if c.candidate_id.startswith("sim-sweeper") and c.link_reasons
-    ]
-    assert non_aligned and any("ctx_tokens" in r for c in non_aligned for r in c.link_reasons)
+    assert len(natives) == 3
+    assert {c.workload.concurrency for c in natives} == {32}
+    assert {c.workload.input_len for c in natives} == {8192}
+    linked = " ".join(c.linked_search_candidate_id or "" for c in natives)
+    assert "tp8" in linked and "tp4" in linked and "tp2" in linked
+    assert len(manifest["replay_plan"]) == 3
+    assert all(item["replay_concurrency"] == 32 for item in manifest["replay_plan"])
+    assert all(item["replay_input_len"] == 8192 for item in manifest["replay_plan"])
 
 
 def test_context_budget_is_not_a_search_constraint_but_a_filter():
@@ -516,3 +517,25 @@ def test_run_directory_is_not_created_by_deleting_old_ones(tmp_path, monkeypatch
     )
     assert marker.exists(), "旧运行目录不得被删除"
     assert len(_run_dirs(work)) == 2
+
+
+def test_truncated_deployments_are_declared_as_incomplete(tmp_path, monkeypatch):
+    """回放上限截断时，结果必须明确说比较不完整，不能当成全局最优。"""
+    import llm_capacity_pricing.perf.aisimulate_adapter as adapter
+
+    monkeypatch.setattr(adapter, "_MAX_DEPLOYMENT_REPLAYS", 1)
+    csv_text = _csv_rows([
+        {"tp": "8", "tokens/s": "1500", "parallel": "tp8pp1dp1"},
+        {"tp": "4", "tokens/s": "900", "num_total_gpus": "4", "parallel": "tp4pp1dp1"},
+    ])
+    _install_fake_tool(monkeypatch, csv_text)
+    result = run_two_stage(
+        _fake_spec(top_n=2),
+        tool_config=ExternalToolConfig(python="/fake", enabled=True),
+        work_dir=tmp_path / "work",
+    )
+    manifest = json.loads(
+        (_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert any("比较**不完整**" in item for item in result.limitations)
+    assert len(manifest["not_replayed"]) == 1

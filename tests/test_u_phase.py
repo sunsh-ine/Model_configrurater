@@ -220,6 +220,6 @@ def test_report_shows_identity_derivation(tmp_path):
     assert "DP1 由" in outcome.technical_md
     native = next(
         c for c in outcome.result.simulation.candidates
-        if c.candidate_id.startswith("sim-native")
+        if "sim-native" in c.candidate_id and "tp8pp1dp1" in c.candidate_id
     )
     assert "tp8pp1dp1" in native.candidate_id

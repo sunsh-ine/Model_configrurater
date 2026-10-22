@@ -150,6 +150,20 @@ class PlanAdvanced(BaseModel):
         return v
 
 
+class SimulationArchiveSpec(BaseModel):
+    """一条原生回放归档（多部署比较时使用）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    native_prediction: str
+    native_input: str
+    exp_config: str | None = None
+    per_ops_source: str | None = None
+    native_model_precision: str | None = None
+    tool_version: str | None = None
+    label: str | None = None
+
+
 class PlanSimulationInput(BaseModel):
     """可选：用 NVIDIA AISimulate 的**模拟**结果补充"该配什么、预测性能如何"。
 
@@ -169,6 +183,8 @@ class PlanSimulationInput(BaseModel):
     per_ops_source: str | None = None
     #: 原生回放不回显精度；模型名无精度后缀时需在这里给出"我们要求模拟的精度"
     native_model_precision: str | None = None
+    #: 多部署归档：每条独立解析，**不是**只选一条
+    archives: list[SimulationArchiveSpec] = Field(default_factory=list)
     tool_version: str | None = None
     default_backend: str | None = None
     #: 扫描器候选的短名单上限（避免无界展示；原生候选不受限）
@@ -211,11 +227,11 @@ class PlanSimulationInput(BaseModel):
                 )
         if (
             not self.enable_external
-            and not (self.sweeper_csv or self.native_prediction)
+            and not (self.sweeper_csv or self.native_prediction or self.archives)
         ):
             raise ValueError(
-                "simulation 至少要给出 sweeper_csv 或 native_prediction（离线归档）；"
-                "如果要现场调用外部工具，请显式设置 enable_external: true"
+                "simulation 至少要给出 sweeper_csv、native_prediction 或 archives"
+                "（离线归档）；如果要现场调用外部工具，请显式设置 enable_external: true"
             )
         if self.top_n < 1:
             raise ValueError("top_n 至少为 1")

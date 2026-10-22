@@ -942,6 +942,13 @@ def _check_simulation_candidate_resources(
         )
         candidate.resource_reasons = reasons
         return False
+    allowed_tp = getattr(request.advanced, "tp_sizes", None)
+    if allowed_tp and dep.tp_size not in allowed_tp:
+        candidate.resource_feasible = False
+        candidate.resource_reasons = [
+            f"TP={dep.tp_size} 不在用户允许的 TP 列表 {list(allowed_tp)} 内"
+        ]
+        return False
     if hardware_id is None:
         candidate.resource_feasible = None
         reasons.insert(0, "未提供硬件：跳过静态可行性校验")
@@ -1075,7 +1082,6 @@ def _simulate_auto(
     from llm_capacity_pricing.perf.aisimulate_adapter import (
         ExternalToolConfig,
         SearchSpec,
-        check_comparability,
         run_two_stage,
     )
     from llm_capacity_pricing.schemas.simulation import SimulationResult
@@ -1105,7 +1111,16 @@ def _simulate_auto(
     resource_cache: dict = {}
 
     def accept(candidate: Any) -> bool:
-        check_comparability(candidate, target)
+        # AA2：搜索行只用于发现**部署配置**；回放负载由 target 的
+        # ISL/OSL/并发决定，因此这里不要求扫描行自身与目标工作点一致。
+        from llm_capacity_pricing.perf.aisimulate_adapter import (
+            deployment_identity_reasons,
+        )
+
+        reasons = deployment_identity_reasons(candidate, target)
+        if reasons:
+            candidate.link_reasons = reasons
+            return False
         _check_simulation_candidate_resources(
             request,
             candidate,
@@ -1114,8 +1129,7 @@ def _simulate_auto(
             cache=resource_cache,
         )
         return (
-            candidate.comparable
-            and candidate.resource_feasible is True
+            candidate.resource_feasible is True
             and candidate.within_gpu_budget is not False
         )
 
@@ -1232,6 +1246,7 @@ def _simulate(
             version_aliases=_simulation_version_aliases(request, config, target),
             target=target,
             top_n=config.top_n,
+            archives=config.archives,
         )
     except (ValueError, FileNotFoundError, OSError) as exc:
         # 归档缺失/格式不对属于输入问题：报出来，但不动其它领域

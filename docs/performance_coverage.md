@@ -21,7 +21,7 @@
 |---|---|---|---|---|
 | qwen3-8b | NVIDIA H100 SXM | static_only | 0 | 是 |
 | qwen3-8b | NVIDIA H200 SXM | static_only | 0 | 否 |
-| qwen3-32b | NVIDIA H100 SXM | simulated_native_p99 | 92 | 是 |
+| qwen3-32b | NVIDIA H100 SXM | simulated_native_p99 | 130 | 是 |
 | qwen3-32b | NVIDIA H200 SXM | static_only | 0 | 否 |
 
 `static_only` 是矩阵级别，不是一条独立证据；`evidence_by_level` 只统计有实际证据的级别（2/3/4）。
@@ -165,8 +165,8 @@
 
 ## 5. 统计与缺口
 
-- 证据总数：142
-- 按级别：static_only=0；simulated_scan_only=87；simulated_native_p99=5；measured_benchmark=0
+- 证据总数：180
+- 按级别：static_only=0；simulated_scan_only=123；simulated_native_p99=7；measured_benchmark=0
 - 工作点总数：72
 - SLA 可用工作点：4
 - 仅参考记录：50
@@ -181,8 +181,11 @@
 
 ## 6. 结论边界
 
-1. 当前只有 Qwen3-32B / H100 SXM / vLLM 0.24.0 / BF16 在 C32、
-   ISL8192/OSL256 上有可比较的原生 P99 预测。
+1. 当前有 4 个可比较的原生 P99 工作点：
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 727.2969240000001 ms、TPOT P99 11.230072717647314 ms、吞吐 667.5295614199107 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 5201.827252000001 ms、TPOT P99 31.45861707450993 ms、吞吐 990.888548064229 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 8359.441161 ms、TPOT P99 50.170601298039216 ms、吞吐 621.8971855351141 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 11211.532603000005 ms、TPOT P99 56.43859718823514 ms、吞吐 1115.0950375870086 tok/s
 2. 其余模型、硬件与工作点最多只能做静态规划；没有 P99 时报告必须
    给出缺口，不能推荐“达标”。
 3. 扫描器数据只用于候选枚举与相对排序，不能拿来判 SLA。

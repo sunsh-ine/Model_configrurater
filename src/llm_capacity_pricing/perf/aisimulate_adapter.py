@@ -1085,25 +1085,53 @@ def load_archived(
     default_backend: str | None = None,
     target: SimulationTarget | None = None,
     top_n: int | None = None,
+    archives: Sequence[Any] | None = None,
 ) -> SimulationResult:
     """只读本地归档输出，拼出一个 :class:`SimulationResult`。
 
-    这是 **P2 第一阶段**：不需要安装 AISimulate、不需要 GPU。
+    ``archives`` 是多部署归档列表；每条独立解析，互不覆盖。它与顶层
+    ``native_prediction`` 可以同时存在（兼容旧调用）。
     """
     candidates: list[SimulationCandidate] = []
     limitations: list[str] = []
+    archives = list(archives or [])
+
+    def archive_field(spec: Any, name: str) -> Any:
+        if isinstance(spec, Mapping):
+            return spec.get(name)
+        return getattr(spec, name, None)
 
     tool = tool_identity_from_archives(
         exp_config=exp_config,
         per_ops_source=per_ops_source,
         tool_version=tool_version,
         surface=(
-            "sweeper" if sweeper_csv is not None and native_prediction is None
-            else "native_replay" if native_prediction is not None and sweeper_csv is None
+            "sweeper"
+            if sweeper_csv is not None
+            and native_prediction is None
+            and not archives
+            else "native_replay"
+            if native_prediction is not None and sweeper_csv is None and not archives
             else "mixed"
         ),
         backend=default_backend,
     )
+    if archives:
+        first = archives[0]
+        tool = tool_identity_from_archives(
+            exp_config=archive_field(first, "exp_config") or exp_config,
+            per_ops_source=archive_field(first, "per_ops_source") or per_ops_source,
+            tool_version=archive_field(first, "tool_version") or tool_version,
+            surface="mixed" if sweeper_csv is not None else "native_replay",
+            backend=default_backend,
+        )
+        # 多个原生回放归档可能来自不同搜索配置：不把某个搜索的修正系数
+        # 施加到所有原生 P99 上；原生回放输出本身就是最终预测值。
+        tool = tool.model_copy(update={"correction_factors": {}})
+        limitations.append(
+            "多部署归档：各候选独立解析；搜索阶段的修正系数不跨归档合并，"
+            "原生 P99 不额外乘系数"
+        )
 
     declared_mode: str | None = None
     if exp_config is not None:
@@ -1138,6 +1166,64 @@ def load_archived(
                 "（原生回放输出不回显精度，它按 HF config 自行推断）"
             )
         candidates.append(native_candidate)
+
+    for spec in archives:
+        prediction_path = archive_field(spec, "native_prediction")
+        input_path = archive_field(spec, "native_input")
+        if not prediction_path or not input_path:
+            limitations.append("有一条多部署归档缺少 prediction/input，已跳过")
+            continue
+        declared_precision = (
+            archive_field(spec, "native_model_precision") or native_model_precision
+        )
+        deployment, workload = parse_native_input_yaml(
+            str(input_path),
+            model_precision=declared_precision,
+            version_aliases=version_aliases,
+        )
+        archive_candidate = parse_native_prediction(
+            str(prediction_path), deployment=deployment, workload=workload
+        )
+        if declared_precision and precision_from_model_name(deployment.model_name) is None:
+            archive_candidate.notes.append(
+                f"模型精度 {declared_precision} 由**输入身份**给出"
+                "（原生回放输出不回显精度）"
+            )
+        label = archive_field(spec, "label")
+        if label:
+            archive_candidate.notes.append(f"归档：{label}")
+        candidates.append(archive_candidate)
+
+    if archives:
+        identities = {
+            (c.deployment.backend, c.deployment.backend_version, c.deployment.system)
+            for c in candidates
+            if c.candidate_id.startswith("sim-native")
+        }
+        if len(identities) > 1:
+            limitations.append(
+                "多部署归档的身份（后端/版本/system）不一致：每个候选保留自己的"
+                "身份，不合并成一个全局结论"
+            )
+        modes = set()
+        for spec in archives:
+            exp_path = archive_field(spec, "exp_config")
+            if not exp_path:
+                modes.add(None)
+                continue
+            try:
+                exp_doc = yaml.safe_load(
+                    Path(exp_path).read_text(encoding="utf-8")
+                ) or {}
+            except Exception:  # noqa: BLE001
+                modes.add(None)
+                continue
+            modes.add(exp_doc.get("database_mode"))
+        if len(modes) > 1 or None in modes:
+            tool = tool.model_copy(update={"database_mode": None})
+            limitations.append(
+                "多部署归档的数据库模式不一致或缺失：不宣称统一的可复现性等级"
+            )
 
     if not candidates:
         return SimulationResult(
@@ -1208,13 +1294,16 @@ def load_archived(
         "不得产生 observed_pass / observed_fail"
     )
 
+    source = sweeper_csv or native_prediction
+    if source is None and archives:
+        source = archive_field(archives[0], "native_prediction")
     return SimulationResult(
         status="computed",
         data_trust=SIMULATION_TRUST_LABEL,
         tool=tool,
         candidates=candidates,
         limitations=limitations,
-        source_dir=str(Path(sweeper_csv or native_prediction).parent),
+        source_dir=str(Path(source).parent) if source else None,
     )
 
 
@@ -1225,6 +1314,9 @@ def load_archived(
 #: 搜索阶段刻意给一个**很松**的 SLA 边界：工具自带的过滤是**聚合均值**口径，
 #: 我们不用它做判断（官方原文：It is not a p99 constraint）。松边界 = 不筛。
 _LOOSE_BOUND = Decimal("1000000")
+
+#: 一轮评估最多回放多少个**不同部署**（安全上限，不是推荐名次）
+_MAX_DEPLOYMENT_REPLAYS = 8
 
 
 @dataclass(frozen=True)
@@ -1285,48 +1377,88 @@ def build_search_config(spec: SearchSpec) -> dict[str, Any]:
     return {f"auto_{spec.model_name.replace('/', '_')}": entry}
 
 
+def deployment_identity_reasons(
+    candidate: SimulationCandidate, target: Any
+) -> list[str]:
+    """只检查**部署身份**（不含 ISL/OSL/并发/ctx）。
+
+    AA2 用它从搜索结果里发现可回放的部署；扫描行的负载只说明它当时
+    被搜索到的工作点，回放会按用户目标负载重新构造。
+    """
+    dep = candidate.deployment
+    reasons: list[str] = []
+    model_same = _same_name(dep.model_name, getattr(target, "model_name", None))
+    if model_same is None:
+        reasons.append("模型未声明：无法确认部署身份")
+    elif not model_same:
+        reasons.append(
+            f"模型不同：目标 {getattr(target, 'model_name', None)}，搜索 {dep.model_name}"
+        )
+    want_precision = getattr(target, "model_precision", None)
+    if dep.model_precision is None:
+        reasons.append("搜索未声明模型精度：无法确认部署身份")
+    elif want_precision is not None and dep.model_precision != want_precision:
+        reasons.append(f"模型精度不同：目标 {want_precision}，搜索 {dep.model_precision}")
+    system_same = _same_name(dep.system, getattr(target, "system", None))
+    if system_same is None:
+        reasons.append("搜索未声明 system：无法确认硬件")
+    elif not system_same:
+        reasons.append(
+            f"硬件不同：目标 {getattr(target, 'system', None)}，搜索 {dep.system}"
+        )
+    if not dep.backend:
+        reasons.append("搜索未声明后端")
+    elif getattr(target, "backend", None) and dep.backend != target.backend:
+        reasons.append(f"后端不同：搜索用 {dep.backend}，要求 {target.backend}")
+    if not dep.backend_version:
+        reasons.append("搜索未声明后端版本")
+    elif (
+        getattr(target, "backend_version", None)
+        and dep.backend_version != target.backend_version
+    ):
+        reasons.append(
+            f"后端版本不同：搜索用 {dep.backend_version}，要求 {target.backend_version}"
+        )
+    if dep.tp_size is None:
+        reasons.append("搜索未给出 TP：无法构造回放配置")
+    if dep.dp_size not in (None, 1):
+        reasons.append(f"DP={dep.dp_size}：原生回放的并行配置无法表达 data parallel")
+    if dep.pp_size not in (None, 1):
+        reasons.append(f"PP={dep.pp_size}：原生回放只支持 pipeline=1")
+    return reasons
+
+
 def native_alignment_reasons(
     candidate: SimulationCandidate, spec: SearchSpec
 ) -> list[str]:
     """这条搜索结果能否用原生回放**精确对齐**；不能就写明原因。
 
-    对齐的前提是"同一个部署 + 同一个工作点"。以下任一不满足都只能分别展示：
-
-    * DP ≠ 1：原生配置的 parallelism 没有 dp 维度；
-    * ``ctx_tokens`` ≠ ISL：扫描器的每步上下文预算与原生"整段 prefill"不同；
-    * 后端/版本不一致：性能数据按版本标定；
-    * 并发/长度与需求不一致。
+    保留给旧的调用方/测试：除了部署身份外，还要求扫描行自身的
+    ``ctx_tokens`` 与 ISL 一致。AA2 的部署发现流程使用
+    :func:`deployment_identity_reasons`，不把扫描行负载当成目标负载。
     """
-    reasons: list[str] = []
+    reasons = deployment_identity_reasons(candidate, spec)
     dep, wl = candidate.deployment, candidate.workload
-    if dep.dp_size not in (None, 1):
-        reasons.append(f"DP={dep.dp_size}：原生回放的并行配置无法表达 data parallel")
     if wl.ctx_tokens is not None and wl.input_len is not None and wl.ctx_tokens != wl.input_len:
         reasons.append(
             f"每步上下文预算 ctx_tokens={wl.ctx_tokens} ≠ ISL={wl.input_len}："
             "与原生回放的整段 prefill 不是同一口径"
         )
-    if not dep.backend or not dep.backend_version:
-        reasons.append("后端或版本未声明：无法保证回放与搜索用的是同一份性能数据")
-    if spec.backend and dep.backend and spec.backend != dep.backend:
-        reasons.append(f"后端不同：搜索用 {dep.backend}，要求 {spec.backend}")
-    if spec.backend_version and dep.backend_version and spec.backend_version != dep.backend_version:
-        reasons.append(
-            f"后端版本不同：搜索用 {dep.backend_version}，要求 {spec.backend_version}"
-        )
-    if dep.tp_size is None:
-        reasons.append("搜索未给出 TP：无法构造回放配置")
     return reasons
 
 
 def build_predict_config(
     spec: SearchSpec, candidate: SimulationCandidate, *, requests: int = 500
 ) -> dict[str, Any]:
-    """为一个**可对齐**的搜索候选手工生成原生回放输入。"""
-    reasons = native_alignment_reasons(candidate, spec)
+    """为一个**部署**生成原生回放输入。
+
+    回放的负载一律取 ``spec``（用户目标），不取扫描行自身的并发/长度；
+    扫描行只贡献部署拓扑（TP/PP/replicas/后端/版本）。
+    """
+    reasons = deployment_identity_reasons(candidate, spec)
     if reasons:
         raise ValueError("该候选无法与原生回放对齐：" + "；".join(reasons))
-    dep, wl = candidate.deployment, candidate.workload
+    dep = candidate.deployment
     return {
         "engine": {
             "mode": "aggregated",
@@ -1347,10 +1479,10 @@ def build_predict_config(
         "traffic": {
             "source": {
                 "type": "synthetic",
-                "input_tokens": wl.input_len or spec.input_len,
-                "output_tokens": wl.output_len or spec.output_len,
+                "input_tokens": spec.input_len,
+                "output_tokens": spec.output_len,
             },
-            "load": {"type": "concurrency", "concurrency": wl.concurrency or spec.concurrency},
+            "load": {"type": "concurrency", "concurrency": spec.concurrency},
             "stop": {"requests": int(requests)},
         },
     }
@@ -1436,8 +1568,9 @@ def _replay_one(
     native_candidate.deployment.backend = candidate.deployment.backend
     native_candidate.deployment.backend_version = candidate.deployment.backend_version
     native_candidate.notes.append(
-        f"回放的工作点来自搜索结果 `{candidate.candidate_id}`"
-        f"（ctx_tokens={candidate.workload.ctx_tokens}、并发={candidate.workload.concurrency}）"
+        f"部署来自搜索结果 `{candidate.candidate_id}`；"
+        f"回放负载按目标 ISL={spec.input_len}/OSL={spec.output_len}/"
+        f"并发={spec.concurrency} 重新构造"
     )
     check_comparability(native_candidate, effective_target)
     assess_verdict(native_candidate, effective_target)
@@ -1552,30 +1685,78 @@ def run_two_stage(
         check_comparability(candidate, effective_target)
         assess_verdict(candidate, effective_target)
 
-    # 先做资格过滤（身份 + 资源），再**先判能否对齐**，最后才取 Top-N：
-    # 否则"吞吐最高但 ctx_tokens 不一致"的候选会白白占掉回放名额（F3）。
-    pool: list[SimulationCandidate] = []
+    # AA2：搜索行只用于发现**部署配置**。扫描行的 ISL/OSL/并发/ctx 是
+    # 它被搜索到时的负载，不是用户目标负载；回放统一用 spec 重新构造。
+    deployments: dict[tuple[Any, ...], SimulationCandidate] = {}
+    manifest.setdefault("not_replayed", {})
     for candidate in search_candidates:
+        reasons = deployment_identity_reasons(candidate, effective_target)
+        if reasons:
+            candidate.link_reasons = reasons
+            manifest["not_aligned"][candidate.candidate_id] = reasons
+            continue
         try:
-            accepted = accept(candidate) if accept is not None else candidate.comparable
+            accepted = accept(candidate) if accept is not None else True
         except Exception as exc:  # noqa: BLE001 - 资格回调本身出错也不能中断整轮
             manifest["errors"].append(
                 f"{candidate.candidate_id}: 资格校验异常 {type(exc).__name__}: {exc}"
             )
             accepted = False
         if not accepted:
+            why = list(candidate.resource_reasons or [])
+            if candidate.within_gpu_budget is False:
+                why.insert(0, "GPU 卡数超过用户上限")
+            manifest["not_replayed"][candidate.candidate_id] = why or ["未通过资格筛选"]
             continue
-        reasons = native_alignment_reasons(candidate, spec)
-        if reasons:
-            candidate.link_reasons = reasons
-            manifest["not_aligned"][candidate.candidate_id] = reasons
-            continue
-        pool.append(candidate)
+        dep = candidate.deployment
+        key = (
+            dep.model_name,
+            dep.system,
+            dep.tp_size,
+            dep.pp_size,
+            dep.dp_size,
+            dep.gpu_count,
+            dep.backend,
+            dep.backend_version,
+        )
+        current = deployments.get(key)
+        if current is None or (
+            candidate.metrics.sim_output_throughput_tok_s or Decimal(0)
+        ) > (current.metrics.sim_output_throughput_tok_s or Decimal(0)):
+            deployments[key] = candidate
 
-    pool.sort(
-        key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0), reverse=True
+    # 对每个不同部署各回放一次；不再用扫描行的并发/ctx 卡名额。
+    pool = sorted(
+        deployments.values(),
+        key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0),
+        reverse=True,
     )
-    shortlist = pool[: max(1, spec.top_n)]
+    shortlist = pool[:_MAX_DEPLOYMENT_REPLAYS]
+    truncated = pool[_MAX_DEPLOYMENT_REPLAYS:]
+    for candidate in truncated:
+        manifest["not_replayed"][candidate.candidate_id] = [
+            f"超过本轮最多回放 {_MAX_DEPLOYMENT_REPLAYS} 个不同部署的上限"
+        ]
+    if truncated:
+        limitations_note = (
+            f"本轮有 {len(truncated)} 个不同部署因回放上限未验证 P99；"
+            "候选比较**不完整**，不能据此断言已找到全局最优"
+        )
+    else:
+        limitations_note = None
+    manifest["replay_plan"] = [
+        {
+            "candidate_id": candidate.candidate_id,
+            "tp": candidate.deployment.tp_size,
+            "pp": candidate.deployment.pp_size,
+            "dp": candidate.deployment.dp_size,
+            "gpu_count": candidate.deployment.gpu_count,
+            "replay_input_len": spec.input_len,
+            "replay_output_len": spec.output_len,
+            "replay_concurrency": spec.concurrency,
+        }
+        for candidate in shortlist
+    ]
 
     native_candidates: list[SimulationCandidate] = []
     for index, candidate in enumerate(shortlist, 1):
@@ -1608,10 +1789,14 @@ def run_two_stage(
         "工具自带的 SLA 过滤是**聚合均值**口径，不用于我们的判断",
         "搜索只产出**Pareto 前沿**上的点：被支配的配置（例如某些 TP）不会出现，"
         "这是工具的搜索口径，不是本系统的过滤",
-        "只对能与回放精确对齐的 Top-N 候选做 P99 回放；"
-        "对齐不上的（DP≠1 / ctx_tokens≠ISL / 版本不一致）只作参考，分别列示",
+        "搜索行只用于发现**部署配置**；P99 回放统一使用目标的 ISL/OSL/并发，"
+        "不把扫描行当时的并发/ctx 当成目标工作点",
+        "对每个通过身份与资源筛选的不同部署各回放一次；"
+        "DP≠1 / PP≠1 / 版本不一致 / 资源超限的候选会记录未回放原因",
         "模拟结论**不是实测**：不得写入 BenchmarkRun / CapacityPoint，不得产生 observed_pass",
     ]
+    if limitations_note:
+        limitations.append(limitations_note)
     if manifest["errors"]:
         limitations.append(
             f"有 {len(manifest['errors'])} 个候选回放失败（不影响其它候选），"

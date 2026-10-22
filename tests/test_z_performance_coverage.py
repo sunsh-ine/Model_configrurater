@@ -247,3 +247,38 @@ def test_workpoint_key_ignores_sample_window_but_keeps_ctx():
     assert first == second
     other_ctx = workpoint_key(identity, {**base, "ctx_tokens": 8192})
     assert other_ctx != first
+
+
+def test_tampered_archive_is_blocked_in_coverage(tmp_path: Path):
+    run = tmp_path / "tampered-run"
+    (run / "predict" / "out_1").mkdir(parents=True)
+    input_path, prediction_path = _fake_native_files(tmp_path)
+    input_copy = run / "predict" / "predict_1.yaml"
+    pred_copy = run / "predict" / "out_1" / "prediction.json"
+    input_copy.write_bytes(input_path.read_bytes())
+    pred_copy.write_bytes(prediction_path.read_bytes())
+    import hashlib
+
+    manifest = {
+        "run_id": "tampered-run",
+        "tool_version": "0.12.1",
+        "spec": {"precision": "bf16", "database_mode": "SILICON"},
+        "errors": [],
+        "inputs": {
+            "predict/predict_1.yaml": hashlib.sha256(input_copy.read_bytes()).hexdigest()
+        },
+        "outputs": {
+            "predict/out_1/prediction.json": hashlib.sha256(
+                pred_copy.read_bytes()
+            ).hexdigest()
+        },
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    pred_copy.write_text(
+        json.dumps({"p99_ttft_ms": 1.0, "p99_tpot_ms": 1.0, "completed_requests": 500}),
+        encoding="utf-8",
+    )
+    blocked: list[dict] = []
+    evidence = read_archive_evidence(tmp_path, [], [], blocked)
+    assert evidence == []
+    assert blocked and "完整性" in str(blocked[0]["errors"])
