@@ -28,7 +28,8 @@
 3. **动态结论**：`docs/performance_coverage.md` 的“可比较工作点”由工作点
    数据生成，不再写死“只有 C32”。
 4. **审核规则**：`AGENTS.md` 未变更，本阶段按仓库规定使用
-   `gpt-6-luna` + `high` 做提交前审核。
+   `gpt-6-luna` + `high` 做提交前审核（AA 执行时的规则）；`AGENTS.md` 已在
+   AA 封板后更新为 `gpt-6-sol` + `low`，后续审核按新规则执行。
 5. **第 61 步真实执行**：设置 `AISIMULATE_PYTHON=/tmp/aisim-venv/bin/python`
    后运行完整 `verify_all.sh`，第 61 步不再是跳过状态。
 
@@ -129,7 +130,7 @@ Agent 会话 `cc-95b9a647007943bd`；业务报告仍来自 `result.json`，
 |---|---|
 | 全量测试 | `1046 passed, 1 skipped` |
 | 全链路校验（含第 61 步真实执行） | `verify_all.sh` 66 / 66 通过；第 61 步运行 `run_20261022T072523Z_95f4cf`（最终一轮），不再是跳过 |
-| Codex 审核 | `gpt-6-luna` + `high` 四轮：前三轮 P2 3 项（manifest 必须同时登记 inputs/outputs；实际读取的 prediction/input 必须被哈希覆盖；回放上限截断必须声明比较不完整），均已修复；第四轮无新增可执行缺陷（聚焦测试 57 passed / 1 skipped） |
+| Codex 审核 | AA 执行时规则为 `gpt-6-luna` + `high` 四轮：前三轮 P2 3 项（manifest 必须同时登记 inputs/outputs；实际读取的 prediction/input 必须被哈希覆盖；回放上限截断必须声明比较不完整），均已修复；第四轮无新增可执行缺陷（聚焦测试 57 passed / 1 skipped）。`AGENTS.md` 已更新为 `gpt-6-sol` + `low` |
 
 ## 7. 仍未完成
 
