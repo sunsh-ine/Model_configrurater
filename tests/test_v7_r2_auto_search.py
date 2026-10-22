@@ -546,3 +546,27 @@ def test_truncated_deployments_are_declared_as_incomplete(tmp_path, monkeypatch)
     assert result.search_audit is not None
     assert result.search_audit.truncated_deployments == 1
     assert result.search_audit.effective_scope == "partial"
+
+
+def test_qualification_exception_counts_as_failed_deployment(tmp_path, monkeypatch):
+    """资格回调异常必须计入失败部署，不能出现 failed=0 但 scope=partial。"""
+    csv_text = _csv_rows([{"tp": "8", "tokens/s": "1500"}])
+    _install_fake_tool(monkeypatch, csv_text)
+
+    def boom(candidate):
+        raise RuntimeError("qualification boom")
+
+    result = run_two_stage(
+        _fake_spec(),
+        tool_config=ExternalToolConfig(python="/fake", enabled=True),
+        work_dir=tmp_path / "work",
+        accept=boom,
+    )
+    manifest = json.loads(
+        (_only_run_dir(tmp_path / "work") / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert result.search_audit is not None
+    assert result.search_audit.failed_deployments == 1
+    assert result.search_audit.effective_scope == "partial_with_failures"
+    assert manifest["failed_predicts"] == {}
+    assert manifest["candidate_errors"]

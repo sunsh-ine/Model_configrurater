@@ -256,8 +256,8 @@ def evaluate_plan(
 
     model_spec = models[request.model_id]
     model_repo_id = _model_repo_id(model_spec, request.model_id)
-    #: 模拟比对用的目标 system 取第一个候选硬件（多硬件时报告会写明这一点）
-    first_hardware_id = request.hardware_ids[0] if request.hardware_ids else None
+    #: 模拟按每个候选硬件独立执行；单硬件时与旧行为一致。
+    simulation_hardware_ids = list(request.hardware_ids) or [None]
 
     assumptions = _assumptions(request)
     workload = _workload_signature(request)
@@ -614,10 +614,10 @@ def evaluate_plan(
         runs, ranked, targets=_match_targets(request, model_repo_id, plans)
     )
     # P3：可选模拟（默认关闭）。放在最后：它只读取，不参与前面四个领域的任何判定。
-    simulation = _simulate(
+    simulation = _simulate_all(
         request,
         model_repo_id=model_repo_id,
-        hardware_id=first_hardware_id,
+        hardware_ids=simulation_hardware_ids,
         db_path=db_path,
         cost_items=cost_items,
     )
@@ -1161,6 +1161,229 @@ def _simulate_auto(
     _simulation_budget_gate(request, result=result)
     result.ranking = config.ranking
     return result
+
+
+def _merged_scope(audits: list[Any], *, complete: bool) -> str:
+    if not complete:
+        return "multi_hardware_partial"
+    scopes = {item.effective_scope for item in audits}
+    if scopes == {"offline_archives"}:
+        return "offline_archives"
+    if scopes <= {"complete", "offline_archives"}:
+        return "complete"
+    return "multi_hardware_partial"
+
+
+def _archive_hardware_id(spec: Any) -> str | None:
+    """确定归档所属硬件：显式字段优先，否则从 native 输入推导。"""
+    if getattr(spec, "hardware_id", None):
+        return spec.hardware_id
+    native_input = getattr(spec, "native_input", None)
+    if not native_input:
+        return None
+    try:
+        import yaml
+
+        from llm_capacity_pricing.perf.aisimulate_adapter import (
+            hardware_id_for_system,
+        )
+
+        doc = yaml.safe_load(Path(native_input).read_text(encoding="utf-8")) or {}
+        return hardware_id_for_system((doc.get("engine") or {}).get("hardware"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _legacy_simulation_hardware(config: Any) -> str | None:
+    """旧单输入模式（native/sweeper）声明的硬件；无法确认返回 None。"""
+    native_input = getattr(config, "native_input", None)
+    if not native_input:
+        return None
+    try:
+        import yaml
+
+        from llm_capacity_pricing.perf.aisimulate_adapter import (
+            hardware_id_for_system,
+        )
+
+        doc = yaml.safe_load(Path(native_input).read_text(encoding="utf-8")) or {}
+        return hardware_id_for_system((doc.get("engine") or {}).get("hardware"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _simulate_all(
+    request: Any,
+    *,
+    model_repo_id: str,
+    hardware_ids: list[str | None],
+    db_path: Any,
+    cost_items: Any,
+) -> Any:
+    """按每个硬件独立模拟，再合并候选；单硬件保持旧行为。"""
+    if request.simulation is None or not hardware_ids:
+        return None
+    if len(hardware_ids) == 1:
+        return _simulate(
+            request,
+            model_repo_id=model_repo_id,
+            hardware_id=hardware_ids[0],
+            db_path=db_path,
+            cost_items=cost_items,
+        )
+
+    from llm_capacity_pricing.schemas.simulation import (
+        SimulationResult,
+        SimulationSearchAudit,
+    )
+
+    config = request.simulation
+    archive_mode = bool(getattr(config, "archives", None)) and not getattr(
+        config, "auto_search", False
+    )
+    legacy_unscoped = (
+        not getattr(config, "auto_search", False)
+        and not getattr(config, "archives", None)
+        and (
+            getattr(config, "native_prediction", None)
+            or getattr(config, "native_input", None)
+            or getattr(config, "sweeper_csv", None)
+        )
+    )
+    legacy_hardware = _legacy_simulation_hardware(config) if legacy_unscoped else None
+    results: list[tuple[str | None, Any]] = []
+    for hardware_id in hardware_ids:
+        request_for_hw = request
+        if archive_mode:
+            matching = [
+                item
+                for item in config.archives
+                if _archive_hardware_id(item) == hardware_id
+            ]
+            if not matching:
+                results.append(
+                    (
+                        hardware_id,
+                        SimulationResult(
+                            status="missing_data",
+                            message=(
+                                f"{hardware_id} 没有匹配的原生归档证据；"
+                                "只保留静态资源结论，不参与 P99 排名"
+                            ),
+                        ),
+                    )
+                )
+                continue
+            request_for_hw = request.model_copy(deep=True)
+            request_for_hw.simulation = config.model_copy(
+                update={
+                    "archives": matching,
+                    # 顶层旧字段没有硬件归属，不能在每个硬件循环里重复使用
+                    "native_prediction": None,
+                    "native_input": None,
+                    "exp_config": None,
+                    "per_ops_source": None,
+                    "sweeper_csv": None,
+                }
+            )
+        elif legacy_unscoped and legacy_hardware != hardware_id:
+            # 旧单输入没有明确归属，不能在多硬件请求中复用给其它硬件
+            results.append(
+                (
+                    hardware_id,
+                    SimulationResult(
+                        status="missing_data",
+                        message=(
+                            f"{hardware_id} 没有独立预测证据：旧模拟输入"
+                            "未声明属于该硬件，拒绝跨硬件复用"
+                        ),
+                    ),
+                )
+            )
+            continue
+        results.append(
+            (
+                hardware_id,
+                _simulate(
+                    request_for_hw,
+                    model_repo_id=model_repo_id,
+                    hardware_id=hardware_id,
+                    db_path=db_path,
+                    cost_items=cost_items,
+                ),
+            )
+        )
+
+    computed = [(hw, res) for hw, res in results if res is not None and res.status == "computed"]
+    base = computed[0][1] if computed else next(
+        (res for _, res in results if res is not None), None
+    )
+    if base is None:
+        return None
+
+    candidates = []
+    limitations: list[str] = [
+        "多硬件请求：每个硬件独立执行证据匹配、资源门槛与 SLA 判定；"
+        "没有原生 P99 的硬件不参与预测排名"
+    ]
+    for hardware_id, result in results:
+        if result is None:
+            continue
+        if result.status == "computed":
+            candidates.extend(result.candidates)
+        if result.status != "computed":
+            limitations.append(
+                f"[{hardware_id or '未指定硬件'}] 模拟状态 {result.status}："
+                f"{result.message or '没有可用预测'}"
+            )
+        for limitation in result.limitations:
+            limitations.append(f"[{hardware_id or '未指定硬件'}] {limitation}")
+
+    systems = {
+        result.tool.system
+        for _, result in computed
+        if result.tool.system
+    }
+    tool = base.tool
+    if len(systems) > 1:
+        tool = tool.model_copy(update={"system": "multiple"})
+
+    audits = [
+        result.search_audit
+        for _, result in results
+        if result is not None and result.search_audit is not None
+    ]
+    audit = None
+    if audits:
+        audit = SimulationSearchAudit(
+            discovered_deployments=sum(item.discovered_deployments for item in audits),
+            accepted_deployments=sum(item.accepted_deployments for item in audits),
+            replayed_deployments=sum(item.replayed_deployments for item in audits),
+            failed_deployments=sum(item.failed_deployments for item in audits),
+            truncated_deployments=sum(item.truncated_deployments for item in audits),
+            filtered={key: value for item in audits for key, value in item.filtered.items()},
+            replayed=[cid for item in audits for cid in item.replayed],
+            failed={key: value for item in audits for key, value in item.failed.items()},
+            truncated=[cid for item in audits for cid in item.truncated],
+            effective_scope=_merged_scope(audits, complete=len(computed) == len(results)),
+        )
+
+    status = "computed" if computed else base.status
+    messages = [
+        f"{hardware_id}: {result.message}"
+        for hardware_id, result in results
+        if result is not None and result.message
+    ]
+    return SimulationResult(
+        status=status,
+        tool=tool,
+        candidates=candidates,
+        limitations=sorted(set(limitations)),
+        message="；".join(messages) or None,
+        source_dir=base.source_dir,
+        ranking=base.ranking,
+        search_audit=audit,
+    )
 
 
 def _simulate(

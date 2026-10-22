@@ -387,7 +387,7 @@ def test_c32_returns_both_tp4_and_tp8():
 
 def test_unknown_model_has_no_offline_simulation():
     paths = offline_simulation_paths(
-        model_id="qwen3-8b",
+        model_id="qwen3-30b-a3b",
         hardware_id="nvidia-h100-sxm-80gb",
         input_len=8192,
         output_len=256,

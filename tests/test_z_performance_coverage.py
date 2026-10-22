@@ -65,6 +65,7 @@ def test_native_p99_workpoints_are_exact_c8_c32_c64():
             item
             for item in _native(doc, concurrency)
             if item["identity"].get("tp_size") == 8
+            and item["identity"].get("hardware_id") == "nvidia-h100-sxm-80gb"
             and item["workload"].get("input_len") == 8192
             and item["workload"].get("output_len") == 256
         ]

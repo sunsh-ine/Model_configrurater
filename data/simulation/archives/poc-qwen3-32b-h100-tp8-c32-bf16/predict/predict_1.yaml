@@ -6,8 +6,17 @@ engine:
   backend_version: current
   workers:
     aggregated:
-      parallelism: {tensor: 8, replicas: 1}
+      parallelism:
+        tensor: 8
+        replicas: 1
+        pipeline: 1
 traffic:
-  source: {type: synthetic, input_tokens: 8192, output_tokens: 256}
-  load: {type: concurrency, concurrency: 32}
-  stop: {requests: 500}
+  source:
+    type: synthetic
+    input_tokens: 8192
+    output_tokens: 256
+  load:
+    type: concurrency
+    concurrency: 32
+  stop:
+    requests: 500

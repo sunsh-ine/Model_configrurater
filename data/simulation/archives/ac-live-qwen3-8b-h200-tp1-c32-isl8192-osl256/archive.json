@@ -1,0 +1,19 @@
+{
+  "archived_at": "2026-10-22T11:23:27+00:00",
+  "kind": "native_replay",
+  "tool_version": "0.12.1",
+  "files": [
+    {
+      "path": "data/simulation/archives/ac-live-qwen3-8b-h200-tp1-c32-isl8192-osl256/predict/predict_1.yaml",
+      "sha256": "606c843016e49d4d50ce37d39727826a4649aadce8328983cdafc91193f667bd"
+    },
+    {
+      "path": "data/simulation/archives/ac-live-qwen3-8b-h200-tp1-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "sha256": "7e66f6f79a577b7d04a38149b2e47ff44180767c2c710d5e640412d7dce7cdda"
+    },
+    {
+      "path": "data/simulation/archives/ac-live-qwen3-8b-h200-tp1-c32-isl8192-osl256/exp_config.yaml",
+      "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+    }
+  ]
+}

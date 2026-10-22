@@ -29,6 +29,10 @@ archives/
 `verify_manifest_hashes`，不再有特殊加载路径。迁移脚本：
 `scripts/migrate_poc_archive.py`。
 
+`capabilities/` 保存 AC1 的能力探测记录：每个 case 的输入、prediction、
+stderr 与 `simulation_capabilities.json`。能力探测只证明工具能跑出完整 P99，
+不等于预测准确。
+
 ## 边界
 
 * **不含价格、成本、收入或报价**；这些数据在本地 `data/exports/`、

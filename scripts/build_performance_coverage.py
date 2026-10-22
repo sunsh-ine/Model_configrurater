@@ -37,7 +37,10 @@ from typing import Any, Iterable
 
 import yaml
 
-from llm_capacity_pricing.app.archive_integrity import verify_files
+from llm_capacity_pricing.app.archive_integrity import (
+    verify_files,
+    verify_predict_metadata,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -545,6 +548,11 @@ def read_archive_evidence(
         return evidence
     for manifest_path in sorted(archive_root.glob("*/manifest.json")):
         run_dir = manifest_path.parent
+        if run_dir.is_symlink() or manifest_path.is_symlink():
+            blocked_runs.append(
+                {"run_id": run_dir.name, "error": "归档目录/清单是符号链接，已拒绝"}
+            )
+            continue
         try:
             manifest = load_json(manifest_path)
         except Exception as exc:  # noqa: BLE001
@@ -569,6 +577,7 @@ def read_archive_evidence(
             )
             continue
         candidate_errors = manifest.get("candidate_errors") or {}
+        failed_predicts = manifest.get("failed_predicts") or {}
         tool_version = text(manifest.get("tool_version"))
         database_mode = text(spec.get("database_mode"))
         aliases = {"current": "0.24.0"}
@@ -582,7 +591,7 @@ def read_archive_evidence(
             if key.startswith("predict/predict_") and key.endswith(".yaml")
         }
         for missing in sorted(registered_inputs - on_disk_inputs):
-            if missing in candidate_errors:
+            if missing in candidate_errors or missing in failed_predicts:
                 continue
             blocked_candidates.append(
                 {
@@ -593,12 +602,15 @@ def read_archive_evidence(
             )
         for input_path in predict_inputs:
             relative_input = str(input_path.relative_to(run_dir))
-            if relative_input in candidate_errors:
+            if relative_input in candidate_errors or relative_input in failed_predicts:
                 blocked_candidates.append(
                     {
                         "run_id": run_id,
                         "predict": relative_input,
-                        "error": str(candidate_errors[relative_input]),
+                        "error": str(
+                            candidate_errors.get(relative_input)
+                            or failed_predicts.get(relative_input)
+                        ),
                     }
                 )
                 continue
@@ -631,6 +643,18 @@ def read_archive_evidence(
                         "run_id": run_id,
                         "predict": relative_input,
                         "error": "归档完整性校验失败：" + "；".join(problems),
+                    }
+                )
+                continue
+            metadata_problems = verify_predict_metadata(
+                run_dir, manifest, relative_input
+            )
+            if metadata_problems:
+                blocked_candidates.append(
+                    {
+                        "run_id": run_id,
+                        "predict": relative_input,
+                        "error": "归档元数据不一致：" + "；".join(metadata_problems),
                     }
                 )
                 continue

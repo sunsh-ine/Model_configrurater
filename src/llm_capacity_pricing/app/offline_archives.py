@@ -23,7 +23,10 @@ from typing import Any
 
 import yaml
 
-from llm_capacity_pricing.app.archive_integrity import verify_files
+from llm_capacity_pricing.app.archive_integrity import (
+    verify_files,
+    verify_predict_metadata,
+)
 from llm_capacity_pricing.perf.aisimulate_adapter import system_for_hardware_id
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -182,6 +185,8 @@ def archive_entries() -> list[ArchiveEntry]:
         return entries
     for manifest_path in sorted(ARCHIVE_ROOT.glob("*/manifest.json")):
         run_dir = manifest_path.parent
+        if run_dir.is_symlink() or manifest_path.is_symlink():
+            continue
         try:
             manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
         except Exception:  # noqa: BLE001
@@ -195,10 +200,11 @@ def archive_entries() -> list[ArchiveEntry]:
         elif run_errors:
             continue
         candidate_errors = manifest.get("candidate_errors") or {}
+        failed_predicts = manifest.get("failed_predicts") or {}
         exp_config = run_dir / "exp_config.yaml"
         for input_path in sorted(run_dir.glob("predict/predict_*.yaml")):
             relative_input = str(input_path.relative_to(run_dir))
-            if relative_input in candidate_errors:
+            if relative_input in candidate_errors or relative_input in failed_predicts:
                 continue
             index = input_path.stem.rsplit("_", 1)[-1]
             prediction_path = run_dir / "predict" / f"out_{index}" / "prediction.json"
@@ -217,6 +223,9 @@ def archive_entries() -> list[ArchiveEntry]:
                 required.append("exp_config.yaml")
             if verify_files(run_dir, manifest, required):
                 # 实际要读的文件必须被哈希覆盖；只登记别的文件不算数。
+                continue
+            if verify_predict_metadata(run_dir, manifest, relative_input):
+                # 哈希只能证明文件没变；标签与输入不一致同样不能作为证据。
                 continue
             cfg = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
             engine = cfg.get("engine") or {}
@@ -448,6 +457,7 @@ def offline_simulation_paths(
         {
             "native_prediction": entry.native_prediction,
             "native_input": entry.native_input,
+            "hardware_id": hardware_id,
             # 不得用请求值补归档缺失的精度：那会把“未声明”伪造成“已核实”。
             "native_model_precision": entry.precision,
             "tool_version": entry.tool_version,

@@ -50,6 +50,21 @@ def main() -> int:
     for source, target in copies:
         shutil.copy2(source, target)
 
+    # 归档输入显式写出 pipeline=1（原文件省略该字段）；不改变预测值。
+    import yaml
+
+    predict_path = TARGET / "predict/predict_1.yaml"
+    cfg = yaml.safe_load(predict_path.read_text(encoding="utf-8")) or {}
+    parallel = ((cfg.get("engine") or {}).get("workers") or {}).get(
+        "aggregated"
+    ) or {}
+    parallel.setdefault("parallelism", {})
+    parallel["parallelism"].setdefault("pipeline", 1)
+    parallel["parallelism"].setdefault("replicas", 1)
+    predict_path.write_text(
+        yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+
     prediction = json.loads(SOURCE_PREDICTION.read_text(encoding="utf-8"))
     metrics = {
         key: prediction.get(key)

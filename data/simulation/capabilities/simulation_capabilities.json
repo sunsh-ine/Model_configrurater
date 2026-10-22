@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-10-22T11:22:28+00:00",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "database_mode": "SILICON",
+  "workload": {
+    "input_len": 8192,
+    "output_len": 256,
+    "concurrency": 32,
+    "requests": 500,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "precision": "bf16"
+  },
+  "cases": [
+    {
+      "case_id": "qwen3-8b_h100_sxm",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h100_sxm",
+      "status": "supported",
+      "tp": 1,
+      "attempts": [
+        {
+          "tp": 1,
+          "status": "supported",
+          "reason": "P99 已生成"
+        }
+      ],
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/qwen3-8b_h100_sxm/predict_tp1.yaml",
+        "predict_config_sha256": "ac1355db3289c4099bf73893b0c0620c4b2c93611911bb1a0a518144895438a1",
+        "prediction": "data/simulation/capabilities/qwen3-8b_h100_sxm/out_tp1/prediction.json",
+        "prediction_sha256": "247314db71261ed1c42c071d0aa84d414dfc5f3010a2d2ab9824f7438c111c53"
+      },
+      "metrics": {
+        "p99_ttft_ms": 6609.393869999999,
+        "p99_tpot_ms": 46.599841372549015,
+        "output_throughput_tok_s": 671.6197848398688,
+        "completed_requests": 500
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h200_sxm",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h200_sxm",
+      "status": "supported",
+      "tp": 2,
+      "attempts": [
+        {
+          "tp": 2,
+          "status": "supported",
+          "reason": "P99 已生成"
+        }
+      ],
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/qwen3-32b_h200_sxm/predict_tp2.yaml",
+        "predict_config_sha256": "74a2452ed0bdf70fcdb2b8db5a19ecc9eaea9ba4669db4ced11db3d0b4846b95",
+        "prediction": "data/simulation/capabilities/qwen3-32b_h200_sxm/out_tp2/prediction.json",
+        "prediction_sha256": "8fbacf8a7a4b580a8574fc1d4d9e568a5379a8e672747bf6a6f025609b010942"
+      },
+      "metrics": {
+        "p99_ttft_ms": 14356.537065000002,
+        "p99_tpot_ms": 79.91176538039238,
+        "output_throughput_tok_s": 390.35883497438374,
+        "completed_requests": 500
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h200_sxm",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h200_sxm",
+      "status": "supported",
+      "tp": 1,
+      "attempts": [
+        {
+          "tp": 1,
+          "status": "supported",
+          "reason": "P99 已生成"
+        }
+      ],
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/qwen3-8b_h200_sxm/predict_tp1.yaml",
+        "predict_config_sha256": "606c843016e49d4d50ce37d39727826a4649aadce8328983cdafc91193f667bd",
+        "prediction": "data/simulation/capabilities/qwen3-8b_h200_sxm/out_tp1/prediction.json",
+        "prediction_sha256": "8e04e16c22bd92388c33400787d96711c7d4c04813877074879fd5f3dee9cef9"
+      },
+      "metrics": {
+        "p99_ttft_ms": 6286.380569000001,
+        "p99_tpot_ms": 40.78204896862738,
+        "output_throughput_tok_s": 767.0359516128434,
+        "completed_requests": 500
+      }
+    }
+  ]
+}

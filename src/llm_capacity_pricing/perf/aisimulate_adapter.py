@@ -1679,6 +1679,7 @@ def run_two_stage(
         "run_errors": [],
         #: 候选级错误：键是候选 ID 或 predict/predict_N.yaml，只影响对应候选
         "candidate_errors": {},
+        "failed_predicts": {},
         "not_aligned": {},
         "not_replayed": {},
     }
@@ -1861,7 +1862,7 @@ def run_two_stage(
             message = f"{candidate.candidate_id}: {type(exc).__name__}: {exc}"
             manifest["errors"].append(message)
             manifest["candidate_errors"][candidate.candidate_id] = message
-            manifest["candidate_errors"][f"predict/predict_{index}.yaml"] = message
+            manifest["failed_predicts"][f"predict/predict_{index}.yaml"] = message
         else:
             manifest.setdefault("predict_candidates", {})[
                 f"predict/predict_{index}.yaml"
@@ -1905,9 +1906,7 @@ def run_two_stage(
         discovered_deployments=len(discovered_keys),
         accepted_deployments=len(pool),
         replayed_deployments=len(native_candidates),
-        failed_deployments=len(
-            [key for key in manifest["candidate_errors"] if key.startswith("predict/")]
-        ),
+        failed_deployments=len(manifest["candidate_errors"]),
         truncated_deployments=len(truncated),
         filtered={**manifest["not_aligned"], **manifest["not_replayed"]},
         replayed=[candidate.candidate_id for candidate in native_candidates],

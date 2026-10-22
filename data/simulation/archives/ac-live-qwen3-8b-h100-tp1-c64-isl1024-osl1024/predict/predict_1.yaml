@@ -1,0 +1,22 @@
+engine:
+  backend: vllm
+  backend_version: 0.24.0
+  hardware: h100_sxm
+  mode: aggregated
+  model: Qwen/Qwen3-8B
+  workers:
+    aggregated:
+      parallelism:
+        pipeline: 1
+        replicas: 1
+        tensor: 1
+traffic:
+  load:
+    concurrency: 64
+    type: concurrency
+  source:
+    input_tokens: 1024
+    output_tokens: 1024
+    type: synthetic
+  stop:
+    requests: 500

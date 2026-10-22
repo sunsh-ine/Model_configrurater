@@ -157,6 +157,8 @@ class SimulationArchiveSpec(BaseModel):
 
     native_prediction: str
     native_input: str
+    #: 该归档属于哪个 hardware_id；多硬件请求按它分流，缺省时不得跨硬件复用
+    hardware_id: str | None = None
     exp_config: str | None = None
     per_ops_source: str | None = None
     native_model_precision: str | None = None

@@ -4,7 +4,7 @@
   "tool_version": "0.12.1",
   "run_id": "poc-qwen3-32b-h100-tp8-c32-bf16",
   "source": "N 阶段 PoC 原生回放迁移；原始 prediction 未修改",
-  "created_at": "2026-10-22T08:21:13+00:00",
+  "created_at": "2026-10-22T11:21:31+00:00",
   "spec": {
     "model": "Qwen/Qwen3-32B",
     "precision": "bf16",
@@ -30,7 +30,7 @@
     "requests": 500
   },
   "inputs": {
-    "predict/predict_1.yaml": "c84198d32fd071db010d2f9f22d4d4a1cb0ddfe3a0b3ec41471f7dc30d116f68",
+    "predict/predict_1.yaml": "b21656bdf10aab47b1d10b3eab72fda0696fad331279bdccf791109cd433536c",
     "exp_config.yaml": "c1afd887bf591f518abf7ebb19c5c61aad20185d003539ed32af845cfe53a54a",
     "per_ops_source.json": "a6c7ccc5ccd8e930f6d5ae08369cfc8677ac52064b77fa6d8313db5455c6e07e"
   },

@@ -375,29 +375,35 @@ CLI 同样支持：
 三组完整报告在 `docs/demo_scenarios/`，场景说明与成本门禁解释见
 [`docs/demo_scenarios.md`](docs/demo_scenarios.md)。
 
-### 1.5.1 当前可用的预测工作点（Z/AA/AB 阶段）
+### 1.5.1 当前可用的预测工作点（Z/AA/AB/AC 阶段）
 
-离线模式会按请求自动选择**同一工作点**的全部有效部署，不再只挑一条或固定 C32：
+离线模式会按请求自动选择**同一工作点**的全部有效部署；多硬件请求会按每个
+GPU 独立匹配证据，不跨硬件复用 P99：
 
-| 模型 / 硬件 / 精度 / 框架 | 负载 | 并发 | 部署 |
+| 模型 / 精度 / 框架 | 硬件 | 已归档部署 | 工作点 |
 | --- | --- | --- | --- |
-| Qwen3-32B / H100 SXM / bf16 / vLLM 0.24.0 | ISL8192 / OSL256 | C8、C32、C64 | TP4、TP8 |
-| 同上 | ISL1024 / OSL1024 | C8、C32、C64 | TP4、TP8 |
+| Qwen3-32B / bf16 / vLLM 0.24.0 | H100 SXM | TP4、TP8 | ISL8192/256 与 ISL1024/1024 × C8/C32/C64 |
+| 同上 | H200 SXM | TP2（六点）、TP4/TP8（C32/8192 对照） | 同上 |
+| Qwen3-8B / bf16 / vLLM 0.24.0 | H100 SXM | TP1 | 同上 |
+| 同上 | H200 SXM | TP1 | 同上 |
 
-共 12 个独立原生 P99 工作点（2 负载 × 3 并发 × 2 部署）；不做插值。
+当前覆盖矩阵为 **32 个 SLA 可用工作点**、37 条原生证据、0 条真实实测。
+不做插值；没有原生证据的组合只给静态结论。
 
 * 先按 GPU 上限、TP 白名单、Sizing 静态可行性与 P99 门禁筛选，再按吞吐或
   已确认成本排序；成本不可比时降级为吞吐优先；
 * 报告展示 SLA 裕量、预测值 +10%/+20% 的敏感性、每 GPU 吞吐、
   “满足 SLA 的最小卡数”和证据状态（余量 / 边界敏感 / 未达标 / 证据不足）；
 * 搜索/归档会输出“发现 / 通过 / 回放 / 失败 / 截断”审计与有效范围；
+* 多硬件时每个 GPU 独立执行模拟；缺少预测证据的硬件只保留静态结论；
+* 不同模型之间**不按吞吐直接排名**，没有业务质量门禁时分别展示；
 * 预测达标与否由本仓库的 SLA 规则判定；**不是实测**；
-* 没有原生证据的工作点（例如 C16 或其它 ISL/OSL）只给扫描器枚举与静态结论，
-  并明确写出缺口；
 * 完整覆盖矩阵见 [`docs/performance_coverage.md`](docs/performance_coverage.md)，
   机器可读版本为 `docs/performance_coverage.json`；
 * 多候选比较见 [`docs/aa_candidate_comparison.md`](docs/aa_candidate_comparison.md)，
-  AB 阶段验收见 [`docs/ab_phase_validation.md`](docs/ab_phase_validation.md)。
+  AB/AC 验收见 [`docs/ab_phase_validation.md`](docs/ab_phase_validation.md)、
+  [`docs/ac_phase_validation.md`](docs/ac_phase_validation.md)、
+  [`docs/ac_capability_matrix.md`](docs/ac_capability_matrix.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -728,6 +734,8 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/aa_candidate_comparison.md`](docs/aa_candidate_comparison.md) | **AA1–AA3** 多部署候选比较、TP4/TP8 门禁与排序规则 |
 | [`docs/aa_phase_validation.md`](docs/aa_phase_validation.md) | **AA0–AA4** 归档完整性、多候选、实时回放与一致性验收 |
 | [`docs/ab_phase_validation.md`](docs/ab_phase_validation.md) | **AB0–AB5** 失败隔离、12 工作点覆盖、SLA 裕量与搜索审计 |
+| [`docs/ac_capability_matrix.md`](docs/ac_capability_matrix.md) | **AC1** AISimulate 模型/硬件支持能力探测（自动生成） |
+| [`docs/ac_phase_validation.md`](docs/ac_phase_validation.md) | **AC0–AC5** 多模型/多硬件适配、跨硬件决策与验收 |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

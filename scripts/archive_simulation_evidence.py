@@ -254,6 +254,14 @@ def archive_work_dir(args: argparse.Namespace) -> Path:
             continue
         copied.append(copy_with_hash(path, target / relative))
 
+    # 统一在归档根放一份 exp_config.yaml：加载器只从这里读工具身份，
+    # 并且它必须出现在 manifest.inputs 中。
+    root_exp = target / "exp_config.yaml"
+    if not root_exp.exists():
+        nested = sorted(target.glob("search/**/exp_config.yaml"))
+        if nested:
+            copied.append(copy_with_hash(nested[0], root_exp))
+
     manifest = dict(source_manifest)
     manifest["archive_version"] = "ab-1"
     manifest["run_id"] = args.name
@@ -307,7 +315,9 @@ def archive_work_dir(args: argparse.Namespace) -> Path:
     manifest["inputs"] = {
         rel: digest
         for rel, digest in archived.items()
-        if rel == "search_input.yaml" or rel.startswith("predict/predict_")
+        if rel in ("search_input.yaml", "exp_config.yaml")
+        or rel.startswith("predict/predict_")
+        or rel.endswith("per_ops_source.json")
     }
     manifest["outputs"] = {
         rel: digest

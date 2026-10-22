@@ -15,6 +15,24 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _path_escape_reasons(root: Path, relative: str) -> list[str]:
+    """拒绝绝对路径、..、符号链接组件与解析后越界。"""
+    candidate = Path(relative)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        return [f"非法归档路径：{relative}"]
+    current = root
+    for part in candidate.parts:
+        current = current / part
+        if current.is_symlink():
+            return [f"拒绝符号链接路径组件：{relative}"]
+    try:
+        if not (root / candidate).resolve().is_relative_to(root.resolve()):
+            return [f"归档路径越界：{relative}"]
+    except OSError:
+        return [f"无法解析归档路径：{relative}"]
+    return []
+
+
 def verify_files(
     run_dir: str | Path,
     manifest: Mapping[str, Any],
@@ -42,11 +60,11 @@ def verify_files(
         if relative not in registered:
             reasons.append(f"manifest 未登记实际使用的文件：{relative}")
             continue
-        candidate = Path(relative)
-        if candidate.is_absolute() or ".." in candidate.parts:
-            reasons.append(f"非法归档路径：{relative}")
-            continue
         path = root / relative
+        escape = _path_escape_reasons(root, relative)
+        if escape:
+            reasons.extend(escape)
+            continue
         if not path.is_file():
             reasons.append(f"缺少归档文件：{relative}")
             continue
@@ -91,11 +109,11 @@ def verify_manifest_hashes(
         return reasons or ["manifest 未登记任何输入/输出哈希"]
 
     for relative, expected in sorted(registered.items()):
-        candidate = Path(relative)
-        if candidate.is_absolute() or ".." in candidate.parts:
-            reasons.append(f"非法归档路径：{relative}")
-            continue
         path = root / relative
+        escape = _path_escape_reasons(root, relative)
+        if escape:
+            reasons.extend(escape)
+            continue
         if not path.is_file():
             reasons.append(f"缺少归档文件：{relative}")
             continue
@@ -104,4 +122,75 @@ def verify_manifest_hashes(
             reasons.append(
                 f"哈希不一致：{relative}（期望 {expected[:12]}…，实际 {actual[:12]}…）"
             )
+    return reasons
+
+
+_VERSION_ALIASES = {"current": "0.24.0"}
+
+
+def _version(value: Any) -> Any:
+    return _VERSION_ALIASES.get(str(value), value) if value is not None else None
+
+
+def verify_predict_metadata(
+    run_dir: str | Path, manifest: Mapping[str, Any], predict_relative: str
+) -> list[str]:
+    """校验 manifest 声明的身份与 predict 输入是否一致。
+
+    SHA256 只能证明“文件没变”，不能证明“标签写对了”。这里检查
+    spec/workpoint 与 predict YAML 的模型、硬件、后端/版本、负载与并行拓扑。
+    只比较 manifest 中**已声明**的字段；缺失字段不强行补造。
+    """
+    import yaml
+
+    root = Path(run_dir)
+    predict_path = root / predict_relative
+    if predict_path.is_symlink() or not predict_path.is_file():
+        return [f"{predict_relative}: 输入文件不存在或为符号链接"]
+    try:
+        cfg = yaml.safe_load(predict_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:  # noqa: BLE001
+        return [f"{predict_relative}: YAML 解析失败：{exc}"]
+
+    engine = cfg.get("engine") or {}
+    traffic = cfg.get("traffic") or {}
+    source = traffic.get("source") or {}
+    load = traffic.get("load") or {}
+    parallel = ((engine.get("workers") or {}).get("aggregated") or {}).get(
+        "parallelism"
+    ) or {}
+    spec = manifest.get("spec") or {}
+    workpoint = manifest.get("workpoint") or {}
+    reasons: list[str] = []
+
+    def compare(label: str, declared: Any, actual: Any) -> None:
+        if declared is None:
+            return
+        if actual is None:
+            reasons.append(f"{predict_relative}: {label} 声明为 {declared}，输入未给出")
+        elif str(declared) != str(actual):
+            reasons.append(
+                f"{predict_relative}: {label} 声明为 {declared}，输入为 {actual}"
+            )
+
+    compare("spec.model", spec.get("model"), engine.get("model"))
+    compare("spec.system", spec.get("system"), engine.get("hardware"))
+    compare("spec.backend", spec.get("backend"), engine.get("backend"))
+    compare(
+        "spec.backend_version",
+        _version(spec.get("backend_version")),
+        _version(engine.get("backend_version")),
+    )
+    compare("spec.isl", spec.get("isl"), source.get("input_tokens"))
+    compare("spec.osl", spec.get("osl"), source.get("output_tokens"))
+    compare("spec.concurrency", spec.get("concurrency"), load.get("concurrency"))
+
+    compare("workpoint.model", workpoint.get("model"), engine.get("model"))
+    compare("workpoint.system", workpoint.get("system"), engine.get("hardware"))
+    compare("workpoint.input_len", workpoint.get("input_len"), source.get("input_tokens"))
+    compare("workpoint.output_len", workpoint.get("output_len"), source.get("output_tokens"))
+    compare("workpoint.concurrency", workpoint.get("concurrency"), load.get("concurrency"))
+    compare("workpoint.tp", workpoint.get("tp"), parallel.get("tensor"))
+    compare("workpoint.pp", workpoint.get("pp"), parallel.get("pipeline"))
+    compare("workpoint.dp", workpoint.get("dp"), parallel.get("replicas"))
     return reasons
