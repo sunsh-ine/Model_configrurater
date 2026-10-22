@@ -22,7 +22,7 @@
   - 只读挂载代码、venv、模型/硬件/示例数据、`docs/poc`；
   - 只写挂载 `data/agent_runs`、`data/agent_tasks`、`data/agent/cc-workspace` 与沙箱 HOME；
   - **不挂载** `data/private`、`data/local.db`、`data/raw/*.xlsx`、真实 HOME；
-  - 沙箱 HOME 只复制 `auth.json/config.json/mcp.json`（0600），不复制历史/缓存；
+  - 沙箱 HOME 只复制 `auth.json/config.json` 与**仅含 lcp 的** `mcp.json`（0600）；完成/失败后清理，不复制历史/缓存；
 - 运行时事件门禁收紧为**精确三个工具名**：
   `mcp__lcp__get_platform_catalog`、`mcp__lcp__evaluate_deployment_plan`、
   `mcp__lcp__get_plan_report`（另允许 `search_tools/select_tool` 元工具）；
@@ -93,7 +93,7 @@
 
 - `docs/agent_demo_start.md`：安装、MCP 注册、可用性检查、启动、示例请求、
   下载与故障排查；
-- 敏感凭据只在 `data/agent/cc-home/`（0600，git 忽略）与 Command Code 自身配置；
+- 敏感凭据只在 `data/agent/cc-homes/<task_id>/`（0600，git 忽略）与 Command Code 自身配置；
 - 全量 pytest 与 `verify_all.sh` 见总结。
 
 ## X5：未实施

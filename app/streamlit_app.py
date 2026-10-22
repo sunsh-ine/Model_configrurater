@@ -585,6 +585,81 @@ stale = manual_stale
 # 结果区：首页只留结论、核心对比、下载；细节全部折叠
 # ---------------------------------------------------------------------------
 
+
+def _render_result(outcome_obj, is_stale: bool) -> None:
+    result = outcome_obj.result
+    sim = getattr(result, "simulation", None)
+    st.markdown(result_head_html(result), unsafe_allow_html=True)
+    if is_stale:
+        st.markdown(
+            "<div class='callout warn'>需求已改动：左侧当前值与这份结果对应的需求不同。"
+            "重新生成会新建运行目录，不会覆盖这份结果。</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        "<div class='sec'><h3>核心候选对比</h3>"
+        f"<span>{len(result.candidates)} 个候选</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(candidates_table_html(result), unsafe_allow_html=True)
+
+    d1, d2, d3 = st.columns(3)
+    d1.download_button(
+        "部署方案文档",
+        data=outcome_obj.proposal_md.encode("utf-8"),
+        file_name="deployment_proposal.md",
+        mime="text/markdown",
+        width="stretch",
+    )
+    d2.download_button(
+        "技术评估报告",
+        data=outcome_obj.technical_md.encode("utf-8"),
+        file_name="technical_report.md",
+        mime="text/markdown",
+        width="stretch",
+    )
+    d3.download_button(
+        "结构化结果 JSON",
+        data=json.dumps(
+            outcome_obj.result_json, ensure_ascii=False, indent=2
+        ).encode("utf-8"),
+        file_name="result.json",
+        mime="application/json",
+        width="stretch",
+    )
+    st.markdown(
+        f"<p class='note'>产物目录：<b>{_esc(outcome_obj.out_dir)}</b></p>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("评估链路与三线结论", expanded=False):
+        st.markdown(
+            rail_html(result, data_ok=bool(outcome_obj.stages and outcome_obj.stages[0][1] == "ok")),
+            unsafe_allow_html=True,
+        )
+        st.markdown(_ledger(result), unsafe_allow_html=True)
+
+    with st.expander("性能与 SLA 明细", expanded=False):
+        st.markdown(perf_table_html(result), unsafe_allow_html=True)
+        st.markdown(
+            "<div class='sec'><h3>外部公开实测参考</h3>"
+            "<span>不参与本次判定</span></div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(refs_html(result), unsafe_allow_html=True)
+
+    with st.expander("成本与预算", expanded=False):
+        st.markdown(cost_table_html(result), unsafe_allow_html=True)
+
+    with st.expander("模拟预测（不是实测）", expanded=False):
+        st.markdown(sim_html(sim), unsafe_allow_html=True)
+
+    with st.expander("推荐依据、阻断与适用边界", expanded=False):
+        st.markdown(recommendations_html(result), unsafe_allow_html=True)
+
+    with st.expander("部署方案文档预览", expanded=False):
+        st.markdown(outcome_obj.proposal_md)
 with right:
     if input_mode == "agent":
         agent_run = st.session_state.get("agent_run")
@@ -706,80 +781,7 @@ with right:
             )
 
         if outcome is not None:
-            result = outcome.result
-            sim = getattr(result, "simulation", None)
-            st.markdown(result_head_html(result), unsafe_allow_html=True)
-            if stale:
-                st.markdown(
-                    "<div class='callout warn'>需求已改动：左侧当前值与这份结果对应的需求不同。"
-                    "重新生成会新建运行目录，不会覆盖这份结果。</div>",
-                    unsafe_allow_html=True,
-                )
-
-            st.markdown(
-                "<div class='sec'><h3>核心候选对比</h3>"
-                f"<span>{len(result.candidates)} 个候选</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.markdown(candidates_table_html(result), unsafe_allow_html=True)
-
-            d1, d2, d3 = st.columns(3)
-            d1.download_button(
-                "部署方案文档",
-                data=outcome.proposal_md.encode("utf-8"),
-                file_name="deployment_proposal.md",
-                mime="text/markdown",
-                width="stretch",
-            )
-            d2.download_button(
-                "技术评估报告",
-                data=outcome.technical_md.encode("utf-8"),
-                file_name="technical_report.md",
-                mime="text/markdown",
-                width="stretch",
-            )
-            d3.download_button(
-                "结构化结果 JSON",
-                data=json.dumps(
-                    outcome.result_json, ensure_ascii=False, indent=2
-                ).encode("utf-8"),
-                file_name="result.json",
-                mime="application/json",
-                width="stretch",
-            )
-            st.markdown(
-                f"<p class='note'>产物目录：<b>{_esc(outcome.out_dir)}</b></p>",
-                unsafe_allow_html=True,
-            )
-
-            with st.expander("评估链路与三线结论", expanded=False):
-                st.markdown(
-                    rail_html(result, data_ok=bool(outcome.stages and outcome.stages[0][1] == "ok")),
-                    unsafe_allow_html=True,
-                )
-                st.markdown(_ledger(result), unsafe_allow_html=True)
-
-            with st.expander("性能与 SLA 明细", expanded=False):
-                st.markdown(perf_table_html(result), unsafe_allow_html=True)
-                st.markdown(
-                    "<div class='sec'><h3>外部公开实测参考</h3>"
-                    "<span>不参与本次判定</span></div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown(refs_html(result), unsafe_allow_html=True)
-
-            with st.expander("成本与预算", expanded=False):
-                st.markdown(cost_table_html(result), unsafe_allow_html=True)
-
-            with st.expander("模拟预测（不是实测）", expanded=False):
-                st.markdown(sim_html(sim), unsafe_allow_html=True)
-
-            with st.expander("推荐依据、阻断与适用边界", expanded=False):
-                st.markdown(recommendations_html(result), unsafe_allow_html=True)
-
-            with st.expander("部署方案文档预览", expanded=False):
-                st.markdown(outcome.proposal_md)
-
+            _render_result(outcome, stale)
         elif not error:
             st.markdown(empty_html(current_values, cost_currency), unsafe_allow_html=True)
 

@@ -109,11 +109,13 @@ class CommandCodeClient:
         model: str | None = None,
         workspace: Path | None = None,
         timeout: float = 300.0,
+        source_home: Path | None = None,
     ):
         self.binary = binary or os.environ.get("COMMAND_CODE_BIN") or "command-code"
         self.model = model or os.environ.get("COMMAND_CODE_MODEL") or DEFAULT_MODEL
         self.workspace = workspace or WORKSPACE
         self.timeout = timeout
+        self.source_home = source_home or Path.home()
 
     def sandbox_available(self) -> bool:
         return bool(
@@ -128,14 +130,60 @@ class CommandCodeClient:
         (home / ".local/share").mkdir(parents=True, exist_ok=True)
         os.chmod(home, 0o700)
         os.chmod(home / ".commandcode", 0o700)
-        source = Path.home() / ".commandcode"
-        for name in ("auth.json", "config.json", "mcp.json"):
-            src = source / name
-            if src.exists():
-                dst = home / ".commandcode" / name
-                dst.write_bytes(src.read_bytes())
-                os.chmod(dst, 0o600)
+        source = self.source_home / ".commandcode"
+        auth = source / "auth.json"
+        if not auth.exists():
+            raise CommandCodeUnavailable(
+                "Command Code 未登录：缺少 auth.json；请先在本机登录"
+            )
+        (home / ".commandcode" / "auth.json").write_bytes(auth.read_bytes())
+        os.chmod(home / ".commandcode" / "auth.json", 0o600)
+
+        config = source / "config.json"
+        if config.exists():
+            dst = home / ".commandcode" / "config.json"
+            dst.write_bytes(config.read_bytes())
+            os.chmod(dst, 0o600)
+
+        # 只保留 lcp 一个 MCP server，不继承其他无关 MCP
+        mcp_source = source / "mcp.json"
+        if not mcp_source.exists():
+            raise CommandCodeUnavailable("未注册 lcp MCP server（缺少 mcp.json）")
+        try:
+            doc = json.loads(mcp_source.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            raise CommandCodeUnavailable(f"mcp.json 无法解析：{exc}") from exc
+        servers = doc.get("mcpServers") or doc.get("servers") or {}
+        lcp = servers.get("lcp") if isinstance(servers, dict) else None
+        if not lcp:
+            raise CommandCodeUnavailable("mcp.json 中没有 lcp server")
+        filtered = {"mcpServers": {"lcp": lcp}}
+        dst = home / ".commandcode" / "mcp.json"
+        dst.write_text(
+            json.dumps(filtered, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        os.chmod(dst, 0o600)
+        self._cleanup_stale()
         return home
+
+    def cleanup(self, task_id: str) -> None:
+        """删除该任务的凭据副本；只动 data/agent/cc-homes，不碰真实 HOME。"""
+        if not task_id or "/" in task_id or ".." in task_id:
+            return
+        shutil.rmtree(SANDBOX_HOME / task_id, ignore_errors=True)
+
+    def _cleanup_stale(self, max_age_hours: int = 24) -> None:
+        if not SANDBOX_HOME.exists():
+            return
+        import time
+
+        cutoff = time.time() - max_age_hours * 3600
+        for entry in SANDBOX_HOME.iterdir():
+            try:
+                if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                    shutil.rmtree(entry, ignore_errors=True)
+            except OSError:
+                continue
 
     def _sandbox_command(
         self, path: str, args: list[str], *, task_id: str
@@ -148,6 +196,7 @@ class CommandCodeClient:
             return None
         home = self._prepare_sandbox(task_id)
         node_bin = str(Path(node).resolve().parent)
+        npm_bin = str(Path(path).parent)
         ro_dirs = [
             "/usr",
             "/bin",
@@ -192,7 +241,7 @@ class CommandCodeClient:
                 str(home),
                 "--setenv",
                 "PATH",
-                f"{node_bin}:/home/ssa/.npm-global/bin:/usr/bin:/bin",
+                f"{node_bin}:{npm_bin}:/usr/local/bin:/usr/bin:/bin",
                 "--setenv",
                 "LANG",
                 "C.UTF-8",

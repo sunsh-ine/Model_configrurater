@@ -13,7 +13,7 @@ from llm_capacity_pricing.agent import commandcode_client as cc_module
 from llm_capacity_pricing.agent import service as service_module
 from llm_capacity_pricing.agent import tool_cli
 from llm_capacity_pricing.agent.schemas import AgentTaskResult
-from llm_capacity_pricing.agent.service import AgentService
+from llm_capacity_pricing.agent.service import AgentRun, AgentService
 
 ROOT = Path(__file__).resolve().parents[1]
 from llm_capacity_pricing.app.demo_service import DemoInputs, run_demo
@@ -37,6 +37,7 @@ def isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(service_module, "TASKS", tasks)
     monkeypatch.setattr(cc_module, "TASKS", tasks)
     monkeypatch.setattr(cc_module, "WORKSPACE", tmp_path / "cc-workspace")
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", tmp_path / "cc-homes")
     return runs, tasks
 
 
@@ -542,6 +543,79 @@ def test_sandbox_can_be_explicitly_disabled_for_debug(monkeypatch, tmp_path):
     run = client.run("prompt", task_id="cc-debug")
     assert run.final_text == "OK"
     assert run.error is None
+
+
+def test_sandbox_home_keeps_only_lcp_and_cleans_up(tmp_path, monkeypatch):
+    source = tmp_path / "source-home"
+    (source / ".commandcode").mkdir(parents=True)
+    (source / ".commandcode/auth.json").write_text("{}", encoding="utf-8")
+    (source / ".commandcode/config.json").write_text("{}", encoding="utf-8")
+    (source / ".commandcode/mcp.json").write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "lcp": {"transport": "stdio", "command": "x", "args": []},
+                    "other": {"transport": "stdio", "command": "y", "args": []},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", tmp_path / "homes")
+    client = cc_module.CommandCodeClient(source_home=source)
+    home = client._prepare_sandbox("cc-one")
+    mcp = json.loads((home / ".commandcode/mcp.json").read_text(encoding="utf-8"))
+    assert set(mcp["mcpServers"]) == {"lcp"}
+
+    client.cleanup("cc-one")
+    assert not home.exists()
+    assert source.exists()  # 真实 HOME 不受影响
+
+
+def test_sandbox_home_requires_lcp(tmp_path, monkeypatch):
+    source = tmp_path / "source-home"
+    (source / ".commandcode").mkdir(parents=True)
+    (source / ".commandcode/auth.json").write_text("{}", encoding="utf-8")
+    (source / ".commandcode/mcp.json").write_text(
+        json.dumps({"mcpServers": {"other": {}}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(cc_module, "SANDBOX_HOME", tmp_path / "homes")
+    client = cc_module.CommandCodeClient(source_home=source)
+    with pytest.raises(cc_module.CommandCodeUnavailable):
+        client._prepare_sandbox("cc-two")
+
+
+def test_cleanup_only_runs_for_final_states():
+    cleaned: list[str] = []
+
+    class CleanupClient:
+        def cleanup(self, task_id):
+            cleaned.append(task_id)
+
+    service = AgentService(client=CleanupClient(), transport="commandcode")
+    final = AgentRun(
+        session_id="cc-1",
+        task=AgentTaskResult(
+            status="completed",
+            session_id="cc-1",
+            run_id="r",
+            plan_result_available=True,
+            artifacts={"json": "x"},
+            result_sha256="h",
+        ),
+    )
+    pending = AgentRun(
+        session_id="cc-2",
+        task=AgentTaskResult(
+            status="needs_confirmation",
+            session_id="cc-2",
+            needs_confirmation=True,
+            missing_fields=["OSL"],
+        ),
+    )
+    service._cleanup_if_final("cc-1", final)
+    service._cleanup_if_final("cc-2", pending)
+    assert cleaned == ["cc-1"]
 
 
 def test_nonzero_exit_is_an_error_even_with_success_event(tmp_path, monkeypatch):

@@ -137,14 +137,27 @@ class AgentService:
         if self.transport != "commandcode":
             return self._failed(task_id, "当前 transport 不支持继续补充信息")
         prompt = build_continuation_prompt(task_id, additional)
-        return self._run_cc_prompt(
+        run = self._run_cc_prompt(
             prompt, task_id=task_id, timeout=timeout, session_id=session_id
         )
+        self._cleanup_if_final(task_id, run)
+        return run
 
     def _run_commandcode(self, text: str, *, timeout: float) -> AgentRun:
         task_id = f"cc-{uuid.uuid4().hex[:16]}"
         prompt = build_prompt(task_id, text)
-        return self._run_cc_prompt(prompt, task_id=task_id, timeout=timeout)
+        run = self._run_cc_prompt(prompt, task_id=task_id, timeout=timeout)
+        self._cleanup_if_final(task_id, run)
+        return run
+
+    def _cleanup_if_final(self, task_id: str, run: AgentRun) -> None:
+        """完成后清理凭据副本；needs_confirmation 保留以支持同会话续跑。"""
+        if run.task.status == "needs_confirmation":
+            return
+        client = self.client or self._get_client()
+        cleanup = getattr(client, "cleanup", None)
+        if cleanup is not None:
+            cleanup(task_id)
 
     def _run_cc_prompt(
         self,
