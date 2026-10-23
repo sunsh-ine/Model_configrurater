@@ -410,9 +410,9 @@ def test_insufficient_predictions_are_counted_outside_the_judged_pool():
     app.button[0].click().run()
 
     text = "\n".join(item.value for item in app.markdown)
-    assert "共 4 个候选（其中不可比 0 个）" in text
+    assert "共 5 个候选（其中不可比 0 个）" in text
     assert "预测不充分 2" in text
-    assert "可判定 2 个" in text
+    assert "可判定 3 个" in text
     assert not app.exception, app.exception
 
 
@@ -451,9 +451,9 @@ def test_fp8_offline_summary_counts_are_consistent():
     app.button[0].click().run()
 
     text = "\n".join(item.value for item in app.markdown)
-    assert "共 4 个候选（其中不可比 4 个）" in text
+    assert "共 5 个候选（其中不可比 5 个）" in text
     assert "预测达标 0" in text
-    assert "预测未达标 2" in text
+    assert "预测未达标 3" in text
     assert "预测不充分 2" in text
     assert "可判定 0 个" in text
     assert not app.exception, app.exception

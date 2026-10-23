@@ -1,0 +1,17 @@
+{
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "load_type": "poisson",
+  "requests_per_second": 3.0,
+  "metrics": {
+    "p99_ttft_ms": 23321.40930932734,
+    "p99_tpot_ms": 63.998291674510156,
+    "output_throughput_tok_s": 703.4322981123667,
+    "completed_requests": 500
+  },
+  "files": {
+    "poisson.yaml": "9e94822626792f47826c6766310bb8a018ced577babe91557ad7aaf810091a44",
+    "stderr.log": "69abd34bfa4f113d3033293ee2d14fc5e47d2744b1b3f6958df204eade30f67a",
+    "prediction.json": "7c5c32da5d53f97384dcb4ecfdf92f3ff7700c4f07294f803c039199ce8919f6"
+  }
+}

@@ -20,10 +20,11 @@ def _run(tmp_path: Path, name: str, **overrides):
 
 
 def _by_tp(result):
+    # AB 基线只比较 DP1；AD 的 DP2 结果由 test_ad_parallel 覆盖
     return {
         c.deployment.tp_size: c
         for c in result.simulation.candidates
-        if c.candidate_id.startswith("sim-native")
+        if c.candidate_id.startswith("sim-native") and c.deployment.dp_size == 1
     }
 
 
@@ -81,8 +82,9 @@ def test_report_renders_decision_quality_and_audit(tmp_path):
         assert phrase in text, phrase
     audit = outcome.result.simulation.search_audit
     assert audit is not None
-    assert audit.discovered_deployments == 2
-    assert audit.replayed_deployments == 2
+    # C32/TP4 DP1、TP4 DP2、TP8 DP1 三份归档
+    assert audit.discovered_deployments == 3
+    assert audit.replayed_deployments == 3
     assert audit.effective_scope == "offline_archives"
 
 

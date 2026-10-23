@@ -1,0 +1,6 @@
+serving_mode: agg
+database_mode: SILICON
+model_path: Qwen/Qwen3-32B
+system_name: h100_sxm
+backend_name: vllm
+backend_version: 0.24.0

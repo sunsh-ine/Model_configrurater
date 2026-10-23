@@ -227,6 +227,9 @@ class SimulationCandidate(BaseModel):
     source_file: str | None = None
     source_sha256: str | None = None
     source_row: int | None = None
+    #: 该候选自己的证据来源（多硬件/多归档时不能只看全局 tool）
+    source_tool_version: str | None = None
+    source_database_mode: str | None = None
     # ---- AB3：决策质量（不改变 verdict）----
     sla_margin_ttft_ms: Decimal | None = None
     sla_margin_tpot_ms: Decimal | None = None

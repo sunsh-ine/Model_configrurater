@@ -37,7 +37,7 @@
 
 ## 2. AC1：AISimulate 能力探测
 
-真实执行 `aisimulate predict`（0.12.1、SILICON、无 GPU、500 请求、BF16、
+真实执行 `aisimulate predict`（0.12.1、无 GPU、500 请求、BF16、
 vLLM 0.24.0、ISL8192/OSL256/C32）：
 
 | 组合 | 状态 | 首个成功 TP | TTFT P99 | TPOT P99 | 吞吐 |
@@ -45,6 +45,8 @@ vLLM 0.24.0、ISL8192/OSL256/C32）：
 | Qwen3-8B @ H100 SXM | supported | TP1 | 6609.39 ms | 46.60 ms | 671.62 tok/s |
 | Qwen3-32B @ H200 SXM | supported | TP2 | 14356.54 ms | 79.91 ms | 390.36 tok/s |
 | Qwen3-8B @ H200 SXM | supported | TP1 | 6286.38 ms | 40.78 ms | 767.04 tok/s |
+
+> `predict` 配置不暴露 `database_mode`；能力探测不声明 SILICON。
 
 机器可读：`data/simulation/capabilities/simulation_capabilities.json`；
 摘要：`docs/ac_capability_matrix.md`。每个 case 的原始输入、prediction、
@@ -107,8 +109,10 @@ C32 / ISL8192 / relaxed 6000/40：
 | H200 / TP4 | 8481.04 | 47.49 | 656.43 | 未达标 |
 | H200 / TP2 | 14356.54 | 79.91 | 390.36 | 未达标 |
 
-多硬件测试中，吞吐优先推荐 H200/TP8；GPU 数最少达标配置在该比较中同为
-8 卡。报告同时给出各候选 SLA 裕量、敏感性、每 GPU 吞吐与搜索审计。
+AC 时点的多硬件测试中，吞吐优先推荐 H200/TP8；AD 阶段补充 TP4×DP2 证据后，
+C32 的推荐变为 TP4×DP2（8 卡，吞吐更高）。AC 的 TP8 结果仍是有效证据，
+只是不再是最高吞吐的达标配置。报告同时给出各候选 SLA 裕量、敏感性、
+每 GPU 吞吐与搜索审计。
 
 不同模型之间**不直接排名**：Qwen3-8B 与 Qwen3-32B 的能力/回答质量不可用吞吐
 替代；没有业务质量门禁时分别展示，不宣称某模型综合最优。
@@ -117,8 +121,9 @@ C32 / ISL8192 / relaxed 6000/40：
 
 | 项目 | 结果 |
 |---|---|
-| 全量测试 | `1077 passed, 1 skipped` |
-| 全链路校验（含第 61 步真实执行） | `verify_all.sh` 66 / 66 通过；第 61 步运行 `run_20261022T130718Z_89c6a6`（最终一轮），不是跳过 |
+| 全量测试（`pytest -q`） | `1077 passed, 1 skipped` |
+| 全链路校验（`AISIMULATE_PYTHON=... verify_all.sh`） | `1078 passed`（live 测试不再 skip），66 / 66 步通过；第 61 步运行 `run_20261022T130718Z_89c6a6` |
+| 记录口径说明 | 两个数字对应不同命令/环境：手动 pytest 跳过 1 个 live 测试，verify_all 配置了 AISIMULATE_PYTHON 后实际执行它 |
 | Codex 审核 | `gpt-6-sol` + `low`（按当前 AGENTS.md）六轮：P1 4 项、P2 3 项，均已修复；末轮无新增可执行缺陷 |
 
 ## 7. 仍未完成

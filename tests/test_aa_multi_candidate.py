@@ -35,19 +35,21 @@ def _run(tmp_path: Path, name: str, **overrides):
 
 def test_c32_compares_tp4_and_tp8_and_recommends_tp8(tmp_path):
     outcome = _run(tmp_path, "c32-relaxed")
-    natives = {c.deployment.tp_size: c for c in _natives(outcome.result)}
-    assert set(natives) == {4, 8}
-    assert natives[4].verdict == "predicted_fail"
-    assert natives[8].verdict == "predicted_pass"
-    assert natives[4].metrics.sim_p99_ttft_ms == Decimal("8359.441161")
-    assert natives[8].metrics.sim_p99_ttft_ms == Decimal("5201.827252000001")
+    natives = {
+        (c.deployment.tp_size, c.deployment.dp_size): c
+        for c in _natives(outcome.result)
+    }
+    assert {(4, 1), (4, 2), (8, 1)}.issubset(natives)
+    assert natives[(4, 1)].verdict == "predicted_fail"
+    assert natives[(4, 2)].verdict == "predicted_pass"
+    assert natives[(8, 1)].verdict == "predicted_pass"
+    assert natives[(4, 1)].metrics.sim_p99_ttft_ms == Decimal("8359.441161")
+    assert natives[(8, 1)].metrics.sim_p99_ttft_ms == Decimal("5201.827252000001")
 
     recommended = outcome.result.simulation.recommended("throughput")
     assert recommended is not None
-    assert recommended.deployment.tp_size == 8
-    assert recommended.metrics.sim_output_throughput_tok_s == Decimal(
-        "990.888548064229"
-    )
+    # AD：同 8 卡下 TP4×DP2 吞吐高于 TP8×DP1
+    assert (recommended.deployment.tp_size, recommended.deployment.dp_size) == (4, 2)
 
 
 def test_strict_sla_has_no_recommendation_but_keeps_best_effort(tmp_path):
@@ -58,17 +60,23 @@ def test_strict_sla_has_no_recommendation_but_keeps_best_effort(tmp_path):
         tpot_p99_ms_max=Decimal("30"),
     )
     sim = outcome.result.simulation
-    natives = {c.deployment.tp_size: c for c in _natives(outcome.result)}
+    natives = {
+        (c.deployment.tp_size, c.deployment.dp_size): c
+        for c in _natives(outcome.result)
+    }
     assert {c.verdict for c in natives.values()} == {"predicted_fail"}
     assert sim.recommended("throughput") is None
     best = sim.best_effort()
-    assert best is not None and best.deployment.tp_size == 8
+    assert best is not None
+    assert (best.deployment.tp_size, best.deployment.dp_size) == (4, 2)
 
 
 def test_gpu_cap_excludes_tp8(tmp_path):
     outcome = _run(tmp_path, "c32-gpu4", gpu_count=4)
     natives = _natives(outcome.result)
     assert {c.deployment.tp_size for c in natives} == {4}
+    # TP4×DP2 需要 8 卡，4 卡上限下不可用；只剩 TP4×DP1（未达标）
+    assert all(c.deployment.gpu_count <= 4 for c in natives)
     assert outcome.result.simulation.recommended("throughput") is None
 
 
@@ -76,7 +84,10 @@ def test_tp_whitelist_excludes_tp8(tmp_path):
     outcome = _run(tmp_path, "c32-tp4-only", tp_sizes=(4,))
     natives = _natives(outcome.result)
     assert {c.deployment.tp_size for c in natives} == {4}
-    assert outcome.result.simulation.recommended("throughput") is None
+    # AD：TP4 内 DP2 可满足 relaxed SLA，推荐资格成立
+    recommended = outcome.result.simulation.recommended("throughput")
+    assert recommended is not None
+    assert (recommended.deployment.tp_size, recommended.deployment.dp_size) == (4, 2)
 
 
 def test_no_native_p99_cannot_claim_sla_pass(tmp_path):
@@ -103,7 +114,7 @@ def test_incomplete_cost_does_not_claim_cost_optimum(tmp_path):
     # 成本不可比时降级为吞吐优先；仍然只在预测达标候选里选
     recommended = sim.recommended("cost")
     assert recommended is not None and recommended.verdict == "predicted_pass"
-    assert recommended.deployment.tp_size == 8
+    assert (recommended.deployment.tp_size, recommended.deployment.dp_size) == (4, 2)
 
 
 def test_c8_and_c64_predictions_are_unchanged(tmp_path):

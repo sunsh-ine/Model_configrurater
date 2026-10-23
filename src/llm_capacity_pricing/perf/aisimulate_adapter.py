@@ -1208,6 +1208,14 @@ def load_archived(
                 f"模型精度 {native_model_precision} 由**输入身份**给出"
                 "（原生回放输出不回显精度，它按 HF config 自行推断）"
             )
+        native_candidate.source_tool_version = tool.tool_version
+        native_candidate.source_database_mode = tool.database_mode
+        if tool.tool_version or tool.database_mode:
+            native_candidate.notes.append(
+                "证据工具："
+                f"aisimulate {tool.tool_version or '未声明'}，"
+                f"数据库模式 {tool.database_mode or '未声明'}"
+            )
         candidates.append(native_candidate)
 
     for spec in archives:
@@ -1235,6 +1243,24 @@ def load_archived(
         label = archive_field(spec, "label")
         if label:
             archive_candidate.notes.append(f"归档：{label}")
+        # 归档自己的版本；缺失就是未知，不用请求级版本代替
+        archive_tool_version = archive_field(spec, "tool_version")
+        archive_exp = archive_field(spec, "exp_config")
+        archive_mode = archive_field(spec, "database_mode")
+        if archive_exp and archive_mode is None:
+            try:
+                archive_mode = (yaml.safe_load(Path(archive_exp).read_text(encoding="utf-8")) or {}).get(
+                    "database_mode"
+                )
+            except Exception:  # noqa: BLE001
+                archive_mode = None
+        archive_candidate.source_tool_version = archive_tool_version
+        archive_candidate.source_database_mode = archive_mode
+        archive_candidate.notes.append(
+            "证据工具："
+            f"aisimulate {archive_tool_version or '未声明'}，"
+            f"数据库模式 {archive_mode or '未声明'}"
+        )
         candidates.append(archive_candidate)
 
     if archives:
@@ -1475,8 +1501,21 @@ def deployment_identity_reasons(
         )
     if dep.tp_size is None:
         reasons.append("搜索未给出 TP：无法构造回放配置")
-    if dep.dp_size not in (None, 1):
-        reasons.append(f"DP={dep.dp_size}：原生回放的并行配置无法表达 data parallel")
+    replicas = dep.replicas if dep.replicas is not None else dep.dp_size
+    if replicas is None:
+        reasons.append("DP/副本数未声明：无法构造回放配置")
+    elif replicas < 1:
+        reasons.append(f"DP/副本数必须为正：{replicas}")
+    elif (
+        dep.replicas is not None
+        and dep.dp_size is not None
+        and dep.replicas != dep.dp_size
+    ):
+        reasons.append(
+            f"DP 与 replicas 不一致：dp={dep.dp_size}，replicas={dep.replicas}"
+        )
+    # 普通 DP 副本已由 AD1 真实探测支持（replicas = 副本数）；
+    # PP 仍只做探测，不进入推荐。
     if dep.pp_size not in (None, 1):
         reasons.append(f"PP={dep.pp_size}：原生回放只支持 pipeline=1")
     return reasons
@@ -1525,7 +1564,11 @@ def build_predict_config(
                     "parallelism": {
                         "tensor": dep.tp_size,
                         "pipeline": 1,
-                        "replicas": dep.replicas or 1,
+                        "replicas": (
+                            dep.replicas
+                            if dep.replicas is not None
+                            else dep.dp_size
+                        ),
                     }
                 }
             },
@@ -1844,19 +1887,26 @@ def run_two_stage(
     native_candidates: list[SimulationCandidate] = []
     for index, candidate in enumerate(shortlist, 1):
         try:
-            native_candidates.append(
-                _replay_one(
-                    spec,
-                    candidate,
-                    index=index,
-                    root=root,
-                    tool_config=tool_config,
-                    predict_requests=predict_requests,
-                    version_aliases=version_aliases,
-                    effective_target=effective_target,
-                    manifest=manifest,
-                )
+            native = _replay_one(
+                spec,
+                candidate,
+                index=index,
+                root=root,
+                tool_config=tool_config,
+                predict_requests=predict_requests,
+                version_aliases=version_aliases,
+                effective_target=effective_target,
+                manifest=manifest,
             )
+            native.source_tool_version = tool_version or tool.tool_version
+            native.source_database_mode = tool.database_mode
+            if native.source_tool_version or native.source_database_mode:
+                native.notes.append(
+                    "证据工具："
+                    f"aisimulate {native.source_tool_version or '未声明'}，"
+                    f"数据库模式 {native.source_database_mode or '未声明'}"
+                )
+            native_candidates.append(native)
         except Exception as exc:  # noqa: BLE001
             # 单候选的任何失败（超时、启动失败、输出损坏、解析异常）都只记录，不中断
             message = f"{candidate.candidate_id}: {type(exc).__name__}: {exc}"

@@ -76,7 +76,7 @@ class DemoInputs:
     weight_precision: str | None = "bf16"
     framework: str | None = "vllm"
     framework_version: str | None = "0.24.0"
-    tp_sizes: tuple[int, ...] = (2, 4, 8)
+    tp_sizes: tuple[int, ...] | None = None
     mode: Mode = "offline"
     request_id: str = "system-demo"
     ranking: str = "throughput"
@@ -127,6 +127,13 @@ def server_for_hardware(hardware_id: str | None) -> str | None:
     return None
 
 
+def _tp_sizes(inputs: DemoInputs) -> tuple[int, ...]:
+    if inputs.tp_sizes is not None:
+        return tuple(inputs.tp_sizes)
+    # 8B 的可用证据含 TP1；32B 仍按原来的 2/4/8 口径。
+    return (1, 2, 4, 8) if inputs.model_id == "qwen3-8b" else (2, 4, 8)
+
+
 def build_plan_request(inputs: DemoInputs) -> PlanRequest:
     """把表单值转成 ``PlanRequest``（纯函数，便于测试与复用）。"""
     sla = None
@@ -150,7 +157,7 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
             framework=inputs.framework,
             framework_version=inputs.framework_version,
             gpu_limit=inputs.gpu_count,
-            tp_sizes=tuple(inputs.tp_sizes),
+            tp_sizes=_tp_sizes(inputs),
         )
         if offline_paths is not None:
             simulation = PlanSimulationInput(
@@ -203,7 +210,7 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
             else None
         ),
         advanced=PlanAdvanced(
-            tp_sizes=list(inputs.tp_sizes),
+            tp_sizes=list(_tp_sizes(inputs)),
             dp_sizes=[1],
             weight_precision=inputs.weight_precision,
             framework=inputs.framework,

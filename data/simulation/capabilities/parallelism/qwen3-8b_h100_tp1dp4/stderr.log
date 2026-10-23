@@ -1,0 +1,2 @@
+Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/h200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)
+Legacy perf-data layout (<backend>/<version>) found under /tmp/aisim-venv/lib/python3.12/site-packages/aiconfigurator_core/systems/data/b200_sxm; migrate to <family>/<backend>/<version> (Collector V3 design §3)

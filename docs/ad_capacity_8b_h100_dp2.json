@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "model_id": "qwen3-8b",
+  "hardware_id": "nvidia-h100-sxm-80gb",
+  "tp": 1,
+  "dp": 2,
+  "input_len": 8192,
+  "output_len": 256,
+  "sla": {
+    "ttft_p99_ms_max": "6000",
+    "tpot_p99_ms_max": "40"
+  },
+  "points": [
+    {
+      "concurrency": 8,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 653.9557169999999,
+      "tpot_p99_ms": 11.053877941176625,
+      "throughput_tok_s": 669.3956053210023,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 32,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 3486.4293139999995,
+      "tpot_p99_ms": 27.420675007843208,
+      "throughput_tok_s": 1127.7751784411603,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 64,
+      "status": "predicted_fail",
+      "ttft_p99_ms": 7334.551824999999,
+      "tpot_p99_ms": 46.599841372549015,
+      "throughput_tok_s": 1341.269828068544,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 96,
+      "status": "predicted_fail",
+      "ttft_p99_ms": 11034.099922,
+      "tpot_p99_ms": 76.13560087843159,
+      "throughput_tok_s": 1394.4902625469197,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 128,
+      "status": "predicted_fail",
+      "ttft_p99_ms": 20535.195289999967,
+      "tpot_p99_ms": 76.13560087843159,
+      "throughput_tok_s": 1394.4902625469197,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256/predict/out_1/prediction.json"
+    }
+  ],
+  "verified_pass_concurrency": [
+    8,
+    32
+  ],
+  "highest_verified_pass": 32,
+  "unknown_concurrency": [],
+  "note": "只报告已验证的原生回放点；未验证并发点保持 unknown，不做插值。最高已验证并发不是生产容量保证。"
+}

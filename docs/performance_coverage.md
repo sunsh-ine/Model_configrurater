@@ -19,10 +19,10 @@
 
 | 模型 | 硬件 | 最高覆盖级别 | 已有证据数 | 可做成本分析 |
 |---|---|---|---|---|
-| qwen3-8b | NVIDIA H100 SXM | simulated_native_p99 | 6 | 是 |
-| qwen3-8b | NVIDIA H200 SXM | simulated_native_p99 | 6 | 否 |
-| qwen3-32b | NVIDIA H100 SXM | simulated_native_p99 | 176 | 是 |
-| qwen3-32b | NVIDIA H200 SXM | simulated_native_p99 | 8 | 否 |
+| qwen3-8b | NVIDIA H100 SXM | simulated_native_p99 | 15 | 是 |
+| qwen3-8b | NVIDIA H200 SXM | simulated_native_p99 | 12 | 否 |
+| qwen3-32b | NVIDIA H100 SXM | simulated_native_p99 | 182 | 是 |
+| qwen3-32b | NVIDIA H200 SXM | simulated_native_p99 | 16 | 否 |
 
 `static_only` 是矩阵级别，不是一条独立证据；`evidence_by_level` 只统计有实际证据的级别（2/3/4）。
 未支持的模型（解析器会拒绝，不做硬算）：
@@ -47,6 +47,8 @@
 | `2f9854254e25f870` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 260.4617910000088 | 8.564802355816468 | 900.8776991343514 | — |
 | `24a56f94a54c85c6` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 1159.756941 | 17.848578929412408 | 420.4521057972523 | — |
 | `d17c99dcfb4c9b1d` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 169.22123400000055 | 5.983962341153699 | 1292.8510420687026 | — |
+| `ef488d65060821fa` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 137.71360100002494 | 8.618903230694222 | 908.1847846247342 | — |
+| `a650c47ef339dcf8` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 861.7461110000002 | 12.326389607843286 | 591.6756451215094 | — |
 | `58c7e4998c87a93b` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 727.2969240000001 | 11.230072717647314 | 667.5295614199107 | — |
 | `f306fb335f4b7838` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C8/ctx8192 | simulated_scan_only | 否 | — | — | 627.163 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
 | `fe650110b0b47466` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C8/ctx16384 | simulated_scan_only | 否 | — | — | 586.651 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
@@ -81,6 +83,8 @@
 | `4c1922f823a0406b` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 8359.441161 | 50.170601298039216 | 621.8971855351141 | — |
 | `1f0871ab7dba07ce` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 1044.013729 | 11.304065113391985 | 2759.5234009630535 | — |
 | `45e085982a2014ae` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 678.928668 | 7.646308508308902 | 4071.268859775253 | — |
+| `b42c80c72f3eec21` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 520.8245929999999 | 9.653310475073386 | 3229.7293058361915 | — |
+| `150644f1c548c1d4` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 4448.276797 | 28.824056776470616 | 1062.4468369728693 | — |
 | `a41bd8327c5cdeed` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C32/ctx8192 | simulated_scan_only | 否 | — | — | 997.419 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
 | `5c6c6ef903c6db1a` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP2/PP1/DP1 | ISL8192/OSL256/C32/ctx8192 | simulated_scan_only | 否 | — | — | 367.138 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
 | `4fb088d3fd0fde6f` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL8192/OSL256/C32/ctx8192 | simulated_scan_only | 否 | — | — | 633.0 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
@@ -95,6 +99,8 @@
 | `2ada06c5f145bcbb` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 2091.052369 | 14.00218116324539 | 4476.380464100694 | — |
 | `79cf0c54e6bdbf2c` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP1 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 18030.104925999993 | 91.11349433333312 | 691.290490942291 | — |
 | `a5e138bf13fed18b` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 1358.8681519999998 | 9.276825615835756 | 6747.2858397137925 | — |
+| `91f609aa669b8617` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 1044.013729 | 11.332671839687185 | 5519.110887783805 | — |
+| `cd4709e0526134b2` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP4/PP1/DP2 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 9264.708154999998 | 50.170601298039216 | 1242.203008622216 | — |
 | `017cccee52093417` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 11211.532603000005 | 56.43859718823514 | 1115.0950375870086 | — |
 | `d562eb3ede1fe23b` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C64/ctx8192 | simulated_scan_only | 否 | — | — | 1137.693 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
 | `2d5ba5a0e349a7d0` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C64/ctx16384 | simulated_scan_only | 否 | — | — | 1117.425 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
@@ -117,24 +123,47 @@
 | `69f9e2b75d50f496` | Qwen/Qwen3-32B / bf16 | nvidia-h100-sxm-80gb / TP8/PP1/DP1 | ISL8192/OSL256/C224/ctx8192 | simulated_scan_only | 否 | — | — | 1254.757 | 扫描器输出是稳态单点（均值口径），不含 P99；不能用于 SLA 判定 |
 | `7d835ec64ce26cae` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 440.7024270000402 | 11.05583574389083 | 691.7932401874034 | — |
 | `6533026651696ef8` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 1995.562819 | 26.646441819607944 | 279.3985178058005 | — |
+| `7dc6cec4f1edfbba` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 132.70885400001134 | 7.0779355053764395 | 1102.6959193454597 | — |
+| `7ea882c140b35cc6` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 878.576915 | 10.833958360784477 | 664.772924145956 | — |
 | `8ed4e697c7d2ccc6` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 1765.553723 | 14.477458347995988 | 2149.7672006351536 | — |
 | `5947c75deb4c06e5` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 14356.537065000002 | 79.91176538039238 | 390.35883497438374 | — |
 | `905688e90287fb92` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 8481.037019000001 | 47.49475550196087 | 656.4300876984471 | — |
 | `8a2e000d4352cf97` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP8/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 4955.538856 | 28.770253968627422 | 1082.997232236789 | — |
+| `bcf8719445835a07` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 532.0884139999998 | 8.038959994134894 | 3873.420667483136 | — |
+| `68144bc7d13cdcb3` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 4521.6287919999995 | 26.8434794 | 1138.1864434887902 | — |
 | `d1981ddbd0b0dd8a` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 3533.6141140000004 | 18.36405357673509 | 3407.386670638768 | — |
 | `b8da731719768978` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP2/PP1/DP1 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 30866.989649000003 | 148.80633225882306 | 423.32901395617455 | — |
+| `08f96a3d63b1d5a3` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 1065.5455469999997 | 9.39976863734117 | 6648.3700709741215 | — |
+| `c9743f6dfc7569de` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 9395.242326 | 47.49475550196081 | 1311.2457649568023 | — |
+| `a5caa5feb133f150` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL8192/OSL256/C96 | simulated_native_p99 | 是 | 14265.872607999992 | 67.54073382745081 | 1376.624854092987 | — |
+| `5661ebbfd82dc9b7` | Qwen/Qwen3-32B / bf16 | nvidia-h200-sxm-141gb / TP4/PP1/DP2 | ISL8192/OSL256/C128 | simulated_native_p99 | 是 | 19121.870338999986 | 87.29699354117625 | 1436.3384727706505 | — |
 | `45a1bc47d3995835` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 185.48182300000917 | 7.230641140762756 | 1073.1434253976 | — |
 | `ca2f988b290c90f3` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 887.919842 | 16.005433647058844 | 473.4381502095157 | — |
+| `4bb61202840da82b` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 93.09983800002374 | 6.744311719452742 | 1162.361629272693 | — |
+| `7e76434283f7492d` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 653.9557169999999 | 11.053877941176625 | 669.3956053210023 | — |
 | `7bdceae665347a52` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 746.227258 | 10.10754084652979 | 3096.7872683153632 | — |
 | `2392acc25dd22d55` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 6609.393869999999 | 46.599841372549015 | 671.6197848398688 | — |
+| `ed48a483e5f940b5` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 371.39593 | 8.608299143695115 | 3643.8625365988637 | — |
+| `a6b5a728299c49c5` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 3486.4293139999995 | 27.420675007843208 | 1127.7751784411603 | — |
+| `1425b6eb8a6d8a6b` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP4 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 1827.7921460000002 | 16.0054336470589 | 1880.7211353088285 | — |
 | `c66f2830b97c8b44` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 1499.3555680000002 | 13.52109428739 | 4657.798733662274 | — |
 | `f7875715d5db22e2` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP1 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 19798.39472699997 | 76.13251087843177 | 700.192047763515 | — |
+| `623225fc49fecf77` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 746.227258 | 10.129031437927686 | 6191.125539745652 | — |
+| `b1b538641ff63bc0` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 7334.551824999999 | 46.599841372549015 | 1341.269828068544 | — |
+| `889c47dcdda72972` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL8192/OSL256/C96 | simulated_native_p99 | 是 | 11034.099922 | 76.13560087843159 | 1394.4902625469197 | — |
+| `9ff303ae72a73e83` | Qwen/Qwen3-8B / bf16 | nvidia-h100-sxm-80gb / TP1/PP1/DP2 | ISL8192/OSL256/C128 | simulated_native_p99 | 是 | 20535.195289999967 | 76.13560087843159 | 1394.4902625469197 | — |
 | `1540d30716199781` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 181.30924300000333 | 5.540693851417527 | 1390.5781678719216 | — |
 | `6acf9efafd77e298` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 859.7394019999999 | 13.592190360784526 | 553.5143888489443 | — |
+| `d482b70c175c1a49` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL1024/OSL1024/C8 | simulated_native_p99 | 是 | 91.21148900000844 | 5.313530915933562 | 1471.2269209774552 | — |
+| `14813f1269cffd22` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL8192/OSL256/C8 | simulated_native_p99 | 是 | 636.6716029999999 | 9.002842921569062 | 810.6443773058669 | — |
 | `96cdf13ad16f59ab` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 728.1516899999998 | 7.712977738025394 | 4049.0165794668155 | — |
 | `4d5c405ac871085a` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 6286.380569000001 | 40.78204896862738 | 767.0359516128434 | — |
+| `e527b4173a9e4888` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL1024/OSL1024/C32 | simulated_native_p99 | 是 | 362.8524709999999 | 6.498827639296478 | 4811.783329426065 | — |
+| `8d97b78854c4454b` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL8192/OSL256/C32 | simulated_native_p99 | 是 | 3330.3272680000005 | 22.918945984313847 | 1341.9938095420605 | — |
 | `c112e00d57a57c5c` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 1460.2410519999996 | 10.414255296187664 | 6039.994042071066 | — |
 | `9663566f83694d47` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP1 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 13681.380651000005 | 75.51767865882333 | 834.6444646073313 | — |
+| `66489ae15c6ed5b1` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL1024/OSL1024/C64 | simulated_native_p99 | 是 | 728.1516899999998 | 7.735301954056702 | 8094.894604956275 | — |
+| `922de28d3e5d88b5` | Qwen/Qwen3-8B / bf16 | nvidia-h200-sxm-141gb / TP1/PP1/DP2 | ISL8192/OSL256/C64 | simulated_native_p99 | 是 | 6972.955788000001 | 40.78204896862752 | 1532.2982314387943 | — |
 
 ## 4. 参考证据（不参与 SLA）
 
@@ -193,10 +222,10 @@
 
 ## 5. 统计与缺口
 
-- 证据总数：246
-- 按级别：static_only=0；simulated_scan_only=159；simulated_native_p99=37；measured_benchmark=0
-- 工作点总数：100
-- SLA 可用工作点：32
+- 证据总数：275
+- 按级别：static_only=0；simulated_scan_only=159；simulated_native_p99=66；measured_benchmark=0
+- 工作点总数：129
+- SLA 可用工作点：61
 - 仅参考记录：50
 - 阻塞的归档运行：0
 - 阻塞的候选回放：0（同一运行内其它成功候选仍可用）
@@ -207,39 +236,68 @@
 
 ## 6. 结论边界
 
-1. 当前有 32 个可比较的原生 P99 工作点：
+1. 当前有 61 个可比较的原生 P99 工作点：
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C8 / ISL1024 / OSL1024 → TTFT P99 260.4617910000088 ms、TPOT P99 8.564802355816468 ms、吞吐 900.8776991343514 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 1159.756941 ms、TPOT P99 17.848578929412408 ms、吞吐 420.4521057972523 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C8 / ISL1024 / OSL1024 → TTFT P99 169.22123400000055 ms、TPOT P99 5.983962341153699 ms、吞吐 1292.8510420687026 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C8 / ISL1024 / OSL1024 → TTFT P99 137.71360100002494 ms、TPOT P99 8.618903230694222 ms、吞吐 908.1847846247342 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C8 / ISL8192 / OSL256 → TTFT P99 861.7461110000002 ms、TPOT P99 12.326389607843286 ms、吞吐 591.6756451215094 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 727.2969240000001 ms、TPOT P99 11.230072717647314 ms、吞吐 667.5295614199107 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 5201.827252000001 ms、TPOT P99 31.45861707450993 ms、吞吐 990.888548064229 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 8359.441161 ms、TPOT P99 50.170601298039216 ms、吞吐 621.8971855351141 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C32 / ISL1024 / OSL1024 → TTFT P99 1044.013729 ms、TPOT P99 11.304065113391985 ms、吞吐 2759.5234009630535 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C32 / ISL1024 / OSL1024 → TTFT P99 678.928668 ms、TPOT P99 7.646308508308902 ms、吞吐 4071.268859775253 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C32 / ISL1024 / OSL1024 → TTFT P99 520.8245929999999 ms、TPOT P99 9.653310475073386 ms、吞吐 3229.7293058361915 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C32 / ISL8192 / OSL256 → TTFT P99 4448.276797 ms、TPOT P99 28.824056776470616 ms、吞吐 1062.4468369728693 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C64 / ISL1024 / OSL1024 → TTFT P99 2091.052369 ms、TPOT P99 14.00218116324539 ms、吞吐 4476.380464100694 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 18030.104925999993 ms、TPOT P99 91.11349433333312 ms、吞吐 691.290490942291 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C64 / ISL1024 / OSL1024 → TTFT P99 1358.8681519999998 ms、TPOT P99 9.276825615835756 ms、吞吐 6747.2858397137925 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C64 / ISL1024 / OSL1024 → TTFT P99 1044.013729 ms、TPOT P99 11.332671839687185 ms、吞吐 5519.110887783805 tok/s
+   - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C64 / ISL8192 / OSL256 → TTFT P99 9264.708154999998 ms、TPOT P99 50.170601298039216 ms、吞吐 1242.203008622216 tok/s
    - Qwen/Qwen3-32B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 11211.532603000005 ms、TPOT P99 56.43859718823514 ms、吞吐 1115.0950375870086 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C8 / ISL1024 / OSL1024 → TTFT P99 440.7024270000402 ms、TPOT P99 11.05583574389083 ms、吞吐 691.7932401874034 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 1995.562819 ms、TPOT P99 26.646441819607944 ms、吞吐 279.3985178058005 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C8 / ISL1024 / OSL1024 → TTFT P99 132.70885400001134 ms、TPOT P99 7.0779355053764395 ms、吞吐 1102.6959193454597 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C8 / ISL8192 / OSL256 → TTFT P99 878.576915 ms、TPOT P99 10.833958360784477 ms、吞吐 664.772924145956 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C32 / ISL1024 / OSL1024 → TTFT P99 1765.553723 ms、TPOT P99 14.477458347995988 ms、吞吐 2149.7672006351536 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 14356.537065000002 ms、TPOT P99 79.91176538039238 ms、吞吐 390.35883497438374 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 8481.037019000001 ms、TPOT P99 47.49475550196087 ms、吞吐 656.4300876984471 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP8×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 4955.538856 ms、TPOT P99 28.770253968627422 ms、吞吐 1082.997232236789 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C32 / ISL1024 / OSL1024 → TTFT P99 532.0884139999998 ms、TPOT P99 8.038959994134894 ms、吞吐 3873.420667483136 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C32 / ISL8192 / OSL256 → TTFT P99 4521.6287919999995 ms、TPOT P99 26.8434794 ms、吞吐 1138.1864434887902 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C64 / ISL1024 / OSL1024 → TTFT P99 3533.6141140000004 ms、TPOT P99 18.36405357673509 ms、吞吐 3407.386670638768 tok/s
    - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP2×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 30866.989649000003 ms、TPOT P99 148.80633225882306 ms、吞吐 423.32901395617455 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C64 / ISL1024 / OSL1024 → TTFT P99 1065.5455469999997 ms、TPOT P99 9.39976863734117 ms、吞吐 6648.3700709741215 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C64 / ISL8192 / OSL256 → TTFT P99 9395.242326 ms、TPOT P99 47.49475550196081 ms、吞吐 1311.2457649568023 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C96 / ISL8192 / OSL256 → TTFT P99 14265.872607999992 ms、TPOT P99 67.54073382745081 ms、吞吐 1376.624854092987 tok/s
+   - Qwen/Qwen3-32B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP4×PP1×DP2 / C128 / ISL8192 / OSL256 → TTFT P99 19121.870338999986 ms、TPOT P99 87.29699354117625 ms、吞吐 1436.3384727706505 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C8 / ISL1024 / OSL1024 → TTFT P99 185.48182300000917 ms、TPOT P99 7.230641140762756 ms、吞吐 1073.1434253976 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 887.919842 ms、TPOT P99 16.005433647058844 ms、吞吐 473.4381502095157 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C8 / ISL1024 / OSL1024 → TTFT P99 93.09983800002374 ms、TPOT P99 6.744311719452742 ms、吞吐 1162.361629272693 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C8 / ISL8192 / OSL256 → TTFT P99 653.9557169999999 ms、TPOT P99 11.053877941176625 ms、吞吐 669.3956053210023 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C32 / ISL1024 / OSL1024 → TTFT P99 746.227258 ms、TPOT P99 10.10754084652979 ms、吞吐 3096.7872683153632 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 6609.393869999999 ms、TPOT P99 46.599841372549015 ms、吞吐 671.6197848398688 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C32 / ISL1024 / OSL1024 → TTFT P99 371.39593 ms、TPOT P99 8.608299143695115 ms、吞吐 3643.8625365988637 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C32 / ISL8192 / OSL256 → TTFT P99 3486.4293139999995 ms、TPOT P99 27.420675007843208 ms、吞吐 1127.7751784411603 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP4 / C32 / ISL8192 / OSL256 → TTFT P99 1827.7921460000002 ms、TPOT P99 16.0054336470589 ms、吞吐 1880.7211353088285 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C64 / ISL1024 / OSL1024 → TTFT P99 1499.3555680000002 ms、TPOT P99 13.52109428739 ms、吞吐 4657.798733662274 tok/s
    - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 19798.39472699997 ms、TPOT P99 76.13251087843177 ms、吞吐 700.192047763515 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C64 / ISL1024 / OSL1024 → TTFT P99 746.227258 ms、TPOT P99 10.129031437927686 ms、吞吐 6191.125539745652 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C64 / ISL8192 / OSL256 → TTFT P99 7334.551824999999 ms、TPOT P99 46.599841372549015 ms、吞吐 1341.269828068544 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C96 / ISL8192 / OSL256 → TTFT P99 11034.099922 ms、TPOT P99 76.13560087843159 ms、吞吐 1394.4902625469197 tok/s
+   - Qwen/Qwen3-8B / nvidia-h100-sxm-80gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C128 / ISL8192 / OSL256 → TTFT P99 20535.195289999967 ms、TPOT P99 76.13560087843159 ms、吞吐 1394.4902625469197 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C8 / ISL1024 / OSL1024 → TTFT P99 181.30924300000333 ms、TPOT P99 5.540693851417527 ms、吞吐 1390.5781678719216 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C8 / ISL8192 / OSL256 → TTFT P99 859.7394019999999 ms、TPOT P99 13.592190360784526 ms、吞吐 553.5143888489443 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C8 / ISL1024 / OSL1024 → TTFT P99 91.21148900000844 ms、TPOT P99 5.313530915933562 ms、吞吐 1471.2269209774552 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C8 / ISL8192 / OSL256 → TTFT P99 636.6716029999999 ms、TPOT P99 9.002842921569062 ms、吞吐 810.6443773058669 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C32 / ISL1024 / OSL1024 → TTFT P99 728.1516899999998 ms、TPOT P99 7.712977738025394 ms、吞吐 4049.0165794668155 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C32 / ISL8192 / OSL256 → TTFT P99 6286.380569000001 ms、TPOT P99 40.78204896862738 ms、吞吐 767.0359516128434 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C32 / ISL1024 / OSL1024 → TTFT P99 362.8524709999999 ms、TPOT P99 6.498827639296478 ms、吞吐 4811.783329426065 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C32 / ISL8192 / OSL256 → TTFT P99 3330.3272680000005 ms、TPOT P99 22.918945984313847 ms、吞吐 1341.9938095420605 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C64 / ISL1024 / OSL1024 → TTFT P99 1460.2410519999996 ms、TPOT P99 10.414255296187664 ms、吞吐 6039.994042071066 tok/s
    - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP1 / C64 / ISL8192 / OSL256 → TTFT P99 13681.380651000005 ms、TPOT P99 75.51767865882333 ms、吞吐 834.6444646073313 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C64 / ISL1024 / OSL1024 → TTFT P99 728.1516899999998 ms、TPOT P99 7.735301954056702 ms、吞吐 8094.894604956275 tok/s
+   - Qwen/Qwen3-8B / nvidia-h200-sxm-141gb / bf16 / vllm 0.24.0 / TP1×PP1×DP2 / C64 / ISL8192 / OSL256 → TTFT P99 6972.955788000001 ms、TPOT P99 40.78204896862752 ms、吞吐 1532.2982314387943 tok/s
 2. 其余模型、硬件与工作点最多只能做静态规划；没有 P99 时报告必须
    给出缺口，不能推荐“达标”。
 3. 扫描器数据只用于候选枚举与相对排序，不能拿来判 SLA。

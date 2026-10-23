@@ -205,3 +205,41 @@ def test_symlinked_parent_directory_is_rejected(tmp_path):
         run, manifest, ["predict/predict_1.yaml", "predict/out_1/prediction.json"]
     )
     assert any("符号链接" in reason for reason in reasons)
+
+
+def test_unregistered_exp_config_is_not_exposed(tmp_path, monkeypatch):
+    run = tmp_path / "archives" / "unregistered-exp"
+    _write_pair(run)
+    (run / "exp_config.yaml").write_text("database_mode: HYBRID\n", encoding="utf-8")
+    manifest = _manifest(run)
+    # 文件存在但未登记：ArchiveEntry 不得返回该路径
+    manifest["inputs"] = {
+        "predict/predict_1.yaml": manifest["inputs"]["predict/predict_1.yaml"]
+    }
+    manifest["outputs"] = {
+        "predict/out_1/prediction.json": manifest["outputs"][
+            "predict/out_1/prediction.json"
+        ]
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(oa, "ARCHIVE_ROOT", tmp_path / "archives")
+    monkeypatch.setattr(oa, "ROOT", tmp_path)
+    entries = oa.archive_entries()
+    assert len(entries) == 1
+    assert entries[0].exp_config is None
+
+
+def test_exp_config_database_mode_must_match_manifest(tmp_path, monkeypatch):
+    run = tmp_path / "archives" / "mode-mismatch"
+    _write_pair(run)
+    exp = run / "exp_config.yaml"
+    exp.write_text("database_mode: HYBRID\n", encoding="utf-8")
+    manifest = _manifest(run)
+    manifest["spec"]["database_mode"] = "SILICON"
+    manifest["inputs"]["exp_config.yaml"] = hashlib.sha256(
+        exp.read_bytes()
+    ).hexdigest()
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(oa, "ARCHIVE_ROOT", tmp_path / "archives")
+    monkeypatch.setattr(oa, "ROOT", tmp_path)
+    assert oa.archive_entries() == []

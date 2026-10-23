@@ -138,9 +138,17 @@ def test_ctx_tokens_is_not_a_deployment_identity():
     assert cfg["traffic"]["load"]["concurrency"] == _spec().concurrency
 
 
-def test_data_parallel_cannot_be_aligned():
+def test_dp_is_supported_for_replay_but_pp_is_not():
+    # AD1 已真实探测 DP 副本可用；PP 只做能力探测，不进入推荐
     candidate = _candidate(dp_size=2)
-    assert any("DP=2" in r for r in native_alignment_reasons(candidate, _spec()))
+    assert not any("DP=2" in r for r in native_alignment_reasons(candidate, _spec()))
+    pp_candidate = _candidate(pp_size=2)
+    assert any("PP=2" in r for r in native_alignment_reasons(pp_candidate, _spec()))
+    unknown_dp = _candidate(replicas=None, dp_size=None)
+    assert any(
+        "DP/副本数未声明" in r
+        for r in native_alignment_reasons(unknown_dp, _spec())
+    )
 
 
 def test_missing_or_mismatched_backend_version_prevents_alignment():

@@ -1,0 +1,272 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-10-23T05:13:17+00:00",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "database_mode": null,
+  "database_mode_note": "predict 配置未暴露 database_mode；本矩阵不声明该字段",
+  "workload": {
+    "input_len": 8192,
+    "output_len": 256,
+    "concurrency": 32,
+    "requests": 500,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "precision": "bf16"
+  },
+  "cases": [
+    {
+      "case_id": "qwen3-8b_h100_tp1dp1",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h100_sxm",
+      "tp": 1,
+      "dp": 1,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp1/predict.yaml",
+        "predict_config_sha256": "ac1355db3289c4099bf73893b0c0620c4b2c93611911bb1a0a518144895438a1",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp1/out/prediction.json",
+        "prediction_sha256": "8141d47a06a63b331c74f50ca7244449def8ab47c8abcca260ac2caadf5df59a"
+      },
+      "metrics": {
+        "p99_ttft_ms": 6609.393869999999,
+        "p99_tpot_ms": 46.599841372549015,
+        "output_throughput_tok_s": 671.6197848398688,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h100_tp1dp2",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h100_sxm",
+      "tp": 1,
+      "dp": 2,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp2/predict.yaml",
+        "predict_config_sha256": "ae642718848debcb9eefbd6e9113f6811087b17e45c4c47526105a9d1ae00560",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp2/out/prediction.json",
+        "prediction_sha256": "72752039596df59f78f42fbb6d46b62b2fdbfebb7eac34beba023a2caf008b98"
+      },
+      "metrics": {
+        "p99_ttft_ms": 3486.4293139999995,
+        "p99_tpot_ms": 27.420675007843208,
+        "output_throughput_tok_s": 1127.7751784411603,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h100_tp1dp4",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h100_sxm",
+      "tp": 1,
+      "dp": 4,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp4/predict.yaml",
+        "predict_config_sha256": "026c492f322110b8ce4fb3bd364c7d88ed0088e35076cad8e80c5911cc312b5a",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1dp4/out/prediction.json",
+        "prediction_sha256": "0517e6df9b619a5d1ba6193bde908580001f4e41587fedc906bfad8d455b00b4"
+      },
+      "metrics": {
+        "p99_ttft_ms": 1827.7921460000002,
+        "p99_tpot_ms": 16.0054336470589,
+        "output_throughput_tok_s": 1880.7211353088285,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h100_tp1pp2",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h100_sxm",
+      "tp": 1,
+      "dp": 1,
+      "pp": 2,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1pp2/predict.yaml",
+        "predict_config_sha256": "0e544d97aefc739ef70d5ce9daa32cc47d6da93928dc5988414ba71fa61c8cfd",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h100_tp1pp2/out/prediction.json",
+        "prediction_sha256": "07d33b18f57e523eb45ef4ff8151d8ff44ab264cc4ef9e56def8b6b2e015a08e"
+      },
+      "metrics": {
+        "p99_ttft_ms": 6647.5394209999995,
+        "p99_tpot_ms": 46.77948589411772,
+        "output_throughput_tok_s": 669.0267191360774,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h200_tp1dp1",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h200_sxm",
+      "tp": 1,
+      "dp": 1,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h200_tp1dp1/predict.yaml",
+        "predict_config_sha256": "606c843016e49d4d50ce37d39727826a4649aadce8328983cdafc91193f667bd",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h200_tp1dp1/out/prediction.json",
+        "prediction_sha256": "788ba3fd4d5df8b96560c95ae90624b2251598c8c9a8904a1fa19c2dea86eb61"
+      },
+      "metrics": {
+        "p99_ttft_ms": 6286.380569000001,
+        "p99_tpot_ms": 40.78204896862738,
+        "output_throughput_tok_s": 767.0359516128434,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-8b_h200_tp1dp2",
+      "model": "Qwen/Qwen3-8B",
+      "system": "h200_sxm",
+      "tp": 1,
+      "dp": 2,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-8b_h200_tp1dp2/predict.yaml",
+        "predict_config_sha256": "ae840838282ba19a63157d523da9be14fde870427aa802a12d98fc187d0d9d98",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-8b_h200_tp1dp2/out/prediction.json",
+        "prediction_sha256": "d3203f54a9380ea7624ea841ad23b086671f15932fca4b26e03ae72c9ce6defa"
+      },
+      "metrics": {
+        "p99_ttft_ms": 3330.3272680000005,
+        "p99_tpot_ms": 22.918945984313847,
+        "output_throughput_tok_s": 1341.9938095420605,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h100_tp8dp1",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h100_sxm",
+      "tp": 8,
+      "dp": 1,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-32b_h100_tp8dp1/predict.yaml",
+        "predict_config_sha256": "ca86398c693a68a0debd2dc971970624423df7cbd4edc6aeb9b71686eb22c85c",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-32b_h100_tp8dp1/out/prediction.json",
+        "prediction_sha256": "c6dce1332e43009964be2733e2185391b9ae19fc2369784a3ea34a242e33512c"
+      },
+      "metrics": {
+        "p99_ttft_ms": 5201.827252000001,
+        "p99_tpot_ms": 31.45861707450993,
+        "output_throughput_tok_s": 990.888548064229,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 8
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h100_tp4dp2",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h100_sxm",
+      "tp": 4,
+      "dp": 2,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-32b_h100_tp4dp2/predict.yaml",
+        "predict_config_sha256": "2b8008d44e43337aa6bab6ae1abf0d45914f4374b1bdeb425dbbfd2ab2e18789",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-32b_h100_tp4dp2/out/prediction.json",
+        "prediction_sha256": "69604eb87e9783161eceedfed735b1a2facac43584064bfb6afa559f574732b8"
+      },
+      "metrics": {
+        "p99_ttft_ms": 4448.276797,
+        "p99_tpot_ms": 28.824056776470616,
+        "output_throughput_tok_s": 1062.4468369728693,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 4
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h200_tp8dp1",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h200_sxm",
+      "tp": 8,
+      "dp": 1,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp8dp1/predict.yaml",
+        "predict_config_sha256": "3b4b7755d0fa44d936397ae7a7d8cf2b90ed3556a976af83dd90821e71b502f7",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp8dp1/out/prediction.json",
+        "prediction_sha256": "68f3d1e4df3cbdc4e6f1f02b7ca28aead11a13db74a0ff8fdae8ceea2864eeb9"
+      },
+      "metrics": {
+        "p99_ttft_ms": 4955.538856,
+        "p99_tpot_ms": 28.770253968627422,
+        "output_throughput_tok_s": 1082.997232236789,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 8
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h200_tp4dp2",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h200_sxm",
+      "tp": 4,
+      "dp": 2,
+      "pp": 1,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp4dp2/predict.yaml",
+        "predict_config_sha256": "2a3a541ec74330a15b819d67629ec03317ca864c088f1643ea9de4a6da61cb9c",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp4dp2/out/prediction.json",
+        "prediction_sha256": "0dfb491f825955df7483d7f73ea0bbf0766570abd578679eb50b4fd7d72caef7"
+      },
+      "metrics": {
+        "p99_ttft_ms": 4521.6287919999995,
+        "p99_tpot_ms": 26.8434794,
+        "output_throughput_tok_s": 1138.1864434887902,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 4
+      }
+    },
+    {
+      "case_id": "qwen3-32b_h200_tp4pp2",
+      "model": "Qwen/Qwen3-32B",
+      "system": "h200_sxm",
+      "tp": 4,
+      "dp": 1,
+      "pp": 2,
+      "status": "supported",
+      "reason": "已生成完整 P99",
+      "evidence": {
+        "predict_config": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp4pp2/predict.yaml",
+        "predict_config_sha256": "2c2c911b1516a0d141fa4918e75d9bb36ec42abdc911bf68b90c314392afab89",
+        "prediction": "data/simulation/capabilities/parallelism/qwen3-32b_h200_tp4pp2/out/prediction.json",
+        "prediction_sha256": "f2e0fb105da5c50b5554dbbb03c50ae9ba60c5b2be3a58aedb84760c65dd995c"
+      },
+      "metrics": {
+        "p99_ttft_ms": 8528.578957,
+        "p99_tpot_ms": 47.716497411764756,
+        "output_throughput_tok_s": 653.3752303584369,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 4
+      }
+    }
+  ]
+}

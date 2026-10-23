@@ -1,9 +1,10 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-22T11:22:28+00:00",
+  "generated_at": "2026-10-23T05:12:59+00:00",
   "tool": "aisimulate",
   "tool_version": "0.12.1",
-  "database_mode": "SILICON",
+  "database_mode": null,
+  "database_mode_note": "predict 配置未暴露 database_mode；本矩阵不声明该字段",
   "workload": {
     "input_len": 8192,
     "output_len": 256,
@@ -31,7 +32,7 @@
         "predict_config": "data/simulation/capabilities/qwen3-8b_h100_sxm/predict_tp1.yaml",
         "predict_config_sha256": "ac1355db3289c4099bf73893b0c0620c4b2c93611911bb1a0a518144895438a1",
         "prediction": "data/simulation/capabilities/qwen3-8b_h100_sxm/out_tp1/prediction.json",
-        "prediction_sha256": "247314db71261ed1c42c071d0aa84d414dfc5f3010a2d2ab9824f7438c111c53"
+        "prediction_sha256": "5a7455d8bd364586566342b2b43dddf6eee81c01e0eccd481ada71bc9e372d87"
       },
       "metrics": {
         "p99_ttft_ms": 6609.393869999999,
@@ -57,7 +58,7 @@
         "predict_config": "data/simulation/capabilities/qwen3-32b_h200_sxm/predict_tp2.yaml",
         "predict_config_sha256": "74a2452ed0bdf70fcdb2b8db5a19ecc9eaea9ba4669db4ced11db3d0b4846b95",
         "prediction": "data/simulation/capabilities/qwen3-32b_h200_sxm/out_tp2/prediction.json",
-        "prediction_sha256": "8fbacf8a7a4b580a8574fc1d4d9e568a5379a8e672747bf6a6f025609b010942"
+        "prediction_sha256": "b453ab1a139ba76fa69c95e23213853abcb50047e5bbdd967175fde5776e0059"
       },
       "metrics": {
         "p99_ttft_ms": 14356.537065000002,
@@ -83,7 +84,7 @@
         "predict_config": "data/simulation/capabilities/qwen3-8b_h200_sxm/predict_tp1.yaml",
         "predict_config_sha256": "606c843016e49d4d50ce37d39727826a4649aadce8328983cdafc91193f667bd",
         "prediction": "data/simulation/capabilities/qwen3-8b_h200_sxm/out_tp1/prediction.json",
-        "prediction_sha256": "8e04e16c22bd92388c33400787d96711c7d4c04813877074879fd5f3dee9cef9"
+        "prediction_sha256": "f3fea658142ab28359ca8c37f76f8f63362ddea6d5b0c375f15d7e8f51ded57d"
       },
       "metrics": {
         "p99_ttft_ms": 6286.380569000001,

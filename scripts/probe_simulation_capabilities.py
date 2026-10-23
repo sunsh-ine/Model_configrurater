@@ -208,7 +208,8 @@ def main() -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tool": "aisimulate",
         "tool_version": version,
-        "database_mode": "SILICON",
+        "database_mode": None,
+        "database_mode_note": "predict 配置未暴露 database_mode；本矩阵不声明该字段",
         "workload": {
             "input_len": 8192,
             "output_len": 256,

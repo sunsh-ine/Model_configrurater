@@ -94,7 +94,9 @@ def test_relaxed_sla_recommends_predicted_pass_without_changing_predictions(tmp_
 
     recommended = relaxed.result.simulation.recommended("throughput")
     assert recommended is not None
-    assert recommended.candidate_id == after.candidate_id
+    assert recommended.verdict == "predicted_pass"
+    # AD：同 8 卡 TP4×DP2 的吞吐高于 TP8×DP1
+    assert (recommended.deployment.tp_size, recommended.deployment.dp_size) == (4, 2)
     # 仍然没有实测通过：预测达标不等于实测
     assert all(
         c.sla_status != "observed_pass" for c in relaxed.result.candidates

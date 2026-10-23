@@ -62,6 +62,7 @@ class ArchiveEntry:
     completed_requests: int | None = None
     pp_size: int | None = None
     dp_size: int | None = None
+    database_mode: str | None = None
 
     @property
     def deployment_key(self) -> tuple[Any, ...]:
@@ -143,6 +144,7 @@ def _entry_from_paths(
     completed_requests: int | None = None,
     pp_size: int | None = None,
     dp_size: int | None = None,
+    database_mode: str | None = None,
 ) -> ArchiveEntry:
     return ArchiveEntry(
         name=name,
@@ -164,6 +166,7 @@ def _entry_from_paths(
         ),
         pp_size=pp_size,
         dp_size=dp_size,
+        database_mode=database_mode,
         native_prediction=str(native_prediction.relative_to(ROOT)),
         native_input=str(native_input.relative_to(ROOT)),
         exp_config=(
@@ -201,7 +204,7 @@ def archive_entries() -> list[ArchiveEntry]:
             continue
         candidate_errors = manifest.get("candidate_errors") or {}
         failed_predicts = manifest.get("failed_predicts") or {}
-        exp_config = run_dir / "exp_config.yaml"
+        exp_config_path = run_dir / "exp_config.yaml"
         for input_path in sorted(run_dir.glob("predict/predict_*.yaml")):
             relative_input = str(input_path.relative_to(run_dir))
             if relative_input in candidate_errors or relative_input in failed_predicts:
@@ -218,6 +221,10 @@ def archive_entries() -> list[ArchiveEntry]:
                 **(manifest.get("inputs") or {}),
                 **(manifest.get("outputs") or {}),
             }
+            # 只有被 manifest 登记的配置才能作为工具身份读取
+            exp_config = (
+                exp_config_path if "exp_config.yaml" in registered else None
+            )
             if "exp_config.yaml" in registered:
                 # 登记了就要求存在且哈希一致；文件被删不能静默跳过。
                 required.append("exp_config.yaml")
@@ -227,6 +234,23 @@ def archive_entries() -> list[ArchiveEntry]:
             if verify_predict_metadata(run_dir, manifest, relative_input):
                 # 哈希只能证明文件没变；标签与输入不一致同样不能作为证据。
                 continue
+            database_mode = spec.get("database_mode")
+            if "exp_config.yaml" in registered and exp_config_path.exists():
+                try:
+                    exp_doc = yaml.safe_load(
+                        exp_config_path.read_text(encoding="utf-8")
+                    ) or {}
+                except Exception:  # noqa: BLE001
+                    continue
+                exp_mode = exp_doc.get("database_mode")
+                if (
+                    database_mode
+                    and exp_mode
+                    and str(database_mode) != str(exp_mode)
+                ):
+                    # manifest 与配置声明不一致：不能替候选选择其中一个
+                    continue
+                database_mode = exp_mode or database_mode
             cfg = yaml.safe_load(input_path.read_text(encoding="utf-8")) or {}
             engine = cfg.get("engine") or {}
             traffic = cfg.get("traffic") or {}
@@ -267,6 +291,7 @@ def archive_entries() -> list[ArchiveEntry]:
                     dp_size=_int(parallel.get("replicas")) or 1,
                     requests=_int(stop.get("requests")),
                     tool_version=manifest.get("tool_version"),
+                    database_mode=database_mode,
                 )
             )
     return entries
@@ -458,6 +483,7 @@ def offline_simulation_paths(
             "native_prediction": entry.native_prediction,
             "native_input": entry.native_input,
             "hardware_id": hardware_id,
+            "database_mode": entry.database_mode,
             # 不得用请求值补归档缺失的精度：那会把“未声明”伪造成“已核实”。
             "native_model_precision": entry.precision,
             "tool_version": entry.tool_version,

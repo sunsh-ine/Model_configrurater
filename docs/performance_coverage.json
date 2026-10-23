@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-22T11:52:32+00:00",
+  "generated_at": "2026-10-23T03:59:31+00:00",
   "generator": "scripts/build_performance_coverage.py",
   "level_definitions": {
     "1": {
@@ -151,8 +151,8 @@
       "levels_present": [
         "simulated_native_p99"
       ],
-      "evidence_count": 6,
-      "sla_usable_evidence": 6,
+      "evidence_count": 15,
+      "sla_usable_evidence": 15,
       "cost_analysis_possible": true,
       "cost_note": "仓库内只有合成示例成本项；可算 TCO，但不能当真实报价"
     },
@@ -167,8 +167,8 @@
       "levels_present": [
         "simulated_native_p99"
       ],
-      "evidence_count": 6,
-      "sla_usable_evidence": 6,
+      "evidence_count": 12,
+      "sla_usable_evidence": 12,
       "cost_analysis_possible": false,
       "cost_note": "没有该硬件的成本项，成本结论保持未知"
     },
@@ -184,8 +184,8 @@
         "simulated_scan_only",
         "simulated_native_p99"
       ],
-      "evidence_count": 176,
-      "sla_usable_evidence": 17,
+      "evidence_count": 182,
+      "sla_usable_evidence": 23,
       "cost_analysis_possible": true,
       "cost_note": "仓库内只有合成示例成本项；可算 TCO，但不能当真实报价"
     },
@@ -200,8 +200,8 @@
       "levels_present": [
         "simulated_native_p99"
       ],
-      "evidence_count": 8,
-      "sla_usable_evidence": 8,
+      "evidence_count": 16,
+      "sla_usable_evidence": 16,
       "cost_analysis_possible": false,
       "cost_note": "没有该硬件的成本项，成本结论保持未知"
     }
@@ -803,6 +803,94 @@
         "ttft_mean_ms": "168.59640871199747",
         "tpot_mean_ms": "5.982247734827055",
         "output_throughput_tok_s": "1292.8510420687026",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "ef488d65060821fa",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "137.71360100002494",
+        "tpot_p99_ms": "8.618903230694222",
+        "ttft_mean_ms": "137.1961383599853",
+        "tpot_mean_ms": "8.616330045708736",
+        "output_throughput_tok_s": "908.1847846247342",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "a650c47ef339dcf8",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "861.7461110000002",
+        "tpot_p99_ms": "12.326389607843286",
+        "ttft_mean_ms": "454.3416827279935",
+        "tpot_mean_ms": "11.723581337694096",
+        "output_throughput_tok_s": "591.6756451215094",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -2484,6 +2572,94 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "b42c80c72f3eec21",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "520.8245929999999",
+        "tpot_p99_ms": "9.653310475073386",
+        "ttft_mean_ms": "226.33974255199996",
+        "tpot_mean_ms": "9.484767542650998",
+        "output_throughput_tok_s": "3229.7293058361915",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "150644f1c548c1d4",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "4448.276797",
+        "tpot_p99_ms": "28.824056776470616",
+        "ttft_mean_ms": "703.3404771320008",
+        "tpot_mean_ms": "27.22419543407064",
+        "output_throughput_tok_s": "1062.4468369728693",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "a41bd8327c5cdeed",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
@@ -3129,6 +3305,94 @@
         "ttft_mean_ms": "246.82503937799981",
         "tpot_mean_ms": "9.06789741536269",
         "output_throughput_tok_s": "6747.2858397137925",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "91f609aa669b8617",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "1044.013729",
+        "tpot_p99_ms": "11.332671839687185",
+        "ttft_mean_ms": "290.4976002920006",
+        "tpot_mean_ms": "11.081481018940412",
+        "output_throughput_tok_s": "5519.110887783805",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "cd4709e0526134b2",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "9264.708154999998",
+        "tpot_p99_ms": "50.170601298039216",
+        "ttft_mean_ms": "1175.18483804",
+        "tpot_mean_ms": "46.73510122480002",
+        "output_throughput_tok_s": "1242.203008622216",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -4144,6 +4408,94 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "7dc6cec4f1edfbba",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "132.70885400001134",
+        "tpot_p99_ms": "7.0779355053764395",
+        "ttft_mean_ms": "132.2171301519865",
+        "tpot_mean_ms": "7.076774403214019",
+        "output_throughput_tok_s": "1102.6959193454597",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "7ea882c140b35cc6",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "878.576915",
+        "tpot_p99_ms": "10.833958360784477",
+        "ttft_mean_ms": "460.820955079999",
+        "tpot_mean_ms": "10.216549718588308",
+        "output_throughput_tok_s": "664.772924145956",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "8ed4e697c7d2ccc6",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
@@ -4320,6 +4672,94 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "bcf8719445835a07",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "532.0884139999998",
+        "tpot_p99_ms": "8.038959994134894",
+        "ttft_mean_ms": "227.7660636759976",
+        "tpot_mean_ms": "7.871751453188637",
+        "output_throughput_tok_s": "3873.420667483136",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "68144bc7d13cdcb3",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "4521.6287919999995",
+        "tpot_p99_ms": "26.8434794",
+        "ttft_mean_ms": "713.9567118600008",
+        "tpot_mean_ms": "25.219328606415687",
+        "output_throughput_tok_s": "1138.1864434887902",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "d1981ddbd0b0dd8a",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
@@ -4403,6 +4843,182 @@
         "ttft_mean_ms": "3086.558556588001",
         "tpot_mean_ms": "138.95344467373334",
         "output_throughput_tok_s": "423.32901395617455",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "08f96a3d63b1d5a3",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "1065.5455469999997",
+        "tpot_p99_ms": "9.39976863734117",
+        "ttft_mean_ms": "293.2879228119998",
+        "tpot_mean_ms": "9.151199657943298",
+        "output_throughput_tok_s": "6648.3700709741215",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "c9743f6dfc7569de",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "9395.242326",
+        "tpot_p99_ms": "47.49475550196081",
+        "ttft_mean_ms": "1189.8285125319999",
+        "tpot_mean_ms": "44.03409797681567",
+        "output_throughput_tok_s": "1311.2457649568023",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "a5caa5feb133f150",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 96,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "14265.872607999992",
+        "tpot_p99_ms": "67.54073382745081",
+        "ttft_mean_ms": "1961.1489390120034",
+        "tpot_mean_ms": "61.10150761998426",
+        "output_throughput_tok_s": "1376.624854092987",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "5661ebbfd82dc9b7",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 128,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "19121.870338999986",
+        "tpot_p99_ms": "87.29699354117625",
+        "ttft_mean_ms": "3042.5858669439986",
+        "tpot_mean_ms": "76.93218612326253",
+        "output_throughput_tok_s": "1436.3384727706505",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -4496,6 +5112,94 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "4bb61202840da82b",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "93.09983800002374",
+        "tpot_p99_ms": "6.744311719452742",
+        "ttft_mean_ms": "92.75731762400692",
+        "tpot_mean_ms": "6.7442797881524355",
+        "output_throughput_tok_s": "1162.361629272693",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "7e76434283f7492d",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "653.9557169999999",
+        "tpot_p99_ms": "11.053877941176625",
+        "ttft_mean_ms": "351.6029046799994",
+        "tpot_mean_ms": "10.557836916643147",
+        "output_throughput_tok_s": "669.3956053210023",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "7bdceae665347a52",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
@@ -4579,6 +5283,138 @@
         "ttft_mean_ms": "700.9786469480011",
         "tpot_mean_ms": "44.71197169204719",
         "output_throughput_tok_s": "671.6197848398688",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "ed48a483e5f940b5",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "371.39593",
+        "tpot_p99_ms": "8.608299143695115",
+        "ttft_mean_ms": "160.76521257599748",
+        "tpot_mean_ms": "8.458523591585571",
+        "output_throughput_tok_s": "3643.8625365988637",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "a6b5a728299c49c5",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "3486.4293139999995",
+        "tpot_p99_ms": "27.420675007843208",
+        "ttft_mean_ms": "556.4190589679987",
+        "tpot_mean_ms": "26.04359848875296",
+        "output_throughput_tok_s": "1127.7751784411603",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "1425b6eb8a6d8a6b",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 4,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "1827.7921460000002",
+        "tpot_p99_ms": "16.0054336470589",
+        "ttft_mean_ms": "458.6475990719989",
+        "tpot_mean_ms": "15.06834443563915",
+        "output_throughput_tok_s": "1880.7211353088285",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -4672,6 +5508,182 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "623225fc49fecf77",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "746.227258",
+        "tpot_p99_ms": "10.129031437927686",
+        "ttft_mean_ms": "207.04405059199814",
+        "tpot_mean_ms": "9.927570307288367",
+        "output_throughput_tok_s": "6191.125539745652",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "b1b538641ff63bc0",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "7334.551824999999",
+        "tpot_p99_ms": "46.599841372549015",
+        "ttft_mean_ms": "932.2865368479981",
+        "tpot_mean_ms": "43.78701719844718",
+        "output_throughput_tok_s": "1341.269828068544",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "889c47dcdda72972",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 96,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "11034.099922",
+        "tpot_p99_ms": "76.13560087843159",
+        "ttft_mean_ms": "2360.2318555840006",
+        "tpot_mean_ms": "58.23399610988247",
+        "output_throughput_tok_s": "1394.4902625469197",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "9ff303ae72a73e83",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 128,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "20535.195289999967",
+        "tpot_p99_ms": "76.13560087843159",
+        "ttft_mean_ms": "7782.137820252002",
+        "tpot_mean_ms": "58.233996109882455",
+        "output_throughput_tok_s": "1394.4902625469197",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "1540d30716199781",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
@@ -4755,6 +5767,94 @@
         "ttft_mean_ms": "403.7474694640007",
         "tpot_mean_ms": "12.87433268939616",
         "output_throughput_tok_s": "553.5143888489443",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "d482b70c175c1a49",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "91.21148900000844",
+        "tpot_p99_ms": "5.313530915933562",
+        "ttft_mean_ms": "90.85378035999578",
+        "tpot_mean_ms": "5.312400854115255",
+        "output_throughput_tok_s": "1471.2269209774552",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "14813f1269cffd22",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "636.6716029999999",
+        "tpot_p99_ms": "9.002842921569062",
+        "ttft_mean_ms": "337.4120413640044",
+        "tpot_mean_ms": "8.537848924658862",
+        "output_throughput_tok_s": "810.6443773058669",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -4848,6 +5948,94 @@
       "sla_blockers": []
     },
     {
+      "workpoint_id": "e527b4173a9e4888",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "362.8524709999999",
+        "tpot_p99_ms": "6.498827639296478",
+        "ttft_mean_ms": "155.3933421920027",
+        "tpot_mean_ms": "6.369428390091985",
+        "output_throughput_tok_s": "4811.783329426065",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "8d97b78854c4454b",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "3330.3272680000005",
+        "tpot_p99_ms": "22.918945984313847",
+        "ttft_mean_ms": "528.8071659640011",
+        "tpot_mean_ms": "21.665280629725608",
+        "output_throughput_tok_s": "1341.9938095420605",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
       "workpoint_id": "c112e00d57a57c5c",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
@@ -4931,6 +6119,94 @@
         "ttft_mean_ms": "1371.9977053639993",
         "tpot_mean_ms": "71.0408745129491",
         "output_throughput_tok_s": "834.6444646073313",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "66489ae15c6ed5b1",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "728.1516899999998",
+        "tpot_p99_ms": "7.735301954056702",
+        "ttft_mean_ms": "200.74469837999976",
+        "tpot_mean_ms": "7.5535256217751705",
+        "output_throughput_tok_s": "8094.894604956275",
+        "completed_requests": 500
+      },
+      "sla_blockers": []
+    },
+    {
+      "workpoint_id": "922de28d3e5d88b5",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "evidence_ids": [
+        "ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256:native:predict_1"
+      ],
+      "best_level": 3,
+      "best_level_key": "simulated_native_p99",
+      "levels": [
+        3
+      ],
+      "sla_usable": true,
+      "metrics": {
+        "ttft_p99_ms": "6972.955788000001",
+        "tpot_p99_ms": "40.78204896862752",
+        "ttft_mean_ms": "886.2078727160008",
+        "tpot_mean_ms": "38.112755978039225",
+        "output_throughput_tok_s": "1532.2982314387943",
         "completed_requests": 500
       },
       "sla_blockers": []
@@ -14537,6 +15813,1920 @@
       }
     },
     {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "1a09e48617734115098fd1d7e888ffd4fb24aec1e8249a7f6c600de9deced950",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "e3a066a5cf53308d405c85649d5f264911e7a4ba9a6233748a634f58b8afba93"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "520.8245929999999",
+        "tpot_p99_ms": "9.653310475073386",
+        "ttft_mean_ms": "226.33974255199996",
+        "tpot_mean_ms": "9.484767542650998",
+        "output_throughput_tok_s": "3229.7293058361915",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "cf1e4cdf69f0a1c3f424505c9eb5eafedfa0fe9a38262a346cb33eb3902e1501",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "2b8008d44e43337aa6bab6ae1abf0d45914f4374b1bdeb425dbbfd2ab2e18789"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "4448.276797",
+        "tpot_p99_ms": "28.824056776470616",
+        "ttft_mean_ms": "703.3404771320008",
+        "tpot_mean_ms": "27.22419543407064",
+        "output_throughput_tok_s": "1062.4468369728693",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c32-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "37966f1a7dc59ed66775474a64d30266b94ab5ab0eb5f7ca3d095ef5beed16b8",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "6f58a1e5606d2412041da369cc423c2f3513aa014df653b1716edf25dfb2f012"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "1044.013729",
+        "tpot_p99_ms": "11.332671839687185",
+        "ttft_mean_ms": "290.4976002920006",
+        "tpot_mean_ms": "11.081481018940412",
+        "output_throughput_tok_s": "5519.110887783805",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "6a733ae3234f2214461a213a7fc0d63d6fc30a2f6c556ad379899b012f3e78fb",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "1611fefcdbebba553654a2466a971a59454f541a33349b120cc17285c895fda6"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "9264.708154999998",
+        "tpot_p99_ms": "50.170601298039216",
+        "ttft_mean_ms": "1175.18483804",
+        "tpot_mean_ms": "46.73510122480002",
+        "output_throughput_tok_s": "1242.203008622216",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c64-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "580fc03bf4631a3ef2e8f6aa2af9ab711493d054b266fd62fe23ab48f9a4725d",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "68f6c93c4aad5fca17e33fb8c6098519395677158464ac69c3ee7d5f1836000e"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "137.71360100002494",
+        "tpot_p99_ms": "8.618903230694222",
+        "ttft_mean_ms": "137.1961383599853",
+        "tpot_mean_ms": "8.616330045708736",
+        "output_throughput_tok_s": "908.1847846247342",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "8e52bf3e2d9fb9d705a1c360f4432b719b3591c88bc5e0275adbfe64e575306a",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "e683e35b4a6f734ee880b3f858bdb80b270627afedcf1fb2cdbdeed2f3e277bb"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256/exp_config.yaml",
+          "sha256": "40eba89c9db843b24f509686c5da6ea4005526dce3e744cd205d7a549f5df29f"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "861.7461110000002",
+        "tpot_p99_ms": "12.326389607843286",
+        "ttft_mean_ms": "454.3416827279935",
+        "tpot_mean_ms": "11.723581337694096",
+        "output_throughput_tok_s": "591.6756451215094",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h100-tp4dp2-c8-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "e1511bd82b2182a40ba4a6587e0136da483b5e5758db76cbd53791c73536825b",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "f0f689cce87d5295c995774476cb82b84edd1e648fe3f8fb7ac537c563f599eb"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 128,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "19121.870338999986",
+        "tpot_p99_ms": "87.29699354117625",
+        "ttft_mean_ms": "3042.5858669439986",
+        "tpot_mean_ms": "76.93218612326253",
+        "output_throughput_tok_s": "1436.3384727706505",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c128-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "3612182a4d85dc1577df22f7d3ee2ce8727757767a74380f6b0dde2c6b092c47",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "45f8de70c76a264e4ad0547eae8df4df2dc624862aad053853cedaae1dca6ec3"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "532.0884139999998",
+        "tpot_p99_ms": "8.038959994134894",
+        "ttft_mean_ms": "227.7660636759976",
+        "tpot_mean_ms": "7.871751453188637",
+        "output_throughput_tok_s": "3873.420667483136",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "81606298293a9becef7cb79ad3e0cfb36223687c23f870a139cf0f9462e9dd04",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "2a3a541ec74330a15b819d67629ec03317ca864c088f1643ea9de4a6da61cb9c"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "4521.6287919999995",
+        "tpot_p99_ms": "26.8434794",
+        "ttft_mean_ms": "713.9567118600008",
+        "tpot_mean_ms": "25.219328606415687",
+        "output_throughput_tok_s": "1138.1864434887902",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "44001b94ea408a1049f477dcc11a41c4a11c49b2af2b2032654111a963fd1099",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "6cedbe481588a52867ce49334b8348072822afa64c8829d3283636073af86486"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "1065.5455469999997",
+        "tpot_p99_ms": "9.39976863734117",
+        "ttft_mean_ms": "293.2879228119998",
+        "tpot_mean_ms": "9.151199657943298",
+        "output_throughput_tok_s": "6648.3700709741215",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "ace721f3035871b65ff0a949b69ea38e690817a105f52e6a440f0229a9df8dbe",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "692e6ee49e7ebf3e8468504a9ec2072456a5e74f3e407fc62046c700fb226f88"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "9395.242326",
+        "tpot_p99_ms": "47.49475550196081",
+        "ttft_mean_ms": "1189.8285125319999",
+        "tpot_mean_ms": "44.03409797681567",
+        "output_throughput_tok_s": "1311.2457649568023",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c64-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "5df5bee0c648d37d2c83928314b0c2d3af1dddf84b08b5339d76a5129c9ff241",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "b6464c2dd19e795d133db4a89e6a6bd01060c0c846d9a21d4cfff018df8bf25b"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "132.70885400001134",
+        "tpot_p99_ms": "7.0779355053764395",
+        "ttft_mean_ms": "132.2171301519865",
+        "tpot_mean_ms": "7.076774403214019",
+        "output_throughput_tok_s": "1102.6959193454597",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "697590ccc66a2bc0d79f84692896d734792846f82a078618f533f2c9284bb35f",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "2483edacc750b0ee1c86fb9c098ee37e6251a10a148a326f168a38af82e40075"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "878.576915",
+        "tpot_p99_ms": "10.833958360784477",
+        "ttft_mean_ms": "460.820955079999",
+        "tpot_mean_ms": "10.216549718588308",
+        "output_throughput_tok_s": "664.772924145956",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c8-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "3efd72d178b0c2338ba6c21c25a298a3c482fb070cfc482ff02aedfafc01703b",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "6b631696b04bf43ef98fa3151c4571f7e56590d9bc3bd622a0be9289a8f7d3a3"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256/exp_config.yaml",
+          "sha256": "a1e471e870b58d08dce4e9717dca98d99d72ffb3c626533c3cc1752d89d924ab"
+        }
+      ],
+      "run_id": "ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-32B",
+        "model_id": "qwen3-32b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 8,
+        "tp_size": 4,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 96,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "14265.872607999992",
+        "tpot_p99_ms": "67.54073382745081",
+        "ttft_mean_ms": "1961.1489390120034",
+        "tpot_mean_ms": "61.10150761998426",
+        "output_throughput_tok_s": "1376.624854092987",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c96-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "145c31997aba4250254b2e62225ecd2c29e50be23c966bcb6911325a71c3c953",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "6449f75850d5d2f8ece5bdec509fea70e53f8a239c3ebb4ae35eb1d4519aa2fe"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 128,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "20535.195289999967",
+        "tpot_p99_ms": "76.13560087843159",
+        "ttft_mean_ms": "7782.137820252002",
+        "tpot_mean_ms": "58.233996109882455",
+        "output_throughput_tok_s": "1394.4902625469197",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c128-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "63c86926e9a12c409c1a88b4874edc905eda00fb045b526c4c6da697ef866a97",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "158e850ec6fa329181c0ac1b8da2452873b93d15d5db234e65705b97049a4c17"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "371.39593",
+        "tpot_p99_ms": "8.608299143695115",
+        "ttft_mean_ms": "160.76521257599748",
+        "tpot_mean_ms": "8.458523591585571",
+        "output_throughput_tok_s": "3643.8625365988637",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "044b696d0ee83c90f6ddcb0850358165863b6a17842b9b1ae96289db5d810b2d",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "ae642718848debcb9eefbd6e9113f6811087b17e45c4c47526105a9d1ae00560"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "3486.4293139999995",
+        "tpot_p99_ms": "27.420675007843208",
+        "ttft_mean_ms": "556.4190589679987",
+        "tpot_mean_ms": "26.04359848875296",
+        "output_throughput_tok_s": "1127.7751784411603",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c32-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "6aa439f9200c546966d20f05c4b4bed1e0cf8c341ce969cc5cc0d781534ea494",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "6993916e817f04d11a3923a9cb456beedf6208f5d881c19124a894a4ac5662fe"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "746.227258",
+        "tpot_p99_ms": "10.129031437927686",
+        "ttft_mean_ms": "207.04405059199814",
+        "tpot_mean_ms": "9.927570307288367",
+        "output_throughput_tok_s": "6191.125539745652",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "0d95e1698d16e3d01cd268e49ec1adec357fd027fe5d4edc763812d1ca138252",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "8ed6eac1ee2559d49c08a5e32315198f4c96e45288aaa772be40d9a068c47e56"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "7334.551824999999",
+        "tpot_p99_ms": "46.599841372549015",
+        "ttft_mean_ms": "932.2865368479981",
+        "tpot_mean_ms": "43.78701719844718",
+        "output_throughput_tok_s": "1341.269828068544",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c64-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "9d9b06c518832764b90b0ea00b84a29d5cb4087364a8b847f71b96d4012014fe",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "64353bd005a701b3e4db2db68b62c6dcc91eee55176cd6b036999463513c2cef"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "93.09983800002374",
+        "tpot_p99_ms": "6.744311719452742",
+        "ttft_mean_ms": "92.75731762400692",
+        "tpot_mean_ms": "6.7442797881524355",
+        "output_throughput_tok_s": "1162.361629272693",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "db5374877a6160f2263a12a7696549287f2edd216712fa0af5c07ece5e4124ea",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "f0fcfed8619a0875edc0f29ce75dcfaf264cb951a9cfffea9cf5aaac2d224237"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "653.9557169999999",
+        "tpot_p99_ms": "11.053877941176625",
+        "ttft_mean_ms": "351.6029046799994",
+        "tpot_mean_ms": "10.557836916643147",
+        "output_throughput_tok_s": "669.3956053210023",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c8-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "8c43cc7397cdc0e0a0981d8dd41b696f9418b3e208d89c15fec5a9ff640b0f55",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "c27bb4d40c0a74b7e67228daac922f21366726e46cd98368f2387055b97e0148"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 96,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "11034.099922",
+        "tpot_p99_ms": "76.13560087843159",
+        "ttft_mean_ms": "2360.2318555840006",
+        "tpot_mean_ms": "58.23399610988247",
+        "output_throughput_tok_s": "1394.4902625469197",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp2-c96-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "8538b0d15a9374a275dee48fec757e6da20b759a7df598fa9c7e9ca483ce24a5",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "026c492f322110b8ce4fb3bd364c7d88ed0088e35076cad8e80c5911cc312b5a"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 4,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 4,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "1827.7921460000002",
+        "tpot_p99_ms": "16.0054336470589",
+        "ttft_mean_ms": "458.6475990719989",
+        "tpot_mean_ms": "15.06834443563915",
+        "output_throughput_tok_s": "1880.7211353088285",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h100-tp1dp4-c32-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "5189e56a41abe5e9fc8ffec0d8ad4bf006f59014567e62d50f177eb186d45f03",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "5b6fcdbbdcf98ec801335fb6c68bf2cf50dbdb5eb60d9f40f96d2c3f21fab6ad"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "362.8524709999999",
+        "tpot_p99_ms": "6.498827639296478",
+        "ttft_mean_ms": "155.3933421920027",
+        "tpot_mean_ms": "6.369428390091985",
+        "output_throughput_tok_s": "4811.783329426065",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "cbc347c20c15ff17470fa498ea9ab70d70d00ddd8ef75433019b50e43e5ca510",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "ae840838282ba19a63157d523da9be14fde870427aa802a12d98fc187d0d9d98"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 32,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "3330.3272680000005",
+        "tpot_p99_ms": "22.918945984313847",
+        "ttft_mean_ms": "528.8071659640011",
+        "tpot_mean_ms": "21.665280629725608",
+        "output_throughput_tok_s": "1341.9938095420605",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c32-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "84a22f7ce64e4829637c6951cfba33c8b591a186697b2885ad1ff209e1c2a701",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "df069bf940a9ea877b521114e9f79d7e76bbbcaf849d6e57aa41591ffd7c5b83"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "728.1516899999998",
+        "tpot_p99_ms": "7.735301954056702",
+        "ttft_mean_ms": "200.74469837999976",
+        "tpot_mean_ms": "7.5535256217751705",
+        "output_throughput_tok_s": "8094.894604956275",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "4b0922f3ea810b152cbe6a7072c8f2f6048f45173ce2da96c226cda101178e72",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "01c090115649587d3d2f99ed5463eaada833925033fdf9ccc2a6f90f40a34b5c"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 64,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "6972.955788000001",
+        "tpot_p99_ms": "40.78204896862752",
+        "ttft_mean_ms": "886.2078727160008",
+        "tpot_mean_ms": "38.112755978039225",
+        "output_throughput_tok_s": "1532.2982314387943",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c64-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024/predict/out_1/prediction.json",
+      "artifact_sha256": "a10fa839eb706e76e33fdca750b3e1fa07765aa6a94888f9393797ca66f1b964",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024/predict/predict_1.yaml",
+          "sha256": "a903e62888b0f28805e5df022d0d3ce46eb639f68f3016fc04b40c19c6291548"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 1024,
+        "output_len": 1024,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "91.21148900000844",
+        "tpot_p99_ms": "5.313530915933562",
+        "ttft_mean_ms": "90.85378035999578",
+        "tpot_mean_ms": "5.312400854115255",
+        "output_throughput_tok_s": "1471.2269209774552",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl1024-osl1024",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256/predict/out_1/prediction.json",
+      "artifact_sha256": "5ed1b64037fed10fe87d90f770161f8f634a9273d27bcaa5f02e7534d8a392fb",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256/predict/predict_1.yaml",
+          "sha256": "e2b892d1a8f3877831a992ba50287b3e0a5b62e42daa81c9375feb485a8d2d68"
+        },
+        {
+          "path": "data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": 8,
+        "ctx_tokens": null,
+        "requests": 500,
+        "dataset": "synthetic"
+      },
+      "metrics": {
+        "ttft_p99_ms": "636.6716029999999",
+        "tpot_p99_ms": "9.002842921569062",
+        "ttft_mean_ms": "337.4120413640044",
+        "tpot_mean_ms": "8.537848924658862",
+        "output_throughput_tok_s": "810.6443773058669",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/ad-live-qwen3-8b-h200-tp1dp2-c8-isl8192-osl256",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
       "evidence_id": "poc-qwen3-32b-h100-tp8-c32-bf16:native:predict_1",
       "source_kind": "simulated_native",
       "coverage_level": 3,
@@ -17957,7 +21147,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18023,7 +21213,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18089,7 +21279,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18155,7 +21345,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18221,7 +21411,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18287,7 +21477,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18353,7 +21543,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18419,7 +21609,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18485,7 +21675,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18551,7 +21741,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18617,7 +21807,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18683,7 +21873,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18749,7 +21939,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18815,7 +22005,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18881,7 +22071,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -18947,7 +22137,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19013,7 +22203,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19079,7 +22269,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19145,7 +22335,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19211,7 +22401,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19277,7 +22467,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19343,7 +22533,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19409,7 +22599,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19475,7 +22665,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19541,7 +22731,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19607,7 +22797,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19673,7 +22863,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19739,7 +22929,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19805,7 +22995,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19871,7 +23061,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -19937,7 +23127,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20003,7 +23193,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20069,7 +23259,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20135,7 +23325,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20201,7 +23391,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20267,7 +23457,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "5c8d6b5d6214a68971741ac5cec54e283b00153cfb93d76eb6c8d73e5446e65e",
+      "artifact_sha256": "43cad1d536bee667b8d9c292238f9b79841d518da6f76a00509988e46646643d",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -20335,21 +23525,21 @@
     "没有目标配置的真实 Benchmark：所有实测型记录都缺身份或属于参考数据"
   ],
   "summary": {
-    "evidence_total": 246,
+    "evidence_total": 275,
     "evidence_by_kind": {
       "measured_internal": 36,
       "measured_public": 14,
-      "simulated_native": 37,
+      "simulated_native": 66,
       "simulated_scan": 159
     },
     "evidence_by_level": {
       "static_only": 0,
       "simulated_scan_only": 159,
-      "simulated_native_p99": 37,
+      "simulated_native_p99": 66,
       "measured_benchmark": 0
     },
-    "workpoints_total": 100,
-    "workpoints_sla_usable": 32,
+    "workpoints_total": 129,
+    "workpoints_sla_usable": 61,
     "reference_only_records": 50,
     "blocked_runs": 0,
     "blocked_candidates": 0
