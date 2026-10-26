@@ -440,6 +440,8 @@ class PlanResult(BaseModel):
     next_data_needed: list[str] = Field(default_factory=list)
     #: 推荐依据（**不做综合评分**，只给可解释的比较结论）
     recommendations: list[str] = Field(default_factory=list)
+    #: AH3/AH5：统一决策证据结构（CLI / Agent / UI / Markdown 共用）
+    decision_evidence: dict[str, Any] = Field(default_factory=dict)
 
     summary: dict[str, Any] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)

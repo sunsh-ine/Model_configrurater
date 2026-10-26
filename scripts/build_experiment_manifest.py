@@ -111,6 +111,7 @@ def main() -> int:
             else "succeeded"
         )
         config_file = ROOT / entry.exp_config if entry.exp_config else None
+        predict_file = ROOT / entry.native_input if entry.native_input else None
         runs.append(
             {
                 "seed": seed,
@@ -119,6 +120,10 @@ def main() -> int:
                 "archive_sha256": sha256_file(prediction_path),
                 "config_file": rel(config_file) if config_file else None,
                 "config_sha256": sha256_file(config_file) if config_file else None,
+                "predict_config_file": rel(predict_file) if predict_file else None,
+                "predict_config_sha256": (
+                    sha256_file(predict_file) if predict_file else None
+                ),
                 "completed_requests": completed,
                 "notes": problems,
             }
@@ -144,6 +149,9 @@ def main() -> int:
     doc = {
         "experiment_id": args.experiment_id,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "manifest_status": "reconstructed",
+        "execution_status": "completed",
+        "allowed_variation_fields": ["seed"],
         "tool": "aisimulate",
         "tool_version": "0.12.1",
         "model_name": identity["model_name"],

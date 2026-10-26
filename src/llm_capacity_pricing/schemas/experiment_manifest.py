@@ -32,6 +32,11 @@ class ExperimentRun(BaseModel):
     archive_sha256: str | None = None
     config_file: str | None = None
     config_sha256: str | None = None
+    #: 真正控制本次运行的 predict.yaml（含 traffic.seed/到达率/并行参数）
+    predict_config_file: str | None = None
+    predict_config_sha256: str | None = None
+    #: 去掉允许变化字段后的标准化配置哈希
+    normalized_config_sha256: str | None = None
     completed_requests: int | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -45,6 +50,14 @@ class ExperimentManifest(BaseModel):
 
     experiment_id: str
     created_at: datetime
+    #: 预注册（运行前冻结）或历史证据重建；二者不能混为一谈
+    manifest_status: Literal["preregistered", "reconstructed"] = "reconstructed"
+    execution_status: Literal["planned", "running", "completed", "aborted"] = "completed"
+    preregistered_at: datetime | None = None
+    #: 标准化基础配置及其哈希；只允许 allowed_variation_fields 变化
+    base_config: dict[str, Any] | None = None
+    base_config_sha256: str | None = None
+    allowed_variation_fields: list[str] = Field(default_factory=lambda: ["seed"])
     tool: str = "aisimulate"
     tool_version: str | None = None
 
@@ -122,6 +135,15 @@ class ExperimentManifest(BaseModel):
             raise ValueError(f"不支持的 arrival_mode={self.arrival_mode!r}")
         if self.arrival_mode == "trace" and not self.trace_id:
             raise ValueError("trace 实验必须声明 trace_id")
+        if self.manifest_status == "preregistered":
+            if self.preregistered_at is None:
+                raise ValueError("预注册实验必须记录 preregistered_at")
+            if self.base_config is None or not self.base_config_sha256:
+                raise ValueError("预注册实验必须冻结 base_config 与哈希")
+            if self.execution_status not in ("planned", "running", "completed"):
+                raise ValueError("预注册实验的 execution_status 非法")
+        if "seed" not in self.allowed_variation_fields:
+            raise ValueError("allowed_variation_fields 必须包含 seed")
         config_hashes = {
             run.config_sha256 for run in self.runs if run.config_sha256
         }

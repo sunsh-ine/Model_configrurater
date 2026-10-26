@@ -30,7 +30,7 @@ SLA **默认只接受 `exact_match`**（模型 revision、精度、硬件、卡�
 > 按任务书 §6「敏感价格文件建议不入 Git」未纳入版本库。克隆后请先把该文件放到
 > `data/raw/`，否则第 3 步会报缺文件。实测（缺该文件时的行为）：
 >
-> - `pytest` → **`1157 passed`**（可选依赖缺失时个别用例自动 skip，不会误报失败）；
+> - `pytest` → **`1173 passed`**（可选依赖缺失时个别用例自动 skip，不会误报失败）；
 > - `import-excel` 报缺文件并返回非零；`validate-import` 如实报 `校验项: 20，通过 17，失败 3`
 >   （三项分别是 GPU 价格 2 行、模型价格 3 行、效能 32 行的计数不符，这正是"缺数据就说缺数据"）；
 > - 不依赖 Excel 的部分仍可完整运行：`init-db`、`import-sglang`、`import-vllm`、
@@ -422,7 +422,12 @@ GPU 独立匹配证据，不跨硬件复用 P99：
   [`docs/ag_phase_validation.md`](docs/ag_phase_validation.md)、
   [`docs/ag_experiment_contract.md`](docs/ag_experiment_contract.md)、
   [`docs/ag_load_analysis.md`](docs/ag_load_analysis.md)、
-  [`docs/ag_benchmark_pipeline.md`](docs/ag_benchmark_pipeline.md)。
+  [`docs/ag_benchmark_pipeline.md`](docs/ag_benchmark_pipeline.md)；
+  AH 可信证据与客户方案见
+  [`docs/ah_phase_validation.md`](docs/ah_phase_validation.md)、
+  [`docs/ah_evidence_trust_contract.md`](docs/ah_evidence_trust_contract.md)、
+  [`docs/ah_decision_explanation.md`](docs/ah_decision_explanation.md)、
+  [`docs/ah_customer_scenarios.md`](docs/ah_customer_scenarios.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -771,6 +776,12 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/ag_benchmark_pipeline.md`](docs/ag_benchmark_pipeline.md) | **AG4** Benchmark 导入校验与无 GPU 夹具回归 |
 | [`docs/ag_calibration_report.md`](docs/ag_calibration_report.md) | **AG6** 真实误差 unknown 与夹具链路状态（自动生成） |
 | [`docs/ag_real_gpu_validation_plan.md`](docs/ag_real_gpu_validation_plan.md) | **AG5** 真实 GPU 对照验证计划（条件任务，未执行） |
+| [`docs/ah_phase_validation.md`](docs/ah_phase_validation.md) | **AH0–AH8** 可信证据闭环与客户方案交付验收 |
+| [`docs/ah_evidence_trust_contract.md`](docs/ah_evidence_trust_contract.md) | **AH0/AH1/AH2** 来源认证、预注册与测量窗口契约 |
+| [`docs/ah_decision_explanation.md`](docs/ah_decision_explanation.md) | **AH3/AH5** 统一决策证据与解释规则 |
+| [`docs/ah_customer_scenarios.md`](docs/ah_customer_scenarios.md) | **AH4** 三组客户场景端到端回放 |
+| [`docs/ah_benchmark_readiness.md`](docs/ah_benchmark_readiness.md) | **AH2** Benchmark 导入准备度（真实实测 0） |
+| [`docs/ah_real_gpu_interface.md`](docs/ah_real_gpu_interface.md) | **AH6** 真实 GPU 接口与门禁（未执行） |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

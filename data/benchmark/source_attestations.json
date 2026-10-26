@@ -1,0 +1,5 @@
+{
+  "schema_version": "1.0",
+  "note": "受控执行记录的登记表。没有登记记录的 internal_measurement 一律降级为 unverified_upload。",
+  "attestations": []
+}

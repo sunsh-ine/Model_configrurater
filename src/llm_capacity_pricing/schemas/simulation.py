@@ -244,6 +244,8 @@ class SimulationCandidate(BaseModel):
     source_sha256: str | None = None
     source_config_file: str | None = None
     source_config_sha256: str | None = None
+    source_predict_config_file: str | None = None
+    source_predict_config_sha256: str | None = None
     source_row: int | None = None
     #: 该候选自己的证据来源（多硬件/多归档时不能只看全局 tool）
     source_tool_version: str | None = None

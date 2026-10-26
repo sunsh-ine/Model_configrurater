@@ -1313,6 +1313,12 @@ def load_archived(
         archive_candidate.source_config_file = archive_exp
         if archive_exp and Path(archive_exp).is_file():
             archive_candidate.source_config_sha256 = sha256_file(Path(archive_exp))
+        archive_predict = archive_field(spec, "native_input")
+        archive_candidate.source_predict_config_file = archive_predict
+        if archive_predict and Path(archive_predict).is_file():
+            archive_candidate.source_predict_config_sha256 = sha256_file(
+                Path(archive_predict)
+            )
         archive_candidate.source_database_mode = archive_mode
         archive_candidate.source_database_mode_source = (
             archive_field(spec, "database_mode_source")

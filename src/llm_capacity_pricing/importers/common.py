@@ -166,6 +166,7 @@ ORIGIN_BY_SOURCE_KIND: dict[str, tuple[str, str]] = {
     "internal_measurement": ("internal_measurement", "internal_measurement"),
     "third_party": ("third_party", "historical_external_third_party"),
     "internal_excel": ("internal_excel", "historical_external_third_party"),
+    "unverified_upload": ("third_party", "historical_external_third_party"),
 }
 
 
@@ -187,8 +188,10 @@ def build_evidence(
     )
     if source_kind == "synthetic_fixture":
         flags.append("synthetic_fixture_not_official_performance_data")
-    if source_kind in ("third_party", "internal_excel"):
+    if source_kind in ("third_party", "internal_excel", "unverified_upload"):
         flags.append("historical_external_source_not_internal_measurement")
+    if source_kind == "unverified_upload":
+        flags.append("unverified_source_upload_not_authenticated")
     if not ev_meta.get("source_url"):
         flags.append("missing_source_url")
     return Evidence(

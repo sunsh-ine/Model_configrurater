@@ -24,6 +24,7 @@ from llm_capacity_pricing.importers.sglang_adapter import (
     parse_sglang_bench_serving_jsonl_full,
 )
 from llm_capacity_pricing.perf.calibration import compare_metrics
+from llm_capacity_pricing.perf.source_verification import resolve_source_kind
 
 _IDENTITY_FIELDS = (
     "model_name",
@@ -50,6 +51,14 @@ _CANONICAL_METRICS = {
     "tpot_p99_ms": "m.latency.tpot.p99",
     "output_throughput_tok_s": "m.throughput.cluster.output",
 }
+
+
+def _canonical_sha(payload: Any) -> str | None:
+    if payload is None:
+        return None
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
@@ -93,7 +102,11 @@ def _is_success(row: Mapping[str, Any]) -> bool:
     return status in ("", "completed", "success", "succeeded", "ok")
 
 
-def recompute_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def recompute_metrics(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    measurement_window_ms: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """从逐请求原始记录独立重算指标（nearest-rank P99）。"""
     success_rows: list[Mapping[str, Any]] = []
     failed = 0
@@ -163,11 +176,28 @@ def recompute_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             window_end = end if window_end is None else max(window_end, end)
         else:
             untimed_latencies += 1
+    window_source = "observed_success_requests"
     duration_s = (
         (window_end - window_start) / Decimal(1000)  # type: ignore[operator]
         if timed_latencies and not untimed_latencies and window_start is not None
         else None
     )
+    if measurement_window_ms:
+        explicit_start = dec(measurement_window_ms.get("start_ms"))
+        explicit_end = dec(measurement_window_ms.get("end_ms"))
+        if explicit_start is None or explicit_end is None or explicit_end <= explicit_start:
+            window_source = "invalid_declared_window"
+            duration_s = None
+        elif (
+            window_start is not None
+            and window_end is not None
+            and (explicit_start > window_start or explicit_end < window_end)
+        ):
+            window_source = "declared_window_does_not_cover_samples"
+            duration_s = None
+        else:
+            window_source = "declared_measurement_window"
+            duration_s = (explicit_end - explicit_start) / Decimal(1000)
     return {
         "num_requests": len(rows),
         "success_count": len(success_rows),
@@ -183,8 +213,38 @@ def recompute_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             total_in / duration_s if duration_s and duration_s > 0 else None
         ),
         "duration_s": duration_s,
+        "window_source": window_source,
         "total_output_tokens": total_out,
         "metric_definitions": dict(_CANONICAL_METRICS),
+        "metric_samples": {
+            "ttft": len(ttfts),
+            "tpot": len(tpots),
+            "e2e": len(e2es),
+            "success": len(success_rows),
+        },
+        "metric_coverage": {
+            "ttft": (
+                Decimal(len(ttfts)) / Decimal(len(success_rows))
+                if success_rows
+                else None
+            ),
+            "tpot": (
+                Decimal(len(tpots)) / Decimal(len(success_rows))
+                if success_rows
+                else None
+            ),
+            "e2e": (
+                Decimal(len(e2es)) / Decimal(len(success_rows))
+                if success_rows
+                else None
+            ),
+        },
+        "metric_completeness": (
+            "complete"
+            if success_rows
+            and len(ttfts) == len(tpots) == len(e2es) == len(success_rows)
+            else "partial"
+        ),
     }
 
 
@@ -195,14 +255,19 @@ def _relative_error(left: Decimal | None, right: Decimal | None) -> Decimal | No
 
 
 def _compare_import(
-    record: Any, recomputed: Mapping[str, Any], *, tolerance: Decimal
+    record: Any,
+    recomputed: Mapping[str, Any],
+    *,
+    tolerance: Decimal,
+    compare_throughput: bool = True,
 ) -> list[str]:
     errors: list[str] = []
-    pairs = (
+    pairs = [
         ("ttft_p99_ms", record.ttft_p99_ms),
         ("tpot_p99_ms", record.tpot_p99_ms),
-        ("output_throughput_tok_s", record.output_tps_cluster),
-    )
+    ]
+    if compare_throughput:
+        pairs.append(("output_throughput_tok_s", record.output_tps_cluster))
     for field, imported in pairs:
         expected = recomputed.get(field)
         if expected is None and imported is None:
@@ -268,6 +333,7 @@ def run_import_pipeline(
     prediction: Mapping[str, Any] | None = None,
     db_path: str | Path | None = None,
     metadata_file: str | Path | None = None,
+    registry: str | Path | None = None,
     tolerance: Decimal = Decimal("0.000001"),
 ) -> dict[str, Any]:
     """校验并导入一次 Benchmark；任何一步不通过都返回 ``accepted=False``。"""
@@ -298,6 +364,15 @@ def run_import_pipeline(
     declared_sha = evidence.get("source_sha256") or meta.get("source_sha256")
     report["raw_sha256"] = actual_sha
     report["declared_sha256"] = declared_sha
+    report["digests"] = {
+        "raw_sha256": actual_sha,
+        "identity_sha256": report["identity_sha256"],
+        "config_sha256": _canonical_sha(meta.get("server_args") or meta.get("config")),
+        "environment_sha256": _canonical_sha(meta.get("environment")),
+        "metric_definitions_sha256": _canonical_sha(
+            meta.get("metric_definitions")
+        ),
+    }
     if not declared_sha:
         report["errors"].append("缺少原始文件 SHA256 声明，不能作为证据")
         return report
@@ -314,9 +389,33 @@ def run_import_pipeline(
     if report["errors"]:
         return report
 
+    verification = resolve_source_kind(
+        meta,
+        raw_sha256=actual_sha,
+        identity_sha256=report["identity_sha256"],
+        registry=registry,
+    )
+    report["source_verification"] = verification
+    report["declared_source_kind"] = verification["declared_source_kind"]
+    report["verified_source_kind"] = verification["verified_source_kind"]
+    if (
+        not verification["verified"]
+        and verification["verified_source_kind"] != "synthetic_fixture"
+    ):
+        report["warnings"].append(
+            "来源未认证：按 unverified_upload 处理，不产生实测身份"
+        )
+    adapter_meta = dict(meta)
+    adapter_meta["performance_source_kind"] = verification[
+        "verified_source_kind"
+    ]
+
     try:
         rows = load_requests(path)
-        recomputed = recompute_metrics(rows)
+        recomputed = recompute_metrics(
+            rows,
+            measurement_window_ms=meta.get("measurement_window_ms"),
+        )
     except Exception as exc:  # noqa: BLE001
         report["errors"].append(
             f"逐请求日志无法解析：{type(exc).__name__}: {exc}"
@@ -331,7 +430,9 @@ def run_import_pipeline(
         return report
 
     try:
-        records, evidences = parse_sglang_bench_serving_jsonl_full(path, meta)
+        records, evidences = parse_sglang_bench_serving_jsonl_full(
+            path, adapter_meta
+        )
     except Exception as exc:  # noqa: BLE001
         report["errors"].append(f"适配器导入失败：{type(exc).__name__}: {exc}")
         return report
@@ -344,13 +445,28 @@ def run_import_pipeline(
             "synthetic_fixture：只验证导入管线，不得用于生产 SLA 或校准"
         )
 
+    compare_throughput = recomputed.get("window_source") in (
+        "observed_success_requests",
+        "declared_measurement_window",
+    )
+    if recomputed.get("window_source") == "declared_measurement_window":
+        compare_throughput = False
     consistency_errors = _compare_import(
-        record, recomputed, tolerance=tolerance
+        record,
+        recomputed,
+        tolerance=tolerance,
+        compare_throughput=compare_throughput,
     )
     report["import_consistency"] = {
         "consistent": not consistency_errors,
         "errors": consistency_errors,
+        "throughput_compared": compare_throughput,
     }
+    if recomputed.get("metric_completeness") != "complete":
+        report["warnings"].append(
+            "并非每个成功请求都具备 TTFT/TPOT/E2E 全部指标；"
+            "请查看 metric_samples / metric_coverage"
+        )
     if consistency_errors:
         report["errors"].extend(consistency_errors)
         return report
@@ -359,6 +475,7 @@ def run_import_pipeline(
         "record_id": record.record_id,
         "evidence_id": evidences[0].evidence_id if evidences else None,
         "framework": record.framework,
+        "performance_source_kind": record.performance_source_kind,
         "num_requests": record.num_requests,
         "success_count": record.success_count,
         "ttft_p99_ms": str(record.ttft_p99_ms),
@@ -384,10 +501,15 @@ def run_import_pipeline(
             ),
             evidence_root=evidence_root_path,
         )
-        if meta.get("performance_source_kind") == "synthetic_fixture":
+        verified_kind = verification["verified_source_kind"]
+        if verified_kind == "synthetic_fixture":
             calibration["calibration_usable"] = False
             calibration["note"] += " synthetic_fixture 只用于管线回归，不进入校准。"
             calibration_status = "fixture_only"
+        elif verified_kind != "internal_measurement":
+            calibration["calibration_usable"] = False
+            calibration["note"] += " 来源未认证，不能作为校准样本。"
+            calibration_status = "unknown"
         elif calibration["calibration_usable"]:
             calibration_status = "usable"
         else:
@@ -402,11 +524,9 @@ def run_import_pipeline(
 
         init_db(db_path)
         if metadata_file is not None:
-            meta_path = Path(metadata_file)
-            if meta_path.resolve() != Path(metadata_file).resolve():
-                report["errors"].append("元数据路径不一致")
-                return report
-            on_disk = yaml.safe_load(meta_path.read_text(encoding="utf-8")) or {}
+            on_disk = yaml.safe_load(
+                Path(metadata_file).read_text(encoding="utf-8")
+            ) or {}
             if (
                 on_disk.get("frozen_identity_sha256")
                 != report["identity_sha256"]
@@ -417,16 +537,13 @@ def run_import_pipeline(
                     "metadata 文件与本次校验通过的配置/原始日志不一致"
                 )
                 return report
-            cleanup = None
-        else:
-            handle = tempfile.NamedTemporaryFile(
-                "w", suffix=".yaml", delete=False, encoding="utf-8"
-            )
-            yaml_payload = yaml.safe_dump(meta, allow_unicode=True)
-            handle.write(yaml_payload)
-            handle.close()
-            meta_path = Path(handle.name)
-            cleanup = meta_path
+        handle = tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False, encoding="utf-8"
+        )
+        handle.write(yaml.safe_dump(adapter_meta, allow_unicode=True))
+        handle.close()
+        meta_path = Path(handle.name)
+        cleanup = meta_path
         try:
             try:
                 database = import_benchmark_file(

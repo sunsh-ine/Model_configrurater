@@ -38,6 +38,10 @@ Poisson/constant-rate 必须声明到达率，trace 必须声明 trace_id。
 
 每组 5 个预期 seed，`required_completed_requests=500`。
 
+> AH 后续复核：这三份清单是从已有归档反向生成的
+> `manifest_status=reconstructed`，**不能**宣称在运行前已预注册。
+> 新实验应使用 AH1 的 `preregistered` 流程。
+
 ## 3. 两层状态
 
 | 层 | 取值 | 含义 |

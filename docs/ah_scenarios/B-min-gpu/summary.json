@@ -1,0 +1,205 @@
+{
+  "scenario_id": "B-min-gpu",
+  "inputs": {
+    "model_id": "qwen3-8b",
+    "hardware_id": "nvidia-h100-sxm-80gb",
+    "gpu_count": 8,
+    "input_len": 8192,
+    "output_len": 256,
+    "concurrency": 32,
+    "arrival_mode": "unbounded",
+    "request_rate_rps": null,
+    "sla": {
+      "ttft_p99_ms_max": "6000",
+      "tpot_p99_ms_max": "40"
+    }
+  },
+  "decision_evidence": {
+    "schema_version": "1.0",
+    "objectives_are_independent": [
+      "min_gpu",
+      "max_throughput",
+      "min_cost"
+    ],
+    "min_cost_available": false,
+    "requested_ranking": "throughput",
+    "effective_ranking": "throughput",
+    "cost_ranking_available": false,
+    "cost_ranking_reasons": [
+      "2 个候选的成本不完整或金额缺失（如 sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp2-c32-n500、sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500）：无法与其他候选比较成本"
+    ],
+    "ranking": "throughput",
+    "recommended": {
+      "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500",
+      "gpu_count": 4,
+      "tp_size": 1,
+      "dp_size": 4,
+      "verdict": "predicted_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "best_effort": {
+      "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500",
+      "gpu_count": 4,
+      "tp_size": 1,
+      "dp_size": 4,
+      "verdict": "predicted_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "min_gpu_for_sla": {
+      "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp2-c32-n500",
+      "gpu_count": 2,
+      "tp_size": 1,
+      "dp_size": 2,
+      "verdict": "predicted_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "throughput_best": {
+      "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500",
+      "gpu_count": 4,
+      "tp_size": 1,
+      "dp_size": 4,
+      "verdict": "predicted_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "min_cost_best": null,
+    "candidates": [
+      {
+        "candidate_id": "qwen3-8b__nvidia-h100-sxm-80gb__tp1_dp1_bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "gpu_count": 1,
+        "tp_size": 1,
+        "dp_size": 1,
+        "performance_status": "computed",
+        "sla_status": null,
+        "match_level": null,
+        "rank_bucket": "requires_benchmark",
+        "p99": {
+          "ttft_ms": null,
+          "tpot_ms": null
+        },
+        "throughput_tok_s": null,
+        "sla_margin": {
+          "ttft_ms": null,
+          "tpot_ms": null,
+          "sensitive_10pct": null,
+          "sensitive_20pct": null
+        },
+        "evidence": {
+          "type": "unknown",
+          "run_ids": [],
+          "experiment_completeness": null,
+          "calibration_status": "unknown"
+        },
+        "repeatability": null,
+        "economics": {
+          "status": "computed",
+          "total_cash_over_horizon": null,
+          "currency": "CNY",
+          "cost_incomplete": true
+        },
+        "governance": {
+          "status": "not_configured",
+          "quote_publishable": false,
+          "blockers": []
+        },
+        "notes": [
+          "qwen3-8b × NVIDIA H100 SXM：TP1 × DP1 = 1 卡 → 条件可行"
+        ]
+      }
+    ],
+    "simulation_candidates": [
+      {
+        "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp1-c32-n500",
+        "gpu_count": 1,
+        "tp_size": 1,
+        "dp_size": 1,
+        "verdict": "predicted_fail",
+        "p99_ttft_ms": "6609.393869999999",
+        "p99_tpot_ms": "46.599841372549015",
+        "throughput_tok_s": "671.6197848398688",
+        "repeatability_status": null,
+        "repeatability_runs": null,
+        "repeatability_pass_count": null,
+        "experiment_completeness": null,
+        "experiment_expected_runs": null,
+        "experiment_found_runs": 0,
+        "experiment_valid_runs": 0,
+        "calibration_status": "unknown",
+        "eligible": true
+      },
+      {
+        "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp2-c32-n500",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "dp_size": 2,
+        "verdict": "predicted_pass",
+        "p99_ttft_ms": "3486.4293139999995",
+        "p99_tpot_ms": "27.420675007843208",
+        "throughput_tok_s": "1127.7751784411603",
+        "repeatability_status": null,
+        "repeatability_runs": null,
+        "repeatability_pass_count": null,
+        "experiment_completeness": null,
+        "experiment_expected_runs": null,
+        "experiment_found_runs": 0,
+        "experiment_valid_runs": 0,
+        "calibration_status": "unknown",
+        "eligible": true
+      },
+      {
+        "candidate_id": "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500",
+        "gpu_count": 4,
+        "tp_size": 1,
+        "dp_size": 4,
+        "verdict": "predicted_pass",
+        "p99_ttft_ms": "1827.7921460000002",
+        "p99_tpot_ms": "16.0054336470589",
+        "throughput_tok_s": "1880.7211353088285",
+        "repeatability_status": null,
+        "repeatability_runs": null,
+        "repeatability_pass_count": null,
+        "experiment_completeness": null,
+        "experiment_expected_runs": null,
+        "experiment_found_runs": 0,
+        "experiment_valid_runs": 0,
+        "calibration_status": "unknown",
+        "eligible": true
+      }
+    ],
+    "evidence": {
+      "measured_candidates": [],
+      "simulated_candidates": [
+        "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp1-c32-n500",
+        "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp2-c32-n500",
+        "sim-native:Qwen/Qwen3-8B@h100_sxm-tp1pp1dp4-c32-n500"
+      ],
+      "external_reference_count": 14,
+      "simulation_status": "computed"
+    },
+    "blockers": [],
+    "rules": [
+      "模拟预测不是实测；predicted_* 不会变成 observed_*",
+      "成本、性能与报价资格三者独立，不提供综合评分",
+      "min_gpu / max_throughput / min_cost 是不同目标，不能混称‘最优’",
+      "实验不完整或校准 unknown 时必须显式展示，不得省略"
+    ]
+  },
+  "stages": [
+    [
+      "数据准备",
+      "ok",
+      "./docs/ah_scenarios/B-min-gpu/demo.db"
+    ],
+    [
+      "统一评估",
+      "partial",
+      "domains={'input': 'computed', 'sizing': 'computed', 'performance': 'computed', 'governance': 'not_configured', 'economics': 'computed'}"
+    ]
+  ],
+  "proposal_path": "docs/ah_scenarios/B-min-gpu/deployment_proposal.md",
+  "technical_path": "docs/ah_scenarios/B-min-gpu/technical_report.md"
+}

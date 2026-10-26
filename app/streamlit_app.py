@@ -33,6 +33,7 @@ from ui_presenters import (  # noqa: E402
     masthead_html,
     offline_mismatches,
     perf_table_html,
+    decision_evidence_html,
     recommendations_html,
     refs_html,
     result_head_html,
@@ -656,6 +657,7 @@ def _render_result(outcome_obj, is_stale: bool) -> None:
         st.markdown(sim_html(sim), unsafe_allow_html=True)
 
     with st.expander("推荐依据、阻断与适用边界", expanded=False):
+        st.markdown(decision_evidence_html(result), unsafe_allow_html=True)
         st.markdown(recommendations_html(result), unsafe_allow_html=True)
 
     with st.expander("部署方案文档预览", expanded=False):

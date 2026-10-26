@@ -626,7 +626,7 @@ def evaluate_plan(
     blockers = _dedupe_blockers(blockers)
     status = _overall_status(domains, blockers)
 
-    return PlanResult(
+    result = PlanResult(
         request_id=request.request_id,
         status=status,
         domains=domains,
@@ -693,6 +693,12 @@ def evaluate_plan(
         limitations=_limitations(domains),
         generated_at=datetime.now(timezone.utc),
     )
+    from llm_capacity_pricing.reporting.decision_evidence import (
+        build_decision_evidence,
+    )
+
+    result.decision_evidence = build_decision_evidence(result)
+    return result
 
 
 # ---------------------------------------------------------------------------

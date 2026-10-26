@@ -178,3 +178,10 @@ def test_manifest_rejects_inconsistent_run_config_hashes():
     payload["runs"][0]["config_sha256"] = "f" * 64
     with pytest.raises(ValueError):
         ExperimentManifest.model_validate(payload)
+
+
+def test_existing_af_manifests_are_marked_reconstructed():
+    manifests = load_manifests()
+    assert len(manifests) == 3
+    assert all(m.manifest_status == "reconstructed" for m in manifests)
+    assert all(m.execution_status == "completed" for m in manifests)

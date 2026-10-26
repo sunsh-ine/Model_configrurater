@@ -53,6 +53,7 @@ SOURCE_KIND_TO_TRUST: dict[str, DataTrust] = {
     "third_party": "measured_third_party",
     "internal_excel": "historical_external_no_latency",
     "synthetic_fixture": "synthetic_fixture",
+    "unverified_upload": "unknown",
 }
 
 

@@ -74,6 +74,17 @@ def run_evidence_problems(
         entry.exp_config, planned_run.config_file
     ):
         problems.append("实验清单声明的配置路径与实际不一致")
+    if planned_run.predict_config_sha256:
+        if not entry.native_input:
+            problems.append("归档缺少 predict.yaml")
+        else:
+            predict_path = Path(entry.native_input)
+            if not predict_path.is_absolute():
+                predict_path = Path(__file__).resolve().parents[3] / predict_path
+            if not predict_path.is_file():
+                problems.append("实验清单声明的 predict.yaml 不存在")
+            elif sha256_file(predict_path) != planned_run.predict_config_sha256:
+                problems.append("predict.yaml 哈希与实验清单不一致")
     if entry.exp_config:
         config_path = Path(entry.exp_config)
         if not config_path.is_absolute():
@@ -277,6 +288,21 @@ def _apply(
                 if (
                     candidate.source_config_sha256
                     != planned.config_sha256
+                ):
+                    invalid_evidence = True
+                    continue
+                if planned.predict_config_sha256:
+                    if (
+                        candidate.source_predict_config_sha256
+                        != planned.predict_config_sha256
+                    ):
+                        invalid_evidence = True
+                        continue
+                if (
+                    planned.normalized_config_sha256
+                    and manifest.base_config_sha256
+                    and planned.normalized_config_sha256
+                    != manifest.base_config_sha256
                 ):
                     invalid_evidence = True
                     continue

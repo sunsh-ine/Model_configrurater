@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -171,3 +172,116 @@ def test_malformed_request_log_is_rejected_without_crash(tmp_path):
     result = run_import_pipeline(raw, metadata, evidence_root=tmp_path)
     assert result["accepted"] is False
     assert any("无法解析" in item for item in result["errors"])
+
+
+def test_source_kind_cannot_be_self_upgraded(tmp_path):
+    metadata = json.loads(json.dumps(METADATA))
+    metadata["performance_source_kind"] = "internal_measurement"
+    result = run_import_pipeline(
+        RAW, metadata, evidence_root=FIXTURE, registry=tmp_path / "none.json"
+    )
+    assert result["declared_source_kind"] == "internal_measurement"
+    assert result["verified_source_kind"] == "unverified_upload"
+    assert result["imported"]["performance_source_kind"] == "unverified_upload"
+
+
+def test_registered_attestation_can_verify_internal_measurement(tmp_path):
+    metadata = json.loads(json.dumps(METADATA))
+    metadata["performance_source_kind"] = "internal_measurement"
+    identity = metadata["frozen_identity_sha256"]
+    raw_sha = metadata["evidence"]["source_sha256"]
+    registry = tmp_path / "attestations.json"
+    registry.write_text(
+        json.dumps(
+            {
+                "attestations": [
+                    {
+                        "attestation_id": "att-1",
+                        "declared_source_kind": "internal_measurement",
+                        "raw_sha256": raw_sha,
+                        "identity_sha256": identity,
+                        "verified_by": "fixture-operator",
+                        "verified_at": "2026-10-26T00:00:00Z",
+                        "environment": {"gpu": "fixture"},
+                        "run_manifest_sha256": "a" * 64,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = run_import_pipeline(
+        RAW, metadata, evidence_root=FIXTURE, registry=registry
+    )
+    assert result["verified_source_kind"] == "internal_measurement"
+    assert result["imported"]["performance_source_kind"] == "internal_measurement"
+
+
+def test_metric_coverage_exposes_partial_samples():
+    rows = [
+        {"arrival_ms": 0, "ttft": 100, "latency": 1000, "output_len": 10, "success": True},
+        {"arrival_ms": 100, "latency": 1100, "output_len": 10, "success": True},
+    ]
+    metrics = recompute_metrics(rows)
+    assert metrics["metric_completeness"] == "partial"
+    assert metrics["metric_samples"]["ttft"] == 1
+    assert metrics["metric_samples"]["success"] == 2
+
+
+def test_declared_measurement_window_must_cover_samples():
+    metrics = recompute_metrics(
+        [
+            {"arrival_ms": 1000, "ttft": 100, "latency": 1000, "output_len": 10, "success": True}
+        ],
+        measurement_window_ms={"start_ms": 0, "end_ms": 500},
+    )
+    assert metrics["window_source"] == "declared_window_does_not_cover_samples"
+    assert metrics["output_throughput_tok_s"] is None
+
+
+def test_declared_measurement_window_is_used_when_complete():
+    metrics = recompute_metrics(
+        [
+            {"arrival_ms": 1000, "ttft": 100, "latency": 1000, "output_len": 10, "success": True}
+        ],
+        measurement_window_ms={"start_ms": 0, "end_ms": 3000},
+    )
+    assert metrics["window_source"] == "declared_measurement_window"
+    assert metrics["output_throughput_tok_s"] == Decimal(10) / Decimal(3)
+
+
+def test_unsupported_format_is_rejected_explicitly():
+    metadata = json.loads(json.dumps(METADATA))
+    metadata["format_version"] = "unknown-format/v99"
+    result = run_import_pipeline(RAW, metadata, evidence_root=FIXTURE)
+    assert result["accepted"] is False
+    assert any("适配器导入失败" in item for item in result["errors"])
+
+
+def test_malformed_attestation_hashes_do_not_verify(tmp_path):
+    metadata = json.loads(json.dumps(METADATA))
+    metadata["performance_source_kind"] = "internal_measurement"
+    registry = tmp_path / "attestations.json"
+    registry.write_text(
+        json.dumps(
+            {
+                "attestations": [
+                    {
+                        "attestation_id": "att-bad",
+                        "declared_source_kind": "internal_measurement",
+                        "raw_sha256": "",
+                        "identity_sha256": "",
+                        "verified_by": "x",
+                        "verified_at": "2026-10-26T00:00:00Z",
+                        "environment": {"gpu": "x"},
+                        "run_manifest_sha256": "not-a-hash",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = run_import_pipeline(
+        RAW, metadata, evidence_root=FIXTURE, registry=registry
+    )
+    assert result["verified_source_kind"] == "unverified_upload"

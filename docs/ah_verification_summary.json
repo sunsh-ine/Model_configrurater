@@ -1,0 +1,39 @@
+{
+  "phase": "AH",
+  "command": "AISIMULATE_PYTHON=/tmp/aisim-venv/bin/python bash scripts/verify_all.sh",
+  "environment": {
+    "python": "3.12.3",
+    "aisimulate": "0.12.1"
+  },
+  "verify_all": {
+    "steps_passed": 66,
+    "steps_failed": 0,
+    "pytest_passed": 1173,
+    "auto_search_run_id": "run_20261026T120236Z_0d8d8e",
+    "system_demo_run_id": "20261026T120255Z_eeacbc",
+    "finished_at": "2026-10-26T20:13:28+08:00"
+  },
+  "review": {
+    "tool": "omp",
+    "provider_model": "deepseek/deepseek-v4.1-flash",
+    "mode": "read-only targeted review",
+    "note": "codex 5 小时额度耗尽；使用 OMP DeepSeek v4.1 做分文件定向审核，未完成一次性全量大 diff 审核。",
+    "reviewed_files": [
+      "src/llm_capacity_pricing/perf/benchmark_ingest.py",
+      "src/llm_capacity_pricing/perf/source_verification.py",
+      "src/llm_capacity_pricing/perf/experiment_prereg.py",
+      "src/llm_capacity_pricing/perf/experiment_audit.py",
+      "src/llm_capacity_pricing/reporting/decision_evidence.py"
+    ],
+    "unresolved": [
+      "source_attestations.json 是仓库内登记表，不是数字签名/远程证明；能改该文件即可登记新记录。",
+      "真实 GPU 与真实来源记录仍为 0。"
+    ]
+  },
+  "boundaries": [
+    "真实 GPU Benchmark 为 0。",
+    "受控执行登记表为空，internal_measurement 一律降级为 unverified_upload。",
+    "三组客户场景均为模拟预测，不是生产 SLA 承诺。",
+    "正式报价自动发布仍被禁止。"
+  ]
+}

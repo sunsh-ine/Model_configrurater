@@ -321,6 +321,7 @@ def build_plan_report(result: PlanResult, *, reference_limit: int = 3) -> str:
             add("")
 
     _simulation_section(result, add)
+    _decision_evidence_section(result, add)
 
     # ---- 推荐依据 ----
     add("## 3. 推荐依据")
@@ -685,6 +686,51 @@ def _evidence_summary(result: PlanResult, simulation: Any, add: Any) -> None:
                 "offline_archives": "离线归档选择（仅包含已归档的部署）",
             }.get(audit.effective_scope, audit.effective_scope)
         )
+    add("")
+
+
+def _decision_evidence_section(result: PlanResult, add: Any) -> None:
+    evidence = getattr(result, "decision_evidence", None)
+    if not evidence:
+        return
+    add("## 2.3 决策证据（统一结构）")
+    add("")
+    add("| 目标 | 候选 | GPU | 结论 | 实验完整性 | 校准 |")
+    add("|---|---|---|---|---|---|")
+    for label, key in (
+        ("推荐（严格）", "recommended"),
+        ("未达标参考", "best_effort"),
+        ("最少 GPU 达标", "min_gpu_for_sla"),
+        ("吞吐最优达标", "throughput_best"),
+    ):
+        item = evidence.get(key)
+        if not item:
+            add(f"| {label} | 无 | — | — | — | — |")
+            continue
+        add(
+            f"| {label} | `{item['candidate_id']}` | {_fmt(item['gpu_count'])} "
+            f"| {_VERDICT_LABEL.get(item['verdict'], item['verdict'])} "
+            f"| {item.get('experiment_completeness') or '—'} "
+            f"| {item.get('calibration_status') or 'unknown'} |"
+        )
+    add("")
+    add(
+        "> 排序目标："
+        + (
+            "成本优先"
+            if evidence.get("effective_ranking") == "cost"
+            else "吞吐优先"
+        )
+        + (
+            "（请求成本优先，但成本不可比，已降级为吞吐）"
+            if evidence.get("requested_ranking") == "cost"
+            and evidence.get("effective_ranking") != "cost"
+            else ""
+        )
+        + "；最少 GPU、最高吞吐、最低成本是不同目标，不提供综合评分。"
+    )
+    for rule in evidence.get("rules", []):
+        add(f"- {rule}")
     add("")
 
 

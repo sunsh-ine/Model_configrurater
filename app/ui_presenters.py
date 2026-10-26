@@ -991,3 +991,35 @@ def recommendations_html(result: Any) -> str:
             + "</ul>"
         )
     return "".join(parts) or "<p class='note'>没有额外说明。</p>"
+
+
+def decision_evidence_html(result: Any) -> str:
+    """AH5：展示与 CLI/Agent/Markdown 相同的 decision_evidence。"""
+    evidence = getattr(result, "decision_evidence", None)
+    if not evidence:
+        return ""
+    rows = []
+    for label, key in (
+        ("推荐（严格）", "recommended"),
+        ("最少 GPU 达标", "min_gpu_for_sla"),
+        ("吞吐最优达标", "throughput_best"),
+    ):
+        item = evidence.get(key)
+        if not item:
+            rows.append([label, "无", "—", "—", "—"])
+            continue
+        rows.append(
+            [
+                label,
+                f"<b>{esc(item['candidate_id'])}</b>",
+                num(item.get("gpu_count"), 0),
+                esc(item.get("verdict") or "—"),
+                esc(item.get("experiment_completeness") or "—"),
+            ]
+        )
+    return (
+        "<div class='callout warn'><b>决策证据（统一结构）</b>："
+        "最少 GPU、最高吞吐、最低成本是不同目标，不提供综合评分；"
+        "模拟预测不是实测，校准 unknown 时必须保留。</div>"
+        + table(["目标", "候选", "GPU", "结论", "实验完整性"], rows, numeric=(2,))
+    )

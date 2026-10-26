@@ -20,6 +20,7 @@ PerformanceSourceKind = Literal[
     "third_party",
     "internal_measurement",
     "synthetic_fixture",
+    "unverified_upload",
 ]
 
 VerificationStatus = Literal[

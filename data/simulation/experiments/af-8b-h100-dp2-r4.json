@@ -1,6 +1,11 @@
 {
   "experiment_id": "af-8b-h100-dp2-r4",
-  "created_at": "2026-10-26T07:38:17+00:00",
+  "created_at": "2026-10-26T11:08:10+00:00",
+  "manifest_status": "reconstructed",
+  "execution_status": "completed",
+  "allowed_variation_fields": [
+    "seed"
+  ],
   "tool": "aisimulate",
   "tool_version": "0.12.1",
   "model_name": "Qwen/Qwen3-8B",
@@ -40,6 +45,8 @@
       "archive_sha256": "3f2ff4165f040d739839596336928a6ce835e3b443801cd58c752b71269af936",
       "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/exp_config.yaml",
       "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8",
+      "predict_config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/predict_1.yaml",
+      "predict_config_sha256": "2a088ed05edec3ba8a3441cfdbb1ba31f983023d260ba6b247384ef9b300492d",
       "completed_requests": 500,
       "notes": []
     },
@@ -50,6 +57,8 @@
       "archive_sha256": "431336c3f6ad2bc97dc316bb727649c7b280ef5168f60635b9e6c11d9cf26fa3",
       "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/exp_config.yaml",
       "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8",
+      "predict_config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/predict_1.yaml",
+      "predict_config_sha256": "5ee067f20375464265d307e0ed33021d5d2112ebe2d9c87b261cda7784c82799",
       "completed_requests": 500,
       "notes": []
     },
@@ -60,6 +69,8 @@
       "archive_sha256": "e069e2c9c8f7b0fd1fcf4d861712aeb50581456d16294dde524d885e5c20db49",
       "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/exp_config.yaml",
       "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8",
+      "predict_config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/predict_1.yaml",
+      "predict_config_sha256": "bd7362f622a7fbd1b7d76333ba57815b901cd072f966a5d3c0d7082fc7f95836",
       "completed_requests": 500,
       "notes": []
     },
@@ -70,6 +81,8 @@
       "archive_sha256": "1e6f95d18b5aea7b69170fd03d40dff04ca3cda893f304402d2c0cf7f167448b",
       "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/exp_config.yaml",
       "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8",
+      "predict_config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/predict_1.yaml",
+      "predict_config_sha256": "7698fedd43abec9c5dc67266d2f54cd77166e460a5e895cd9bb88218ef1806f0",
       "completed_requests": 500,
       "notes": []
     },
@@ -80,6 +93,8 @@
       "archive_sha256": "0d5cf7a5b7549a7a09102692e126843ada71ac007f79d80a5fede888aba110a4",
       "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/exp_config.yaml",
       "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8",
+      "predict_config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/predict_1.yaml",
+      "predict_config_sha256": "62cd159132adab13283d044664eae011ceebdec698d606fab670317189d92b56",
       "completed_requests": 500,
       "notes": []
     }
