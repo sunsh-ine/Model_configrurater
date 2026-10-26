@@ -157,6 +157,9 @@ def archive_predict(args: argparse.Namespace) -> Path:
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": args.source or "manual live replay",
         "spec": spec_from_predict(config, args.precision, args.database_mode),
+        "database_mode_source": (
+            "archive_declared" if args.database_mode else "unknown"
+        ),
         "workpoint": {
             "model": engine.get("model"),
             "system": engine.get("hardware"),
@@ -264,6 +267,10 @@ def archive_work_dir(args: argparse.Namespace) -> Path:
 
     manifest = dict(source_manifest)
     manifest["archive_version"] = "ab-1"
+    manifest.setdefault(
+        "database_mode_source",
+        "archive_declared" if (manifest.get("spec") or {}).get("database_mode") else "unknown",
+    )
     manifest["run_id"] = args.name
     manifest["run_dir"] = str(target.relative_to(ROOT))
     manifest["work_root"] = str(target.relative_to(ROOT))

@@ -42,6 +42,14 @@ SimulationEvidenceStatus = Literal[
     "insufficient_prediction",
 ]
 
+#: 数据库模式的证据来源；不能把归档声明当成工具实测确认
+DatabaseModeSource = Literal[
+    "tool_observed",
+    "explicitly_configured",
+    "archive_declared",
+    "unknown",
+]
+
 #: 领域状态（与 PlanResult.domains 的其它领域同一套取值）
 SimulationStatus = Literal[
     "computed", "not_configured", "missing_data", "blocked", "error"
@@ -68,6 +76,7 @@ class SimulationToolIdentity(BaseModel):
     backend_version: str | None = None
     system: str | None = None
     database_mode: str | None = None
+    database_mode_source: DatabaseModeSource = "unknown"
     #: 搜索/实验配置的归档文件与哈希（``exp_config.yaml``）
     search_space_file: str | None = None
     search_space_sha256: str | None = None
@@ -91,6 +100,13 @@ class SimulationWorkload(BaseModel):
     #: **每步上下文 token 预算**。扫描器的 ``ctx_tokens`` 会改变 TTFT 达 70% 以上，
     #: 但它不在模型/硬件身份里 —— 不记录就会让两个"看起来一样"的配置互相矛盾。
     ctx_tokens: int | None = None
+    #: 负载类型：fixed_concurrency / poisson / constant_rate / trace / unknown
+    arrival_mode: str | None = None
+    #: 开放到达的请求到达率（req/s）；固定并发时为空
+    request_rate_rps: Decimal | None = None
+    dataset: str | None = None
+    trace_id: str | None = None
+    seed: int | None = None
     #: 原生回放的流量停止条件（例如 ``requests=500``）；决定了 P99 的样本窗口
     stop_condition: str | None = None
     num_requests: int | None = None
@@ -230,6 +246,7 @@ class SimulationCandidate(BaseModel):
     #: 该候选自己的证据来源（多硬件/多归档时不能只看全局 tool）
     source_tool_version: str | None = None
     source_database_mode: str | None = None
+    source_database_mode_source: DatabaseModeSource = "unknown"
     # ---- AB3：决策质量（不改变 verdict）----
     sla_margin_ttft_ms: Decimal | None = None
     sla_margin_tpot_ms: Decimal | None = None

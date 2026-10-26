@@ -718,6 +718,13 @@ def _simulation_target(
         input_len=request.workload.input_len,
         output_len=request.workload.output_len,
         concurrency=request.workload.concurrency,
+        arrival_mode=(
+            "fixed_concurrency"
+            if request.workload.arrival_mode == "unbounded"
+            else request.workload.arrival_mode
+        ),
+        request_rate_rps=request.workload.request_rate_rps,
+        dataset=request.workload.dataset,
         ttft_p99_ms_max=sla.ttft_p99_ms_max if sla else None,
         tpot_p99_ms_max=sla.tpot_p99_ms_max if sla else None,
         backend=request.advanced.framework,

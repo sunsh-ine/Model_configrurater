@@ -81,6 +81,8 @@ class DemoInputs:
     request_id: str = "system-demo"
     ranking: str = "throughput"
     top_n: int = 2
+    arrival_mode: str = "unbounded"
+    request_rate_rps: Decimal | None = None
     cost_plan_file: str = "data/examples/phase4_cost_plan.example.yaml"
     cost_template_id: str = "syn-owned-3y"
     #: live 模式的工作目录（每次运行会在其下建 runs/<run_id>/）
@@ -143,6 +145,11 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
             ttft_p99_ms_max=inputs.ttft_p99_ms_max,
             tpot_p99_ms_max=inputs.tpot_p99_ms_max,
         )
+    if inputs.mode == "live" and inputs.arrival_mode in ("poisson", "constant_rate"):
+        raise ValueError(
+            "live 自动搜索目前只支持固定并发；Poisson/constant-rate 请使用"
+            "离线归档或 scripts/arrival_scan.py"
+        )
     simulation: PlanSimulationInput | None = None
     if inputs.mode == "offline":
         # 只挑与请求**同一工作点**的原生 P99；挑不到就只保留扫描器枚举，
@@ -152,12 +159,26 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
             hardware_id=inputs.hardware_id,
             input_len=inputs.input_len,
             output_len=inputs.output_len,
-            concurrency=inputs.concurrency,
+            concurrency=(
+                None
+                if inputs.arrival_mode in ("poisson", "constant_rate")
+                else inputs.concurrency
+            ),
             precision=inputs.weight_precision,
             framework=inputs.framework,
             framework_version=inputs.framework_version,
             gpu_limit=inputs.gpu_count,
             tp_sizes=_tp_sizes(inputs),
+            arrival_mode=(
+                "fixed_concurrency"
+                if inputs.arrival_mode == "unbounded"
+                else inputs.arrival_mode
+            ),
+            request_rate_rps=(
+                str(inputs.request_rate_rps)
+                if inputs.request_rate_rps is not None
+                else None
+            ),
         )
         if offline_paths is not None:
             simulation = PlanSimulationInput(
@@ -186,9 +207,14 @@ def build_plan_request(inputs: DemoInputs) -> PlanRequest:
         workload=PlanWorkload(
             input_len=inputs.input_len,
             output_len=inputs.output_len,
-            concurrency=inputs.concurrency,
+            concurrency=(
+                None
+                if inputs.arrival_mode in ("poisson", "constant_rate")
+                else inputs.concurrency
+            ),
             dataset="random",
-            arrival_mode="unbounded",
+            arrival_mode=inputs.arrival_mode,
+            request_rate_rps=inputs.request_rate_rps,
         ),
         resources=PlanResourceAssumptions(
             usable_fraction=Decimal("0.9"),

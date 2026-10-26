@@ -387,9 +387,9 @@ GPU 独立匹配证据，不跨硬件复用 P99：
 | Qwen3-8B / bf16 / vLLM 0.24.0 | H100 SXM | TP1×DP1/DP2/DP4 | 同上 |
 | 同上 | H200 SXM | TP1×DP1/DP2 | 同上 |
 
-当前覆盖矩阵为 **61 个 SLA 可用工作点**、66 条原生证据、0 条真实实测。
+当前覆盖矩阵为 **79 个 SLA 可用工作点**、85 条原生证据、0 条真实实测。
 不做插值；没有原生证据的组合只给静态结论。DP 副本使用整部署预测，
-不用单副本吞吐乘倍数。
+不用单副本吞吐乘倍数；固定并发与 Poisson 到达分别建模，不合并排名。
 
 * 先按 GPU 上限、TP 白名单、Sizing 静态可行性与 P99 门禁筛选，再按吞吐或
   已确认成本排序；成本不可比时降级为吞吐优先；
@@ -407,7 +407,10 @@ GPU 独立匹配证据，不跨硬件复用 P99：
   [`docs/ac_phase_validation.md`](docs/ac_phase_validation.md)、
   [`docs/ac_capability_matrix.md`](docs/ac_capability_matrix.md)；
   AD 并行与容量见 [`docs/ad_phase_validation.md`](docs/ad_phase_validation.md)、
-  [`docs/ad_parallelism_matrix.md`](docs/ad_parallelism_matrix.md)。
+  [`docs/ad_parallelism_matrix.md`](docs/ad_parallelism_matrix.md)；
+  AE 负载身份、容量补点与校准准备见
+  [`docs/ae_phase_validation.md`](docs/ae_phase_validation.md)、
+  [`docs/ae_workload_contract.md`](docs/ae_workload_contract.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -742,6 +745,10 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/ac_phase_validation.md`](docs/ac_phase_validation.md) | **AC0–AC5** 多模型/多硬件适配、跨硬件决策与验收 |
 | [`docs/ad_parallelism_matrix.md`](docs/ad_parallelism_matrix.md) | **AD1** AISimulate TP/DP/PP 并行能力矩阵（自动生成） |
 | [`docs/ad_phase_validation.md`](docs/ad_phase_validation.md) | **AD0–AD6** TP/DP 接入、同资源比较与 SLA 容量边界 |
+| [`docs/ae_workload_contract.md`](docs/ae_workload_contract.md) | **AE1** 固定并发/Poisson 负载身份与数据库模式来源 |
+| [`docs/ae_capacity_comparison.md`](docs/ae_capacity_comparison.md) | **AE2/AE3** 固定并发补点与 Poisson 到达率实验 |
+| [`docs/ae_benchmark_calibration_plan.md`](docs/ae_benchmark_calibration_plan.md) | **AE5** 真实 Benchmark 元数据与校准匹配规则 |
+| [`docs/ae_phase_validation.md`](docs/ae_phase_validation.md) | **AE0–AE6** 负载真实性、容量可靠性与校准准备验收 |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

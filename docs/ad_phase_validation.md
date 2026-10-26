@@ -90,11 +90,11 @@ C32 / ISL8192 / relaxed 6000/40：
 脚本：`scripts/capacity_scan.py`（只读归档，不做插值）。
 
 * 8B/H100 TP1×DP2，ISL8192/OSL256，6000/40：
-  C8 达标、C32 达标、C64/96/128 未达标；已验证最高达标并发 **C32**。
-  详见 `docs/ad_capacity_8b_h100_dp2.md`。
+  C8/C32/C40/C48 达标，C56/C64/C96/C128 未达标；**AE 补点后**
+  已验证最高达标并发 **C48**。详见 `docs/ad_capacity_8b_h100_dp2.md`。
 * 32B/H200 TP4×DP2，同负载/SLA：
-  C8/C32 达标，C64/96/128 未达标；最高已验证 **C32**。
-  详见 `docs/ad_capacity_32b_h200_tp4dp2.md`。
+  C8/C32/C40 达标，C48/C56/C64/C96/C128 未达标；**AE 补点后**
+  最高已验证 **C40**。详见 `docs/ad_capacity_32b_h200_tp4dp2.md`。
 
 未验证并发点保持 `unknown`；最高已验证并发不是生产容量保证。
 

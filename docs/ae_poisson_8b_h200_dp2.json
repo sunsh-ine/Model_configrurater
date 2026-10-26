@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "model_id": "qwen3-8b",
+  "hardware_id": "nvidia-h200-sxm-141gb",
+  "tp": 1,
+  "dp": 2,
+  "input_len": 8192,
+  "output_len": 256,
+  "arrival_mode": "poisson",
+  "sla": {
+    "ttft_p99_ms_max": "6000",
+    "tpot_p99_ms_max": "40"
+  },
+  "points": [
+    {
+      "request_rate_rps": "2",
+      "seed": 42,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 435.37229772889987,
+      "tpot_p99_ms": 10.99272484313748,
+      "output_throughput_tok_s": 547.3118701294937,
+      "request_throughput_rps": 2.137936992693335,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-8b-h200-tp1dp2-poisson-r2-seed42/predict/out_1/prediction.json"
+    },
+    {
+      "request_rate_rps": "3",
+      "seed": 42,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 554.438000886541,
+      "tpot_p99_ms": 16.477727670588457,
+      "output_throughput_tok_s": 817.4543040497814,
+      "request_throughput_rps": 3.1931808751944586,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-8b-h200-tp1dp2-poisson-r3-seed42/predict/out_1/prediction.json"
+    },
+    {
+      "request_rate_rps": "4",
+      "seed": 42,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 625.4226347604636,
+      "tpot_p99_ms": 26.289728533333324,
+      "output_throughput_tok_s": 1084.3566101091678,
+      "request_throughput_rps": 4.235768008238937,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-8b-h200-tp1dp2-poisson-r4-seed42/predict/out_1/prediction.json"
+    },
+    {
+      "request_rate_rps": "5",
+      "seed": 42,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 762.8570388179796,
+      "tpot_p99_ms": 36.36414645098039,
+      "output_throughput_tok_s": 1346.5083084037099,
+      "request_throughput_rps": 5.259798079701992,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-8b-h200-tp1dp2-poisson-r5-seed42/predict/out_1/prediction.json"
+    }
+  ],
+  "verified_pass_rates": [
+    "2",
+    "3",
+    "4",
+    "5"
+  ],
+  "highest_verified_pass_rate": "5",
+  "note": "只报告 500 请求有限窗口的模拟预测；RPS 不插值，最高通过到达率不是长期稳定服务容量保证。"
+}

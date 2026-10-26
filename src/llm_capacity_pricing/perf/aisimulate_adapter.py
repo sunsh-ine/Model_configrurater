@@ -254,6 +254,10 @@ class SimulationTarget:
     input_len: int | None = None
     output_len: int | None = None
     concurrency: int | None = None
+    arrival_mode: str | None = None
+    request_rate_rps: Decimal | None = None
+    dataset: str | None = None
+    trace_id: str | None = None
     ttft_p99_ms_max: Decimal | None = None
     tpot_p99_ms_max: Decimal | None = None
     backend: str | None = None
@@ -361,6 +365,14 @@ def _same_name(left: str | None, right: str | None) -> bool | None:
 # ---------------------------------------------------------------------------
 
 
+def _normalise_dataset(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    # AISimulate synthetic random workload 与 vLLM dataset-name=random 同一类
+    return "synthetic" if text in ("random", "synthetic") else text
+
+
 def check_comparability(candidate: SimulationCandidate, target: SimulationTarget) -> None:
     """就地判定该候选能否与目标直接比较；不能时写明原因。"""
     reasons: list[str] = []
@@ -424,12 +436,51 @@ def check_comparability(candidate: SimulationCandidate, target: SimulationTarget
             "视为同一工作点"
         )
 
-    if target.concurrency is None or wl.concurrency is None:
-        reasons.append("配置并发有一侧未声明：无法确认同一工作点")
-    elif target.concurrency != wl.concurrency:
-        reasons.append(
-            f"配置并发不同：目标 {target.concurrency}，模拟 {wl.concurrency}"
-            "（时延随并发变化，不同工作点不可直接比较）"
+    if target.arrival_mode in (None, "fixed_concurrency"):
+        if target.concurrency is None or wl.concurrency is None:
+            reasons.append("配置并发有一侧未声明：无法确认同一工作点")
+        elif target.concurrency != wl.concurrency:
+            reasons.append(
+                f"配置并发不同：目标 {target.concurrency}，模拟 {wl.concurrency}"
+                "（时延随并发变化，不同工作点不可直接比较）"
+            )
+
+    # AE1：到达模式是工作点身份的一部分；固定并发不能复用给开放到达。
+    # 旧调用方未声明 target.arrival_mode 时保持向后兼容，不做额外阻断。
+    if target.arrival_mode is not None:
+        if wl.arrival_mode is None:
+            reasons.append("模拟未声明到达模式：无法确认同一负载类型")
+        elif target.arrival_mode != wl.arrival_mode:
+            reasons.append(
+                f"到达模式不同：目标 {target.arrival_mode}，模拟 {wl.arrival_mode}"
+                "（固定并发与开放到达不是同一负载）"
+            )
+        elif target.arrival_mode in ("poisson", "constant_rate"):
+            if target.request_rate_rps is None or wl.request_rate_rps is None:
+                reasons.append("开放到达率有一侧未声明：无法确认同一负载")
+            elif target.request_rate_rps != wl.request_rate_rps:
+                reasons.append(
+                    f"请求到达率不同：目标 {target.request_rate_rps}，"
+                    f"模拟 {wl.request_rate_rps} req/s"
+                )
+        elif target.arrival_mode == "trace":
+            if not target.trace_id or not wl.trace_id:
+                reasons.append("trace 负载缺少 trace_id：无法确认同一轨迹")
+            elif target.trace_id != wl.trace_id:
+                reasons.append(
+                    f"trace 标识不同：目标 {target.trace_id}，模拟 {wl.trace_id}"
+                )
+    target_dataset = _normalise_dataset(target.dataset)
+    workload_dataset = _normalise_dataset(wl.dataset)
+    if target_dataset is not None and workload_dataset is not None:
+        if target_dataset != workload_dataset:
+            reasons.append(
+                f"数据集不同：目标 {target.dataset}，模拟 {wl.dataset}"
+            )
+    elif target_dataset is not None and workload_dataset is None:
+        # 契约：历史归档数据集 unknown 只提示，不否定其它一致的工作点
+        candidate.notes.append(
+            f"数据集：目标 {target.dataset}，模拟未声明（历史归档未记录）"
         )
 
     candidate.comparable = not reasons
@@ -635,6 +686,8 @@ def parse_sweeper_row(
         value = _int(row.get(column))
         if value is not None:
             workload_kwargs[attr] = value
+    # 扫描器是闭环并发扫描，不是开放到达
+    workload_kwargs["arrival_mode"] = "fixed_concurrency"
 
     metric_kwargs: dict[str, Any] = {}
     for column, attr in _SWEEPER_METRIC_COLUMNS.items():
@@ -761,10 +814,25 @@ def parse_native_input_yaml(
         ),
         quant_modes={},
     )
+    load_type = str(load.get("type") or "concurrency").lower()
+    arrival_mode = {
+        "concurrency": "fixed_concurrency",
+        "poisson": "poisson",
+        "constant_rate": "constant_rate",
+        "trace_timestamps": "trace",
+    }.get(load_type, "unknown")
+    dataset = source.get("dataset")
+    if dataset is None and source.get("type") == "synthetic":
+        dataset = "synthetic"
     workload = SimulationWorkload(
         input_len=source.get("input_tokens"),
         output_len=source.get("output_tokens"),
         concurrency=load.get("concurrency"),
+        arrival_mode=arrival_mode,
+        request_rate_rps=_dec(load.get("requests_per_second")),
+        dataset=dataset,
+        trace_id=load.get("trace_id") or load.get("trace_path"),
+        seed=_int(load.get("seed")),
         stop_condition=", ".join(f"{k}={v}" for k, v in stop.items()) or None,
         num_requests=stop.get("requests"),
     )
@@ -1175,6 +1243,10 @@ def load_archived(
             "多部署归档：各候选独立解析；搜索阶段的修正系数不跨归档合并，"
             "原生 P99 不额外乘系数"
         )
+        limitations.append(
+            "本次只评估同一工作点；跨并发/到达率的容量边界需单独扫描，"
+            "未验证区间保持 unknown，不插值"
+        )
 
     declared_mode: str | None = None
     if exp_config is not None:
@@ -1208,8 +1280,14 @@ def load_archived(
                 f"模型精度 {native_model_precision} 由**输入身份**给出"
                 "（原生回放输出不回显精度，它按 HF config 自行推断）"
             )
+        if workload.arrival_mode in ("poisson", "constant_rate"):
+            native_candidate.notes.append(
+                f"负载类型 {workload.arrival_mode}，到达率 "
+                f"{workload.request_rate_rps} req/s，seed={workload.seed}"
+            )
         native_candidate.source_tool_version = tool.tool_version
         native_candidate.source_database_mode = tool.database_mode
+        native_candidate.source_database_mode_source = tool.database_mode_source
         if tool.tool_version or tool.database_mode:
             native_candidate.notes.append(
                 "证据工具："
@@ -1254,8 +1332,17 @@ def load_archived(
                 )
             except Exception:  # noqa: BLE001
                 archive_mode = None
+        if workload.arrival_mode in ("poisson", "constant_rate"):
+            archive_candidate.notes.append(
+                f"负载类型 {workload.arrival_mode}，到达率 "
+                f"{workload.request_rate_rps} req/s，seed={workload.seed}"
+            )
         archive_candidate.source_tool_version = archive_tool_version
         archive_candidate.source_database_mode = archive_mode
+        archive_candidate.source_database_mode_source = (
+            archive_field(spec, "database_mode_source")
+            or ("archive_declared" if archive_mode else "unknown")
+        )
         archive_candidate.notes.append(
             "证据工具："
             f"aisimulate {archive_tool_version or '未声明'}，"

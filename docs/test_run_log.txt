@@ -892,7 +892,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 12. calculate-all --mode legacy_full_load（默认业务口径） ===
 {
-  "generated_at": "2026-10-23T14:00:44",
+  "generated_at": "2026-10-26T10:16:02",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -920,7 +920,7 @@ deps ok: pydantic 2.13.4 | sqlalchemy 2.0.54
 
 === 13. calculate-all --mode legacy_full_load --include-test-data（测试口径） ===
 {
-  "generated_at": "2026-10-23T14:00:45",
+  "generated_at": "2026-10-26T10:16:03",
   "pricing_engine_version": "0.1.0",
   "mode": "legacy_full_load",
   "utilization": null,
@@ -2168,7 +2168,7 @@ TCO：一次性 1680000，年现金 51747.0720，全周期 1835241.2160（owned�
   "data_trust": null,
   "algorithm_validation_only": false,
   "allow_synthetic_used": false,
-  "run_pool_hash": "c549510d692e66f7826b8e92cd4006e30c0639925b67f85d83550624e6422f6a",
+  "run_pool_hash": "bec659602cd93a999c72765616d3c41b7256b990c3829c1989e69305a3edad7c",
   "input_snapshot_hash": "42bd41aa092c224c6f4e30fd5ef2534f90f20633d6eac8e397df7ceeb1bfdd1f",
   "production_grade": false,
   "note": "已持久化。报价门禁会重放该证据；若原始数据、目标身份、需求或策略变化，记录会被判为 stale。algorithm_validation_only / allow_synthetic 的证据永远不能用于正式报价。"
@@ -2413,7 +2413,7 @@ Try 'python -m llm_capacity_pricing.cli quote-eligibility --help' for help.
 
 === 50. S6 四场景端到端验收（A 仅资源 / B 有实测无价格 / C 完整合成 / D 输入错误） ===
 ...........                                                              [100%]
-11 passed in 3.54s
+11 passed in 3.57s
 
 === 51. check-import（M38 导入一致性：口径混用/并发语义/请求账目/缓存口径） ===
 检查 5 条实测：blocker 0，warning 5
@@ -2462,7 +2462,7 @@ metadata 模板 18 份，目录 data/exports/metadata
 
 === 54. M42 四场景端到端验收（A 仅资源 / B 导入实测 / C Synthetic / D 不匹配） ===
 .........                                                                [100%]
-9 passed in 2.63s
+9 passed in 2.52s
 
 === 55. attest-run（P0-2：未核验模板不得自动获得生产级可信度） ===
 [ok]   模板默认声明未核验
@@ -2576,19 +2576,19 @@ metadata 模板 18 份，目录 data/exports/metadata
 模拟报告检查通过：无 GPU、未安装 AISimulate 也能离线复现（data/exports/simulation/simulation_report.md）
 
 === 61. 自动搜索 -> P99 回放（V7-R2；未装工具则跳过并说明） ===
-自动搜索检查通过：由需求自动生成搜索输入并完成 P99 回放（本次运行目录 data/exports/auto_sim_check/auto_sim/runs/run_20261023T060145Z_d5ecab）
+自动搜索检查通过：由需求自动生成搜索输入并完成 P99 回放（本次运行目录 data/exports/auto_sim_check/auto_sim/runs/run_20261026T021710Z_e5da7b）
 
 === 62. 系统 Demo（S2：一份需求 -> 配置搜索 -> 性能 -> 成本 -> 方案文档） ===
-运行目录：data/exports/system_demo/20261023T060155Z_f26545
-  [ok] 数据准备：data/exports/system_demo/20261023T060155Z_f26545/demo.db
+运行目录：data/exports/system_demo/20261026T021720Z_92191f
+  [ok] 数据准备：data/exports/system_demo/20261026T021720Z_92191f/demo.db
   [partial] 统一评估：domains={'input': 'computed', 'sizing': 'computed', 'performance': 'computed', 'governance': 'not_configured', 'economics': 'computed'}
   整体状态：partial
   模拟状态：computed
   未达标参考：sim-native:Qwen/Qwen3-32B@h100_sxm-tp4pp1dp2-c32-n500
 
-方案文档：data/exports/system_demo/20261023T060155Z_f26545/deployment_proposal.md
-技术报告：data/exports/system_demo/20261023T060155Z_f26545/technical_report.md
-结构化结果：data/exports/system_demo/20261023T060155Z_f26545/result.json
+方案文档：data/exports/system_demo/20261026T021720Z_92191f/deployment_proposal.md
+技术报告：data/exports/system_demo/20261026T021720Z_92191f/technical_report.md
+结构化结果：data/exports/system_demo/20261026T021720Z_92191f/result.json
 
 说明：模拟预测不是实测；成本为示例目录，正式报价保持禁用。
 
@@ -2601,47 +2601,47 @@ metadata 模板 18 份，目录 data/exports/metadata
 ........................................................................ [ 13%]
 ........................................................................ [ 19%]
 ........................................................................ [ 26%]
-........................................................................ [ 33%]
+........................................................................ [ 32%]
 ........................................................................ [ 39%]
-........................................................................ [ 46%]
+........................................................................ [ 45%]
 ........................................................................ [ 52%]
-........................................................................ [ 59%]
-........................................................................ [ 66%]
-........................................................................ [ 72%]
-........................................................................ [ 79%]
-........................................................................ [ 86%]
-........................................................................ [ 92%]
-........................................................................ [ 99%]
-.......                                                                  [100%]
-1087 passed in 403.00s (0:06:43)
+........................................................................ [ 58%]
+........................................................................ [ 65%]
+........................................................................ [ 71%]
+........................................................................ [ 78%]
+........................................................................ [ 84%]
+........................................................................ [ 91%]
+........................................................................ [ 97%]
+..........................                                               [100%]
+1106 passed in 390.60s (0:06:30)
 
 === 65. 产物清单（内部目录不入库，仅本地查看） ===
-总计 1528
-drwxrwxr-x   12 ssa ssa   4096 10月 23 14:01 .
-drwxrwxr-x   15 ssa ssa   4096 10月 23 14:01 ..
+总计 1544
+drwxrwxr-x   12 ssa ssa   4096 10月 26 10:16 .
+drwxrwxr-x   15 ssa ssa   4096 10月 26 10:16 ..
 drwxrwxr-x    3 ssa ssa   4096 10月 22 14:23 aa_auto_check
 drwxrwxr-x    3 ssa ssa   4096 10月 20 10:56 auto_sim_check
--rw-rw-r--    1 ssa ssa  52174 10月 23 14:01 benchmark_experiments.json
--rw-rw-r--    1 ssa ssa   8208 10月 23 14:01 data_quality.json
-drwxrwxr-x    4 ssa ssa   4096 10月 23 14:01 demo
--rw-rw-r--    1 ssa ssa  21022 10月 23 14:00 deployment_plan.json
--rw-rw-r--    1 ssa ssa   2106 10月 23 14:01 import_consistency.json
--rw-rw-r--    1 ssa ssa 153526 10月 23 14:00 legacy_results.json
--rw-rw-r--    1 ssa ssa 168877 10月 23 14:00 legacy_results_with_tests.json
-drwxrwxr-x    2 ssa ssa  20480 10月 23 12:07 metadata
--rw-rw-r--    1 ssa ssa  68122 10月 23 14:00 overview.md
--rw-rw-r--    1 ssa ssa   2821 10月 23 14:01 performance_report.md
--rw-rw-r--    1 ssa ssa 112127 10月 23 14:01 phase4_decision.json
--rw-rw-r--    1 ssa ssa  27866 10月 23 14:01 phase4_report.md
--rw-rw-r--    1 ssa ssa  11502 10月 23 14:01 plan_full.json
--rw-rw-r--    1 ssa ssa   6804 10月 23 14:01 plan_full.md
--rw-rw-r--    1 ssa ssa   5108 10月 23 14:01 plan_minimal.md
--rw-rw-r--    1 ssa ssa   7149 10月 23 14:00 scenario.json
--rw-rw-r--    1 ssa ssa 738349 10月 23 14:00 scenarios_sensitivity.json
+-rw-rw-r--    1 ssa ssa  52174 10月 26 10:16 benchmark_experiments.json
+-rw-rw-r--    1 ssa ssa   8208 10月 26 10:16 data_quality.json
+drwxrwxr-x    4 ssa ssa   4096 10月 26 10:16 demo
+-rw-rw-r--    1 ssa ssa  21022 10月 26 10:16 deployment_plan.json
+-rw-rw-r--    1 ssa ssa   2106 10月 26 10:16 import_consistency.json
+-rw-rw-r--    1 ssa ssa 153526 10月 26 10:16 legacy_results.json
+-rw-rw-r--    1 ssa ssa 168877 10月 26 10:16 legacy_results_with_tests.json
+drwxrwxr-x    2 ssa ssa  20480 10月 26 09:41 metadata
+-rw-rw-r--    1 ssa ssa  68122 10月 26 10:16 overview.md
+-rw-rw-r--    1 ssa ssa   2821 10月 26 10:16 performance_report.md
+-rw-rw-r--    1 ssa ssa 112127 10月 26 10:16 phase4_decision.json
+-rw-rw-r--    1 ssa ssa  27866 10月 26 10:16 phase4_report.md
+-rw-rw-r--    1 ssa ssa  11534 10月 26 10:16 plan_full.json
+-rw-rw-r--    1 ssa ssa   6804 10月 26 10:16 plan_full.md
+-rw-rw-r--    1 ssa ssa   5108 10月 26 10:16 plan_minimal.md
+-rw-rw-r--    1 ssa ssa   7149 10月 26 10:16 scenario.json
+-rw-rw-r--    1 ssa ssa 738349 10月 26 10:16 scenarios_sensitivity.json
 drwxrwxr-x    2 ssa ssa   4096 10月 16 16:57 simulation
--rw-rw-r--    1 ssa ssa   4390 10月 23 14:01 site_validation.json
--rw-rw-r--    1 ssa ssa  16845 10月 23 14:00 sizing_report.md
-drwxrwxr-x 1050 ssa ssa  49152 10月 23 14:06 system_demo
+-rw-rw-r--    1 ssa ssa   4390 10月 26 10:16 site_validation.json
+-rw-rw-r--    1 ssa ssa  16845 10月 26 10:16 sizing_report.md
+drwxrwxr-x 1268 ssa ssa  65536 10月 26 10:21 system_demo
 drwxrwxr-x    3 ssa ssa   4096 10月 20 14:00 system_demo_sim
 drwxrwxr-x    3 ssa ssa   4096 10月 22 11:47 z2_auto_check
 drwxrwxr-x    3 ssa ssa   4096 10月 22 11:19 z2_live_pipeline
@@ -2649,6 +2649,6 @@ drwxrwxr-x    3 ssa ssa   4096 10月 22 11:19 z2_live_pipeline_relaxed
 
 ==== 汇总 ====
 步骤 66 项：通过 66，失败 0
-完成时间: 2026-10-23T14:08:55+08:00
+完成时间: 2026-10-26T10:24:11+08:00
 环境: Python 3.12.3
 全部步骤通过。

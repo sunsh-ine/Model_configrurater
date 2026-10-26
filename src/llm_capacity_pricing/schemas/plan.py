@@ -50,7 +50,9 @@ class PlanWorkload(BaseModel):
     output_len: int | None = None
     concurrency: int | None = None
     dataset: str | None = None
-    arrival_mode: str = "unknown"
+    arrival_mode: str = "unbounded"
+    #: 开放到达（poisson/constant_rate）的请求率；固定并发时为空
+    request_rate_rps: Decimal | None = None
 
     @field_validator("input_len")
     @classmethod
@@ -160,6 +162,7 @@ class SimulationArchiveSpec(BaseModel):
     #: 该归档属于哪个 hardware_id；多硬件请求按它分流，缺省时不得跨硬件复用
     hardware_id: str | None = None
     database_mode: str | None = None
+    database_mode_source: str | None = None
     exp_config: str | None = None
     per_ops_source: str | None = None
     native_model_precision: str | None = None

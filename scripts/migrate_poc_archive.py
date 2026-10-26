@@ -97,6 +97,7 @@ def main() -> int:
             "max_total_gpus": 8,
             "database_mode": "SILICON",
         },
+        "database_mode_source": "archive_declared",
         "workpoint": {
             "model": "Qwen/Qwen3-32B",
             "system": "h100_sxm",

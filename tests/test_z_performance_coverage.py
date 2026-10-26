@@ -246,10 +246,14 @@ def test_workpoint_key_ignores_sample_window_but_keeps_ctx():
     }
     base = {"input_len": 8192, "output_len": 256, "concurrency": 32, "ctx_tokens": None}
     first = workpoint_key(identity, {**base, "requests": 100, "dataset": "synthetic"})
-    second = workpoint_key(identity, {**base, "requests": 500, "dataset": "random"})
+    second = workpoint_key(identity, {**base, "requests": 500, "dataset": "synthetic"})
     assert first == second
     other_ctx = workpoint_key(identity, {**base, "ctx_tokens": 8192})
     assert other_ctx != first
+    other_dataset = workpoint_key(
+        identity, {**base, "requests": 500, "dataset": "random"}
+    )
+    assert other_dataset != first
 
 
 def test_tampered_archive_is_blocked_in_coverage(tmp_path: Path):

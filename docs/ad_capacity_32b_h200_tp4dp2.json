@@ -30,6 +30,33 @@
       "archive": "data/simulation/archives/ad-live-qwen3-32b-h200-tp4dp2-c32-isl8192-osl256/predict/out_1/prediction.json"
     },
     {
+      "concurrency": 40,
+      "status": "predicted_pass",
+      "ttft_p99_ms": 5739.230234000001,
+      "tpot_p99_ms": 32.08379045882372,
+      "throughput_tok_s": 1195.654714987972,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-32b-h200-tp4dp2-c40-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 48,
+      "status": "predicted_fail",
+      "ttft_p99_ms": 6957.594815000001,
+      "tpot_p99_ms": 37.223840470588264,
+      "throughput_tok_s": 1240.3436830209462,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-32b-h200-tp4dp2-c48-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
+      "concurrency": 56,
+      "status": "predicted_fail",
+      "ttft_p99_ms": 8176.317045000002,
+      "tpot_p99_ms": 42.36271450980398,
+      "throughput_tok_s": 1285.7037039824977,
+      "completed_requests": 500,
+      "archive": "data/simulation/archives/ae-live-qwen3-32b-h200-tp4dp2-c56-isl8192-osl256/predict/out_1/prediction.json"
+    },
+    {
       "concurrency": 64,
       "status": "predicted_fail",
       "ttft_p99_ms": 9395.242326,
@@ -59,9 +86,10 @@
   ],
   "verified_pass_concurrency": [
     8,
-    32
+    32,
+    40
   ],
-  "highest_verified_pass": 32,
+  "highest_verified_pass": 40,
   "unknown_concurrency": [],
   "note": "只报告已验证的原生回放点；未验证并发点保持 unknown，不做插值。最高已验证并发不是生产容量保证。"
 }

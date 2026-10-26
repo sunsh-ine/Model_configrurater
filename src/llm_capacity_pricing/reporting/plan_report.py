@@ -595,10 +595,17 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             f"{'，副本 ' + str(dep.replicas) if dep.replicas else ''} |"
         )
         add(f"| 部署模式 | {_SERVING_MODE_LABEL.get(dep.serving_mode, dep.serving_mode)} |")
+        workload = headline.workload
+        if workload.arrival_mode in ("poisson", "constant_rate"):
+            load_detail = (
+                f"到达率 {_fmt(workload.request_rate_rps)} req/s"
+                f"（{workload.arrival_mode}）"
+            )
+        else:
+            load_detail = f"并发 {_fmt(workload.concurrency)}"
         add(
-            f"| 负载 | 输入 {_fmt(headline.workload.input_len)} / "
-            f"输出 {_fmt(headline.workload.output_len)} / "
-            f"并发 {_fmt(headline.workload.concurrency)} |"
+            f"| 负载 | 输入 {_fmt(workload.input_len)} / "
+            f"输出 {_fmt(workload.output_len)} / {load_detail} |"
         )
         add(
             f"| 模拟输出吞吐 | {_fmt(metrics.sim_output_throughput_tok_s)} tok/s"

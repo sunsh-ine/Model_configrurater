@@ -220,8 +220,11 @@ def normalised_workload(workload: dict[str, Any]) -> dict[str, Any]:
         "output_len": workload.get("output_len"),
         "concurrency": workload.get("concurrency"),
         "ctx_tokens": workload.get("ctx_tokens"),
-        "requests": workload.get("requests"),
+        "arrival_mode": workload.get("arrival_mode"),
+        "request_rate_rps": workload.get("request_rate_rps"),
         "dataset": workload.get("dataset"),
+        "seed": workload.get("seed"),
+        "requests": workload.get("requests"),
     }
 
 
@@ -233,7 +236,15 @@ def workpoint_key(identity: dict[str, Any], workload: dict[str, Any]) -> str:
     """
     key_workload = {
         key: workload.get(key)
-        for key in ("input_len", "output_len", "concurrency", "ctx_tokens")
+        for key in (
+            "input_len",
+            "output_len",
+            "concurrency",
+            "ctx_tokens",
+            "arrival_mode",
+            "request_rate_rps",
+            "dataset",
+        )
     }
     payload = json.dumps(
         {"identity": identity, "workload": key_workload},
@@ -354,8 +365,11 @@ def sweep_rows(
                     "output_len": int(num(row.get("osl")) or 0) or None,
                     "concurrency": int(num(row.get("concurrency")) or 0) or None,
                     "ctx_tokens": int(num(row.get("ctx_tokens")) or 0) or None,
+                    "arrival_mode": "fixed_concurrency",
+                    "request_rate_rps": None,
                     "requests": None,
                     "dataset": None,
+                    "seed": None,
                 }
             )
             metrics = {
@@ -462,8 +476,19 @@ def native_evidence(
             "output_len": int(num(source.get("output_tokens")) or 0) or None,
             "concurrency": int(num(load.get("concurrency")) or 0) or None,
             "ctx_tokens": None,
+            "arrival_mode": {
+                "concurrency": "fixed_concurrency",
+                "poisson": "poisson",
+                "constant_rate": "constant_rate",
+                "trace_timestamps": "trace",
+            }.get(str(load.get("type") or "concurrency").lower(), "unknown"),
+            "request_rate_rps": text(load.get("requests_per_second")),
+            "dataset": (
+                text(source.get("dataset"))
+                or ("synthetic" if source.get("type") == "synthetic" else None)
+            ),
+            "seed": int(num(load.get("seed")) or 0) or None,
             "requests": int(num(stop.get("requests")) or 0) or None,
-            "dataset": text(source.get("type")),
         }
     )
     metrics = {

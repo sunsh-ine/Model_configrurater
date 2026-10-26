@@ -63,6 +63,11 @@ class ArchiveEntry:
     pp_size: int | None = None
     dp_size: int | None = None
     database_mode: str | None = None
+    database_mode_source: str = "unknown"
+    arrival_mode: str | None = None
+    request_rate_rps: str | None = None
+    dataset: str | None = None
+    seed: int | None = None
 
     @property
     def deployment_key(self) -> tuple[Any, ...]:
@@ -145,6 +150,11 @@ def _entry_from_paths(
     pp_size: int | None = None,
     dp_size: int | None = None,
     database_mode: str | None = None,
+    database_mode_source: str = "unknown",
+    arrival_mode: str | None = None,
+    request_rate_rps: str | None = None,
+    dataset: str | None = None,
+    seed: int | None = None,
 ) -> ArchiveEntry:
     return ArchiveEntry(
         name=name,
@@ -167,6 +177,11 @@ def _entry_from_paths(
         pp_size=pp_size,
         dp_size=dp_size,
         database_mode=database_mode,
+        database_mode_source=database_mode_source,
+        arrival_mode=arrival_mode,
+        request_rate_rps=request_rate_rps,
+        dataset=dataset,
+        seed=seed,
         native_prediction=str(native_prediction.relative_to(ROOT)),
         native_input=str(native_input.relative_to(ROOT)),
         exp_config=(
@@ -260,6 +275,14 @@ def archive_entries() -> list[ArchiveEntry]:
             parallel = ((engine.get("workers") or {}).get("aggregated") or {}).get(
                 "parallelism"
             ) or {}
+            load_type = str(load.get("type") or "concurrency").lower()
+            arrival_mode = {
+                "concurrency": "fixed_concurrency",
+                "poisson": "poisson",
+                "constant_rate": "constant_rate",
+                "trace_timestamps": "trace",
+            }.get(load_type, "unknown")
+            request_rate = load.get("requests_per_second")
             run_name = str(manifest.get("run_id") or run_dir.name)
             entries.append(
                 _entry_from_paths(
@@ -292,9 +315,30 @@ def archive_entries() -> list[ArchiveEntry]:
                     requests=_int(stop.get("requests")),
                     tool_version=manifest.get("tool_version"),
                     database_mode=database_mode,
+                    database_mode_source=(
+                        manifest.get("database_mode_source")
+                        or ("archive_declared" if database_mode else "unknown")
+                    ),
+                    arrival_mode=arrival_mode,
+                    request_rate_rps=(
+                        str(request_rate) if request_rate is not None else None
+                    ),
+                    dataset=source.get("dataset"),
+                    seed=_int(load.get("seed")),
                 )
             )
     return entries
+
+
+def _rate_equal(left: str | None, right: str | None) -> bool:
+    if left is None or right is None:
+        return left == right
+    try:
+        from decimal import Decimal
+
+        return Decimal(str(left)) == Decimal(str(right))
+    except Exception:  # noqa: BLE001
+        return str(left) == str(right)
 
 
 def find_archives(
@@ -303,7 +347,7 @@ def find_archives(
     hardware_id: str,
     input_len: int,
     output_len: int,
-    concurrency: int,
+    concurrency: int | None,
     precision: str | None = None,
     framework: str | None = None,
     framework_version: str | None = None,
@@ -311,6 +355,9 @@ def find_archives(
     match_identity: bool = True,
     gpu_limit: int | None = None,
     tp_sizes: tuple[int, ...] | None = None,
+    arrival_mode: str | None = None,
+    request_rate_rps: str | None = None,
+    seed: int | None = None,
 ) -> list[ArchiveEntry]:
     """返回与请求**同一工作点**的全部有效部署证据（不是只挑一条）。
 
@@ -331,6 +378,12 @@ def find_archives(
         and entry.input_len == input_len
         and entry.output_len == output_len
         and entry.concurrency == concurrency
+        and (arrival_mode is None or entry.arrival_mode == arrival_mode)
+        and (
+            request_rate_rps is None
+            or _rate_equal(entry.request_rate_rps, request_rate_rps)
+        )
+        and (seed is None or entry.seed == seed)
         and (entry.completed_requests or 0) >= min_requests
         and entry.gpu_count is not None
         and (gpu_limit is None or entry.gpu_count <= gpu_limit)
@@ -398,6 +451,9 @@ def available_workpoints(
             entry.input_len,
             entry.output_len,
             entry.concurrency,
+            entry.arrival_mode,
+            entry.request_rate_rps,
+            entry.dataset,
             entry.precision,
         )
         if key in seen:
@@ -406,6 +462,9 @@ def available_workpoints(
             "input_len": entry.input_len,
             "output_len": entry.output_len,
             "concurrency": entry.concurrency,
+            "arrival_mode": entry.arrival_mode,
+            "request_rate_rps": entry.request_rate_rps,
+            "dataset": entry.dataset,
             "precision": entry.precision,
             "gpu_count": entry.gpu_count,
             "requests": entry.requests,
@@ -416,6 +475,7 @@ def available_workpoints(
             item["input_len"] or 0,
             item["output_len"] or 0,
             item["concurrency"] or 0,
+            item.get("request_rate_rps") or "",
         ),
     )
 
@@ -432,6 +492,8 @@ def offline_simulation_paths(
     framework_version: str | None,
     gpu_limit: int | None = None,
     tp_sizes: tuple[int, ...] | None = None,
+    arrival_mode: str | None = None,
+    request_rate_rps: str | None = None,
 ) -> dict[str, Any] | None:
     """构造离线 ``PlanSimulationInput`` 的字段；没有匹配的原生证据就不放 P99。
 
@@ -462,6 +524,8 @@ def offline_simulation_paths(
         framework_version=framework_version,
         gpu_limit=gpu_limit,
         tp_sizes=tp_sizes,
+        arrival_mode=arrival_mode,
+        request_rate_rps=request_rate_rps,
     )
     if not entries:
         # 同一工作点存在、但精度/框架不一致：仍然展示为“不可比”证据，
@@ -475,6 +539,8 @@ def offline_simulation_paths(
             match_identity=False,
             gpu_limit=gpu_limit,
             tp_sizes=tp_sizes,
+            arrival_mode=arrival_mode,
+            request_rate_rps=request_rate_rps,
         )
     if not entries:
         return paths if "sweeper_csv" in paths else None
@@ -484,6 +550,7 @@ def offline_simulation_paths(
             "native_input": entry.native_input,
             "hardware_id": hardware_id,
             "database_mode": entry.database_mode,
+            "database_mode_source": entry.database_mode_source,
             # 不得用请求值补归档缺失的精度：那会把“未声明”伪造成“已核实”。
             "native_model_precision": entry.precision,
             "tool_version": entry.tool_version,
