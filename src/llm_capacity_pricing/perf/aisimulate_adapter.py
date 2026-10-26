@@ -1168,6 +1168,7 @@ def load_archived(
     target: SimulationTarget | None = None,
     top_n: int | None = None,
     archives: Sequence[Any] | None = None,
+    experiment_manifests: Sequence[Any] | None = None,
 ) -> SimulationResult:
     """只读本地归档输出，拼出一个 :class:`SimulationResult`。
 
@@ -1309,6 +1310,9 @@ def load_archived(
                 f"{workload.request_rate_rps} req/s，seed={workload.seed}"
             )
         archive_candidate.source_tool_version = archive_tool_version
+        archive_candidate.source_config_file = archive_exp
+        if archive_exp and Path(archive_exp).is_file():
+            archive_candidate.source_config_sha256 = sha256_file(Path(archive_exp))
         archive_candidate.source_database_mode = archive_mode
         archive_candidate.source_database_mode_source = (
             archive_field(spec, "database_mode_source")
@@ -1531,6 +1535,14 @@ def load_archived(
             effective_scope="offline_archives",
             replayed=[c.candidate_id for c in native],
         )
+    from llm_capacity_pricing.perf.experiment_audit import (
+        apply_experiment_manifests,
+    )
+
+    limitations.extend(
+        apply_experiment_manifests(candidates, experiment_manifests)
+    )
+
     return SimulationResult(
         status="computed",
         data_trust=SIMULATION_TRUST_LABEL,

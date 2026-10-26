@@ -1,0 +1,23 @@
+{
+  "phase": "AF",
+  "commit": "24ac68f",
+  "command": "AISIMULATE_PYTHON=/tmp/aisim-venv/bin/python bash scripts/verify_all.sh",
+  "environment": {
+    "python": "3.12.3",
+    "aisimulate": "0.12.1"
+  },
+  "standalone_pytest": {
+    "passed": 1133,
+    "skipped": 1
+  },
+  "verify_all": {
+    "steps_passed": 66,
+    "steps_failed": 0,
+    "pytest_passed": 1134,
+    "auto_search_run_id": "run_20261026T070615Z_a81ff8"
+  },
+  "notes": [
+    "standalone pytest 有 1 个可选依赖 skip；verify_all 内的 pytest 运行结果不包含该 skip。",
+    "该运行早于 AG 阶段改动；AG 封板时会重新生成最终日志。"
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "experiment_id": "af-8b-h200-dp2-r5",
+  "created_at": "2026-10-26T07:38:25+00:00",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "model_name": "Qwen/Qwen3-8B",
+  "model_precision": "bf16",
+  "system": "h200_sxm",
+  "backend": "vllm",
+  "backend_version": "0.24.0",
+  "gpu_count": 2,
+  "serving_mode": "agg",
+  "tp_size": 1,
+  "pp_size": 1,
+  "dp_size": 2,
+  "replicas": 2,
+  "input_len": 8192,
+  "output_len": 256,
+  "concurrency": null,
+  "arrival_mode": "poisson",
+  "request_rate_rps": "5",
+  "dataset": "synthetic",
+  "num_requests": 500,
+  "stop_condition": "requests=500",
+  "required_completed_requests": 500,
+  "expected_seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/exp_config.yaml",
+  "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+  "runs": [
+    {
+      "seed": 1,
+      "status": "succeeded",
+      "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/out_1/prediction.json",
+      "archive_sha256": "776483a76797822ed816a821bceef9b4b26079adadc801f93a26e928465cd752",
+      "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/exp_config.yaml",
+      "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+      "completed_requests": 500,
+      "notes": []
+    },
+    {
+      "seed": 2,
+      "status": "succeeded",
+      "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/out_1/prediction.json",
+      "archive_sha256": "2816eb16ceda5381703c07bd1cb070c970f636cf5adea378bc49355174b64b55",
+      "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/exp_config.yaml",
+      "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+      "completed_requests": 500,
+      "notes": []
+    },
+    {
+      "seed": 3,
+      "status": "succeeded",
+      "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/out_1/prediction.json",
+      "archive_sha256": "ffe891c648b3d0b5b797b7150ee967c7ebce70f111b76e6ebe1e37e98673365e",
+      "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/exp_config.yaml",
+      "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+      "completed_requests": 500,
+      "notes": []
+    },
+    {
+      "seed": 4,
+      "status": "succeeded",
+      "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/out_1/prediction.json",
+      "archive_sha256": "005f314534717d7c2d89215a48d1ee8fa9d8133df61dcde91874ba4384f2f9e9",
+      "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/exp_config.yaml",
+      "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+      "completed_requests": 500,
+      "notes": []
+    },
+    {
+      "seed": 5,
+      "status": "succeeded",
+      "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/out_1/prediction.json",
+      "archive_sha256": "bf34fa04d87e046e2c23a79643dcdfb5dd1317be6f88fe6eef678b275521942b",
+      "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/exp_config.yaml",
+      "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006",
+      "completed_requests": 500,
+      "notes": []
+    }
+  ],
+  "out_of_scope_seeds": [
+    42
+  ]
+}

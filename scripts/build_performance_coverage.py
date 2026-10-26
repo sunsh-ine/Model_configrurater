@@ -1091,9 +1091,17 @@ def summarize(
         item["coverage_level"] for item in evidence if item.get("coverage_level")
     )
     by_kind = Counter(item["source_kind"] for item in evidence)
+    native_workpoints = [
+        group for group in groups if group["best_level"] >= 3
+    ]
     return {
         "evidence_total": len(evidence),
         "evidence_by_kind": dict(sorted(by_kind.items())),
+        # AG0：证据条数 != 独立工作点数；同一工作点的多 seed 是运行数，不是新部署。
+        "native_evidence_runs": by_level.get(3, 0),
+        "native_unique_workpoints": len(native_workpoints),
+        "simulated_scan_runs": by_level.get(2, 0),
+        "measured_benchmark_runs": by_level.get(4, 0),
         "evidence_by_level": {
             LEVEL_KEYS[level]: by_level.get(level, 0) for level in sorted(LEVEL_LABELS)
         },
@@ -1301,6 +1309,10 @@ def render_markdown(doc: dict[str, Any]) -> str:
     lines.append("")
     summary = doc["summary"]
     lines.append(f"- 证据总数：{summary['evidence_total']}")
+    lines.append(
+        f"- 原生模拟运行数：{summary.get('native_evidence_runs', 0)}；"
+        f"唯一原生工作点数：{summary.get('native_unique_workpoints', 0)}"
+    )
     lines.append(
         "- 按级别："
         + "；".join(

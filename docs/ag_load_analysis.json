@@ -1,0 +1,263 @@
+{
+  "schema_version": "1.0",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "capture": "per_request",
+  "cases": [
+    {
+      "case_id": "8b_h100_dp2_r5_seed3",
+      "prediction_completed_requests": 500,
+      "configured_arrival_rate_rps": 5,
+      "load_type": "poisson",
+      "windows": {
+        "full": {
+          "requests": 500,
+          "terminal_status": {
+            "completed": 500
+          },
+          "ttft_p50_ms": 390.34531822068675,
+          "ttft_p95_ms": 744.2310185421375,
+          "ttft_p99_ms": 830.9112356316036,
+          "tpot_p99_ms": 54.000404160784775,
+          "e2e_p99_ms": 14194.089170511797,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 500,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 128000.0,
+          "window_duration_s": 108.06243184553783,
+          "output_throughput_tok_s": 1184.5004578738383,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.626954913569681
+        },
+        "first_half": {
+          "requests": 250,
+          "terminal_status": {
+            "completed": 250
+          },
+          "ttft_p50_ms": 259.07803989731474,
+          "ttft_p95_ms": 622.4100405191784,
+          "ttft_p99_ms": 705.0180369507761,
+          "tpot_p99_ms": 42.14054286666642,
+          "e2e_p99_ms": 11352.844675759508,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 250,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 64000.0,
+          "window_duration_s": 61.96012009453748,
+          "output_throughput_tok_s": 1032.9224653268927,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.034853380183175
+        },
+        "second_half": {
+          "requests": 250,
+          "terminal_status": {
+            "completed": 250
+          },
+          "ttft_p50_ms": 465.5133637268882,
+          "ttft_p95_ms": 804.9153575325763,
+          "ttft_p99_ms": 851.0764252786175,
+          "tpot_p99_ms": 54.72017610588307,
+          "e2e_p99_ms": 14524.730115755781,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 250,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 64000.0,
+          "window_duration_s": 51.65867220150983,
+          "output_throughput_tok_s": 1238.9013745910695,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.839458494496365
+        },
+        "first_100": {
+          "requests": 100,
+          "terminal_status": {
+            "completed": 100
+          },
+          "ttft_p50_ms": 237.54538100024047,
+          "ttft_p95_ms": 594.1400809554796,
+          "ttft_p99_ms": 638.7456274875003,
+          "tpot_p99_ms": 31.822554286274595,
+          "e2e_p99_ms": 8350.133901393463,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 100,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 25600.0,
+          "window_duration_s": 33.28886516153758,
+          "output_throughput_tok_s": 769.0259152955024,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 3.004007481623056
+        },
+        "last_100": {
+          "requests": 100,
+          "terminal_status": {
+            "completed": 100
+          },
+          "ttft_p50_ms": 482.1465227292938,
+          "ttft_p95_ms": 815.3762021907751,
+          "ttft_p99_ms": 879.4692303504853,
+          "tpot_p99_ms": 53.82540426666725,
+          "e2e_p99_ms": 14121.358575118924,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 100,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 25600.0,
+          "window_duration_s": 22.108415947947464,
+          "output_throughput_tok_s": 1157.9300869077729,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.523164401983488
+        }
+      }
+    },
+    {
+      "case_id": "8b_h200_dp2_r5_seed1",
+      "prediction_completed_requests": 500,
+      "configured_arrival_rate_rps": 5,
+      "load_type": "poisson",
+      "windows": {
+        "full": {
+          "requests": 500,
+          "terminal_status": {
+            "completed": 500
+          },
+          "ttft_p50_ms": 355.4054808908477,
+          "ttft_p95_ms": 732.6612947300891,
+          "ttft_p99_ms": 930.5687098523485,
+          "tpot_p99_ms": 44.95807737647059,
+          "e2e_p99_ms": 11917.546508498534,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 500,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 128000.0,
+          "window_duration_s": 96.1405687148884,
+          "output_throughput_tok_s": 1331.383844624354,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 5.200718143063883
+        },
+        "first_half": {
+          "requests": 250,
+          "terminal_status": {
+            "completed": 250
+          },
+          "ttft_p50_ms": 363.0151345607228,
+          "ttft_p95_ms": 598.161134621354,
+          "ttft_p99_ms": 660.2613038671025,
+          "tpot_p99_ms": 45.37619906666662,
+          "e2e_p99_ms": 11991.320994919217,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 250,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 64000.0,
+          "window_duration_s": 57.230590077888074,
+          "output_throughput_tok_s": 1118.2830705204872,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.368293244220653
+        },
+        "second_half": {
+          "requests": 250,
+          "terminal_status": {
+            "completed": 250
+          },
+          "ttft_p50_ms": 344.4967822968756,
+          "ttft_p95_ms": 873.0154903582734,
+          "ttft_p99_ms": 975.9672153807041,
+          "tpot_p99_ms": 42.82162468627482,
+          "e2e_p99_ms": 11151.254797507696,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 250,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 64000.0,
+          "window_duration_s": 48.65822604190507,
+          "output_throughput_tok_s": 1315.2966149008887,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 5.1378774019565965
+        },
+        "first_100": {
+          "requests": 100,
+          "terminal_status": {
+            "completed": 100
+          },
+          "ttft_p50_ms": 342.92704540988325,
+          "ttft_p95_ms": 595.6372115738795,
+          "ttft_p99_ms": 650.1436225321904,
+          "tpot_p99_ms": 25.395877662745107,
+          "e2e_p99_ms": 6964.283970573874,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 100,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 25600.0,
+          "window_duration_s": 21.95798035299998,
+          "output_throughput_tok_s": 1165.8631435337102,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.554152904428555
+        },
+        "last_100": {
+          "requests": 100,
+          "terminal_status": {
+            "completed": 100
+          },
+          "ttft_p50_ms": 239.41388761610142,
+          "ttft_p95_ms": 583.8096471638273,
+          "ttft_p99_ms": 661.4693376181531,
+          "tpot_p99_ms": 25.06618510196071,
+          "e2e_p99_ms": 6615.39725303468,
+          "queue_wait_p99_ms": 0.0,
+          "queue_wait_max_ms": 0.0,
+          "queue_wait_available_requests": 100,
+          "queue_wait_missing_requests": 0,
+          "output_tokens": 25600.0,
+          "window_duration_s": 23.820243867280062,
+          "output_throughput_tok_s": 1074.716117208382,
+          "timed_window_complete": true,
+          "actual_request_rate_rps": 4.198109832845242
+        }
+      }
+    }
+  ],
+  "sources": [
+    {
+      "metric": "TTFT",
+      "field": "ttft_ms",
+      "definition": "请求到首 token（工具逐请求字段）",
+      "status": "available"
+    },
+    {
+      "metric": "TPOT",
+      "field": "(last_token_ms - first_token_ms)/(output_length-1)",
+      "definition": "逐请求推导；不是 ITL 池",
+      "status": "derived"
+    },
+    {
+      "metric": "E2E",
+      "field": "e2e_latency_ms",
+      "definition": "请求到末 token",
+      "status": "available"
+    },
+    {
+      "metric": "路由 queue_wait",
+      "field": "routing_history[].queue_wait_ms",
+      "definition": "路由层等待，不等于模型 scheduler queue time",
+      "status": "available_per_request"
+    },
+    {
+      "metric": "模型 scheduler 等待",
+      "field": null,
+      "definition": "工具未提供",
+      "status": "unknown"
+    },
+    {
+      "metric": "队列长度/等待请求数时间序列",
+      "field": null,
+      "definition": "工具未提供全局队列采样",
+      "status": "unknown"
+    }
+  ],
+  "note": "有限请求窗口；分段变化只作描述，不证明长期稳定，不据此推导最大稳定 RPS。"
+}

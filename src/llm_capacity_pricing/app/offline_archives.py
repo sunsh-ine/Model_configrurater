@@ -591,6 +591,21 @@ def offline_simulation_paths(
         )
     if not entries:
         return paths if "sweeper_csv" in paths else None
+    # 清单明确排除的 seed 不进入本实验；其余额外 seed 保留给审计判 invalid。
+    from llm_capacity_pricing.perf.experiment_audit import (
+        archive_matches_manifest,
+        load_manifests,
+    )
+
+    for manifest in load_manifests():
+        if entries and archive_matches_manifest(entries[0], manifest):
+            if manifest.out_of_scope_seeds:
+                entries = [
+                    entry
+                    for entry in entries
+                    if entry.seed not in manifest.out_of_scope_seeds
+                ]
+            break
     paths["archives"] = [
         {
             "native_prediction": entry.native_prediction,

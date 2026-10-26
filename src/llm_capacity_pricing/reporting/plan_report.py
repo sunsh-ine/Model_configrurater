@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from llm_capacity_pricing.schemas.plan import PlanResult
@@ -517,8 +518,48 @@ def _workload_identity_text(workload: Any) -> str:
     return "，".join(parts)
 
 
+def _completeness_label(candidate: Any) -> str:
+    value = getattr(candidate, "experiment_completeness", None)
+    return {
+        "complete": "完整",
+        "incomplete": "不完整",
+        "invalid": "无效",
+        None: "—",
+    }.get(value, str(value))
+
+
+def _calibration_text(candidate: Any) -> str:
+    status = getattr(candidate, "calibration_status", "unknown")
+    if status == "usable":
+        parts = []
+        for label, value in (
+            ("TTFT", getattr(candidate, "calibration_ttft_relative_error", None)),
+            ("TPOT", getattr(candidate, "calibration_tpot_relative_error", None)),
+            (
+                "吞吐",
+                getattr(candidate, "calibration_throughput_relative_error", None),
+            ),
+        ):
+            if value is not None:
+                parts.append(f"{label} {_fmt_pct(value)}")
+        return "可用" + (f"（{'，'.join(parts)}）" if parts else "")
+    if status == "fixture_only":
+        return "仅夹具（不可校准）"
+    if status == "not_available":
+        return "无匹配实测（unknown）"
+    return "未知（unknown）"
+
+
 def _candidate_evidence_text(candidate: Any) -> str:
     """AF6：单次模拟 / 多 seed 模拟 / 预测不足，三种证据类型分开写。"""
+    completeness = getattr(candidate, "experiment_completeness", None)
+    if completeness in ("incomplete", "invalid"):
+        return (
+            f"多 seed 模拟（实验 {completeness}："
+            f"{_fmt(candidate.experiment_found_runs)}/"
+            f"{_fmt(candidate.experiment_expected_runs)} 发现，"
+            f"{_fmt(candidate.experiment_valid_runs)} 有效）"
+        )
     if candidate.repeatability_status == "incomplete":
         return (
             f"多 seed 模拟（重复性 unknown，"
@@ -600,6 +641,38 @@ def _evidence_summary(result: PlanResult, simulation: Any, add: Any) -> None:
     add(
         "- 预测不足（unknown）："
         + (f"{len(unknown_sim)} 个候选，不能据此判断达标" if unknown_sim else "无")
+    )
+    complete = [
+        c
+        for c in simulation.candidates
+        if getattr(c, "experiment_completeness", None) == "complete"
+    ]
+    incomplete = [
+        c
+        for c in simulation.candidates
+        if getattr(c, "experiment_completeness", None) in ("incomplete", "invalid")
+    ]
+    add(
+        "- 实验完整性："
+        f"完整 {len(complete)} 个、不完整/无效 {len(incomplete)} 个"
+        + (
+            "（不完整工作点不作为完整达标证据）"
+            if incomplete
+            else ""
+        )
+    )
+    calibrated = [
+        c
+        for c in simulation.candidates
+        if getattr(c, "calibration_status", "unknown") == "usable"
+    ]
+    add(
+        "- 匹配实测校准："
+        + (
+            f"{len(calibrated)} 个候选可用"
+            if calibrated
+            else "无（误差保持 unknown）"
+        )
     )
     audit = getattr(simulation, "search_audit", None)
     if audit is not None:
@@ -748,6 +821,8 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             + " |"
         )
         add(f"| 证据类型 | {_candidate_evidence_text(headline)} |")
+        add(f"| 实验完整性 | {_completeness_label(headline)} |")
+        add(f"| 校准状态 | {_calibration_text(headline)} |")
         add(f"| 资源效率 | {_fmt(metrics.sim_tokens_per_gpu)} tok/s/GPU |")
         min_gpu = simulation.min_gpu_for_sla()
         add(
@@ -824,9 +899,9 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             add("")
             add(
                 "| 候选 | GPU | 并行 | 负载身份 | 吞吐 tok/s | TTFT P99 | TPOT P99 "
-                "| 结论 | 证据类型 |"
+                "| 结论 | 证据类型 | 实验完整性 | 校准 |"
             )
-            add("|---|---|---|---|---|---|---|---|---|")
+            add("|---|---|---|---|---|---|---|---|---|---|---|")
             for candidate in others:
                 m = candidate.metrics
                 d = candidate.deployment
@@ -837,7 +912,9 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
                     f"| {_fmt(m.sim_output_throughput_tok_s)} "
                     f"| {_fmt(m.sim_p99_ttft_ms)} | {_fmt(m.sim_p99_tpot_ms)} "
                     f"| {_VERDICT_LABEL.get(candidate.verdict, candidate.verdict)} "
-                    f"| {_candidate_evidence_text(candidate)} |"
+                    f"| {_candidate_evidence_text(candidate)} "
+                    f"| {_completeness_label(candidate)} "
+                    f"| {_calibration_text(candidate)} |"
                 )
             add("")
 
@@ -887,8 +964,8 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
     if reliability:
         add("**多 seed 重复性（运行级）**：")
         add("")
-        add("| 工作点 | 状态 | 运行数 | 通过数 |")
-        add("|---|---|---|---|")
+        add("| 工作点 | 实验完整性 | 预期/发现/有效 | 结论 | 通过数 | 校准 |")
+        add("|---|---|---|---|---|---|")
         for item in reliability:
             status_label = {
                 "all_pass": "全部通过",
@@ -896,9 +973,19 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
                 "mixed": "部分通过（mixed）",
                 "incomplete": "未判定（缺 P99）",
             }.get(item["status"], item["status"])
+            completeness = {
+                "complete": "完整",
+                "incomplete": "不完整",
+                "invalid": "无效",
+                None: "—",
+            }.get(item.get("experiment_completeness"), item.get("experiment_completeness"))
             add(
-                f"| {_reliability_workload_text(item)} | {status_label} "
-                f"| {item['runs']} | {item['pass_count']} |"
+                f"| {_reliability_workload_text(item)} | {completeness} "
+                f"| {_fmt(item.get('experiment_expected_runs'))}/"
+                f"{_fmt(item.get('experiment_found_runs'))}/"
+                f"{_fmt(item.get('experiment_valid_runs'))} "
+                f"| {status_label} | {item['pass_count']} "
+                f"| {_calibration_text(SimpleNamespace(calibration_status=item.get('calibration_status')))} |"
             )
         add("")
         add("> 运行均值不等于池化 P99；这是模拟波动，不是实测误差。")

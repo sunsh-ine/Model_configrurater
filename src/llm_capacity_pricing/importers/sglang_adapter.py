@@ -116,31 +116,67 @@ def _aggregate_per_request(
     tpots: list[Decimal] = []
     e2es: list[Decimal] = []
     latencies: list[Decimal] = []
+    arrivals_ms: list[Decimal] = []
+    ends_ms: list[Decimal] = []
+    timed_latencies = 0
+    untimed_latencies = 0
     total_out = Decimal(0)
     total_in = Decimal(0)
     success = 0
     tpot_unavailable = False
 
     for row in rows:
-        ttft = dec(row.get("ttft"))
-        latency = dec(row.get("latency"))
-        out_len = dec(row.get("output_len"))
-        in_len = dec(row.get("input_len"))
+        ttft = dec(row.get("ttft", row.get("ttft_ms")))
+        latency = dec(
+            row.get("latency", row.get("latency_ms", row.get("e2e_latency_ms")))
+        )
+        out_len = dec(row.get("output_len", row.get("output_length")))
+        in_len = dec(row.get("input_len", row.get("input_length")))
+        status = str(
+            row.get("terminal_status") or row.get("status") or ""
+        ).lower()
+        successful = (
+            row.get("success", True) is not False
+            and status in ("", "completed", "success", "succeeded", "ok")
+            and out_len is not None
+            and out_len > 0
+            and latency is not None
+        )
+        if not successful:
+            # 失败/取消请求不进入 P99、吞吐与墙钟窗口；只计入总数与失败统计。
+            if latency is not None:
+                tpot_unavailable = True
+            continue
+        success += 1
         if in_len is not None:
             total_in += in_len
         if out_len is not None:
             total_out += out_len
-        if row.get("success", True) is not False and out_len is not None and out_len > 0:
-            success += 1
         if ttft is not None:
             ttfts.append(ttft)
+        arrival_ms = dec(row.get("arrival_ms", row.get("arrival_time_ms")))
+        timestamp = dec(row.get("timestamp"))
+        if arrival_ms is None and timestamp is not None:
+            arrival_ms = timestamp * Decimal(1000)
         if latency is not None:
             e2es.append(latency)
             latencies.append(latency)
+            if arrival_ms is not None:
+                timed_latencies += 1
+                arrivals_ms.append(arrival_ms)
+                ends_ms.append(arrival_ms + latency)
+            else:
+                untimed_latencies += 1
         itl = dec(row.get("itl"))
         if itl is not None:
             itls.append(itl)
-        if ttft is not None and latency is not None and out_len is not None and out_len > 1:
+        if (
+            ttft is not None
+            and latency is not None
+            and out_len is not None
+            and out_len > 1
+            and latency >= ttft
+        ):
             tpots.append((latency - ttft) / (out_len - 1))
         elif latency is not None:
             tpot_unavailable = True
@@ -165,7 +201,11 @@ def _aggregate_per_request(
         "p99_itl_ms": percentile_nearest_rank(itls, 99),
         "mean_e2e_ms": mean(e2es),
         "p99_e2e_ms": percentile_nearest_rank(e2es, 99),
-        "duration_s": max(latencies) if latencies else None,
+        "duration_s": (
+            (max(ends_ms) - min(arrivals_ms)) / Decimal(1000)
+            if arrivals_ms and ends_ms and untimed_latencies == 0
+            else None
+        ),
     }
     defs["mean_tpot_ms"] = (
         "由适配器按逐请求 (latency - ttft)/(output_len - 1) 求均值；"
@@ -178,7 +218,9 @@ def _aggregate_per_request(
         summary["output_throughput_tok_s"] = total_out / duration
         summary["input_throughput_tok_s"] = total_in / duration
         defs["output_throughput_tok_s"] = (
-            "由适配器计算: total_output_tokens / max(latency)，集群口径"
+            "由适配器计算: total_output_tokens / 墙钟窗口"
+            "（有到达时间时用 max(arrival+latency)-min(arrival)，否则用 max(latency)），"
+            "集群口径"
         )
     return summary, flags, defs
 

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-23T06:46:22+00:00",
+  "generated_at": "2026-10-26T09:39:20+00:00",
   "generator": "scripts/build_performance_coverage.py",
   "level_definitions": {
     "1": {
@@ -151,8 +151,8 @@
       "levels_present": [
         "simulated_native_p99"
       ],
-      "evidence_count": 27,
-      "sla_usable_evidence": 27,
+      "evidence_count": 37,
+      "sla_usable_evidence": 37,
       "cost_analysis_possible": true,
       "cost_note": "仓库内只有合成示例成本项；可算 TCO，但不能当真实报价"
     },
@@ -167,8 +167,8 @@
       "levels_present": [
         "simulated_native_p99"
       ],
-      "evidence_count": 16,
-      "sla_usable_evidence": 16,
+      "evidence_count": 21,
+      "sla_usable_evidence": 21,
       "cost_analysis_possible": false,
       "cost_note": "没有该硬件的成本项，成本结论保持未知"
     },
@@ -703,7 +703,7 @@
       ]
     },
     {
-      "workpoint_id": "7f888e14d49fa65a",
+      "workpoint_id": "2128f73ff1d3dd5e",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -726,7 +726,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -750,7 +750,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "055b689c26342152",
+      "workpoint_id": "b8fd930f3de54ff5",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -773,7 +773,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -797,7 +797,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "602a436c811ac5f1",
+      "workpoint_id": "15382965162aed3d",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -820,7 +820,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -844,7 +844,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "2fefa5890f707e4b",
+      "workpoint_id": "3f18c2342b047824",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -867,7 +867,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -891,7 +891,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "8a96dac5f1e9636b",
+      "workpoint_id": "bc12c27dd8b4ca66",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -914,7 +914,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -938,7 +938,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "0534d3ada2a24879",
+      "workpoint_id": "a80c47d9677b4de0",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -961,7 +961,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2518,7 +2518,7 @@
       ]
     },
     {
-      "workpoint_id": "23a8dc218b2a3663",
+      "workpoint_id": "b24ed775ea26de7f",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2541,7 +2541,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2571,7 +2571,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "97167f4b21fc8126",
+      "workpoint_id": "2babda0ef1d52fc1",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2594,7 +2594,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2622,7 +2622,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "75c6fef730845400",
+      "workpoint_id": "97ad1b8356c3a7f5",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2645,7 +2645,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2669,7 +2669,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "54e326305f3364ed",
+      "workpoint_id": "434f35dff4d1ed9c",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2692,7 +2692,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2716,7 +2716,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "d688a2b1d0c9574e",
+      "workpoint_id": "1c5a3c55b2a4532d",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2739,7 +2739,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -2763,7 +2763,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "ed20e652bd1bc7e8",
+      "workpoint_id": "0b208674de8acc0d",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -2786,7 +2786,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3361,7 +3361,7 @@
       ]
     },
     {
-      "workpoint_id": "e926fcd25717decb",
+      "workpoint_id": "766f3b2faa70b2ee",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3384,7 +3384,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3408,7 +3408,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "47964b25b2e92b53",
+      "workpoint_id": "c5149bdfb887f5a6",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3431,7 +3431,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3455,7 +3455,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "27976ca4e27e3220",
+      "workpoint_id": "650c421362fc9332",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3478,7 +3478,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3502,7 +3502,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "956d4718473c6ddf",
+      "workpoint_id": "d18f3057e1574ad0",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3525,7 +3525,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3549,7 +3549,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "aea873b1801f85c2",
+      "workpoint_id": "954748fe3540339f",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3572,7 +3572,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -3596,7 +3596,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "bedf7f2767a14436",
+      "workpoint_id": "b8e342f34f21f1c8",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -3619,7 +3619,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4578,7 +4578,7 @@
       ]
     },
     {
-      "workpoint_id": "ed4ad4f2e1f82da5",
+      "workpoint_id": "a540f3e1b695faaf",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4601,7 +4601,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4625,7 +4625,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "1be6b316fb6f15d7",
+      "workpoint_id": "e7b86d7552f911c0",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4648,7 +4648,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4672,7 +4672,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "ea5930926c46ba7d",
+      "workpoint_id": "953e29f4b6478a25",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4695,7 +4695,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4719,7 +4719,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "f10b582a6b50c798",
+      "workpoint_id": "77bcba528269adbe",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4742,7 +4742,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4766,7 +4766,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "57e0e10573138df3",
+      "workpoint_id": "ae43a35c2eb1a4ac",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4789,7 +4789,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4813,7 +4813,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "ed0c3786a884c0a7",
+      "workpoint_id": "d4f373b8de069b36",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4836,7 +4836,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4860,7 +4860,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "cf4bf07eb7b36101",
+      "workpoint_id": "53e3dd905f99efd5",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4883,7 +4883,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4907,7 +4907,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "36cca5925306e416",
+      "workpoint_id": "cbca112b9137d1f9",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4930,7 +4930,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -4954,7 +4954,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "9bd89f8fd5bbebe3",
+      "workpoint_id": "c38774b3ac6cd0fc",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -4977,7 +4977,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5001,7 +5001,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "bce15d478d2c18a3",
+      "workpoint_id": "7c4e9c47b1c733f1",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5024,7 +5024,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5048,7 +5048,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "e4d0bfe33ac28a2f",
+      "workpoint_id": "7baa5c593112752a",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5071,7 +5071,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5095,7 +5095,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "5a00b2559e6e7735",
+      "workpoint_id": "0bbcebd6e1440360",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5118,7 +5118,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5142,7 +5142,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "ae09c307c3cbdcba",
+      "workpoint_id": "db872ce2603dcea9",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5165,7 +5165,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5189,7 +5189,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "75d1833208c7f7ac",
+      "workpoint_id": "c4ac186039d9e334",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5212,7 +5212,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5236,7 +5236,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "2e2549be5aea537f",
+      "workpoint_id": "876fa4b03bdf6726",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5259,7 +5259,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5283,7 +5283,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "175a7718f81a71cb",
+      "workpoint_id": "9bb0d724266ba606",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5306,7 +5306,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5330,7 +5330,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "ff3d036187cea4f4",
+      "workpoint_id": "902d3c8fd61feaea",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5353,7 +5353,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5377,7 +5377,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "13b161eb04282d9b",
+      "workpoint_id": "28e3b8df932eaee7",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5400,7 +5400,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5424,7 +5424,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "84ceb8008de775b2",
+      "workpoint_id": "25d3ea5e8ced0ec0",
       "identity": {
         "model_name": "Qwen/Qwen3-32B",
         "model_id": "qwen3-32b",
@@ -5447,7 +5447,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5471,7 +5471,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "987cd76a3ab7db40",
+      "workpoint_id": "41685b114e2deed1",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5494,7 +5494,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "1",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5518,7 +5518,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "5fcdee457481335f",
+      "workpoint_id": "4a322de9460079a4",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5541,7 +5541,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5565,7 +5565,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "80651454d04dc17c",
+      "workpoint_id": "5ebeb0d9254632dc",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5588,7 +5588,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5612,7 +5612,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "e674dd2b1c5fc297",
+      "workpoint_id": "8d69c8668e195630",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5635,7 +5635,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5659,7 +5659,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "b9bfe2173c2dfa70",
+      "workpoint_id": "1d4a00f59961261c",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5682,7 +5682,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5706,7 +5706,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "4140c633d94e077a",
+      "workpoint_id": "7a13b9303c37343d",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5729,7 +5729,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -5755,7 +5755,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "246777c2f12892a1",
+      "workpoint_id": "d89ce89d67b9b30f",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5778,31 +5778,41 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
       "evidence_ids": [
-        "ae-live-qwen3-8b-h100-tp1dp2-poisson-r4-seed42:native:predict_1"
+        "ae-live-qwen3-8b-h100-tp1dp2-poisson-r4-seed42:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r4-seed1:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r4-seed2:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r4-seed3:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r4-seed4:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r4-seed5:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
       "levels": [
+        3,
+        3,
+        3,
+        3,
+        3,
         3
       ],
       "sla_usable": true,
       "metrics": {
-        "ttft_p99_ms": "670.6848263843567",
-        "tpot_p99_ms": "34.593099313725574",
-        "ttft_mean_ms": "344.2006572054026",
-        "tpot_mean_ms": "22.40928027064333",
-        "output_throughput_tok_s": "1078.731535788572",
+        "ttft_p99_ms": "809.5613405105687",
+        "tpot_p99_ms": "34.5578661843134",
+        "ttft_mean_ms": "352.9849878328108",
+        "tpot_mean_ms": "20.336320870909848",
+        "output_throughput_tok_s": "1018.9233272202802",
         "completed_requests": 500
       },
       "sla_blockers": []
     },
     {
-      "workpoint_id": "c2acde80cbacce64",
+      "workpoint_id": "821a7a5880ba024d",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5825,31 +5835,41 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "5",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
       "evidence_ids": [
-        "ae-live-qwen3-8b-h100-tp1dp2-poisson-r5-seed42:native:predict_1"
+        "ae-live-qwen3-8b-h100-tp1dp2-poisson-r5-seed42:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r5-seed1:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r5-seed2:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r5-seed3:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r5-seed4:native:predict_1",
+        "af-live-qwen3-8b-h100-tp1dp2-r5-seed5:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
       "levels": [
+        3,
+        3,
+        3,
+        3,
+        3,
         3
       ],
       "sla_usable": true,
       "metrics": {
-        "ttft_p99_ms": "876.8093725817998",
-        "tpot_p99_ms": "55.31613847451038",
-        "ttft_mean_ms": "435.75977282618305",
-        "tpot_mean_ms": "42.92314811299618",
-        "output_throughput_tok_s": "1325.0696860035619",
+        "ttft_p99_ms": "999.3026506029273",
+        "tpot_p99_ms": "58.93375709019664",
+        "ttft_mean_ms": "434.69068757476913",
+        "tpot_mean_ms": "38.074749495411915",
+        "output_throughput_tok_s": "1261.3523526622848",
         "completed_requests": 500
       },
       "sla_blockers": []
     },
     {
-      "workpoint_id": "4e64de7e84c86405",
+      "workpoint_id": "2b1e1f7207ea1425",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5872,7 +5892,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5896,7 +5916,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "79e36d6ed49f50fb",
+      "workpoint_id": "b08f334e3072e8b1",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5919,7 +5939,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5943,7 +5963,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "781b9fe39f181d76",
+      "workpoint_id": "5ccb6fb0a56bfa3b",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -5966,7 +5986,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -5990,7 +6010,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "4f45d5f7e5f00d73",
+      "workpoint_id": "9ea1af29e079b439",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6013,7 +6033,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6037,7 +6057,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "aa4702bb5446767e",
+      "workpoint_id": "44f4b7961df3d28e",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6060,7 +6080,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6084,7 +6104,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "f6a4e83872cc0c2b",
+      "workpoint_id": "bde125e390236398",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6107,7 +6127,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6131,7 +6151,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "84b531c5f88a981d",
+      "workpoint_id": "caf2093055ab9b6d",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6154,7 +6174,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6178,7 +6198,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "14175b56156e9639",
+      "workpoint_id": "d88c829a86a9c910",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6201,7 +6221,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6225,7 +6245,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "f5fa788b5edb1e37",
+      "workpoint_id": "07009602846747ec",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6248,7 +6268,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6272,7 +6292,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "350bf5a243a0e553",
+      "workpoint_id": "8402c3b9745355ad",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6295,7 +6315,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6319,7 +6339,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "c9848b498e6eff6e",
+      "workpoint_id": "4dace62a4f283837",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6342,7 +6362,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6366,7 +6386,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "fccec3186f95b4b1",
+      "workpoint_id": "fae7f97a03e7c27f",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6389,7 +6409,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6413,7 +6433,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "51494637f3672b50",
+      "workpoint_id": "2fc95812a75bc5d3",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6436,7 +6456,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6460,7 +6480,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "09f6cc72fca433ab",
+      "workpoint_id": "db1f7193bc7d8482",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6483,7 +6503,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6507,7 +6527,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "8b0d12b54cc77438",
+      "workpoint_id": "44a521c25c6d173a",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6530,7 +6550,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6554,7 +6574,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "5c0debce95b64360",
+      "workpoint_id": "0c1bbfdd6316d18b",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6577,7 +6597,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6601,7 +6621,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "26ba5c7b839d4e40",
+      "workpoint_id": "bbb1b69c61d53d48",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6624,7 +6644,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6648,7 +6668,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "926dbbcf2e96afb5",
+      "workpoint_id": "e0d89b785420b4c8",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6671,7 +6691,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6695,7 +6715,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "2b7ca1b1e0e9beb6",
+      "workpoint_id": "0f7b1e720657bcb8",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6718,7 +6738,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -6742,7 +6762,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "16ff235648ba9229",
+      "workpoint_id": "e11c2722dbe61001",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6765,7 +6785,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -6789,7 +6809,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "b12957b21f04653f",
+      "workpoint_id": "6ec213bb65b7cefe",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6812,7 +6832,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -6836,7 +6856,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "44eccf0de2330ef5",
+      "workpoint_id": "6d7f6f06ad176a70",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6859,31 +6879,41 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "5",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
       "evidence_ids": [
-        "ae-live-qwen3-8b-h200-tp1dp2-poisson-r5-seed42:native:predict_1"
+        "ae-live-qwen3-8b-h200-tp1dp2-poisson-r5-seed42:native:predict_1",
+        "af-live-qwen3-8b-h200-tp1dp2-r5-seed1:native:predict_1",
+        "af-live-qwen3-8b-h200-tp1dp2-r5-seed2:native:predict_1",
+        "af-live-qwen3-8b-h200-tp1dp2-r5-seed3:native:predict_1",
+        "af-live-qwen3-8b-h200-tp1dp2-r5-seed4:native:predict_1",
+        "af-live-qwen3-8b-h200-tp1dp2-r5-seed5:native:predict_1"
       ],
       "best_level": 3,
       "best_level_key": "simulated_native_p99",
       "levels": [
+        3,
+        3,
+        3,
+        3,
+        3,
         3
       ],
       "sla_usable": true,
       "metrics": {
-        "ttft_p99_ms": "762.8570388179796",
-        "tpot_p99_ms": "36.36414645098039",
-        "ttft_mean_ms": "381.0472251042612",
-        "tpot_mean_ms": "23.02637793127856",
-        "output_throughput_tok_s": "1346.5083084037099",
+        "ttft_p99_ms": "854.2590297111892",
+        "tpot_p99_ms": "35.675425713725375",
+        "ttft_mean_ms": "382.0554767186062",
+        "tpot_mean_ms": "20.754512671576364",
+        "output_throughput_tok_s": "1272.9612253381513",
         "completed_requests": 500
       },
       "sla_blockers": []
     },
     {
-      "workpoint_id": "5d3bc16a52e7d350",
+      "workpoint_id": "6f60822ce6c7c63f",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6906,7 +6936,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6930,7 +6960,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "b14a39b36425c542",
+      "workpoint_id": "c07032fbe948ab4f",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -6953,7 +6983,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -6977,7 +7007,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "60e1f50f0e05ee5c",
+      "workpoint_id": "8e4d95d6e076f458",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7000,7 +7030,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7024,7 +7054,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "00433b53309aaaf1",
+      "workpoint_id": "d7e6f6725ec05dd2",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7047,7 +7077,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7071,7 +7101,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "02313ceb65f78c80",
+      "workpoint_id": "c32fd5df5ee94b8c",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7094,7 +7124,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7118,7 +7148,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "58d1b8cff022731e",
+      "workpoint_id": "c32dce538c0e9d97",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7141,7 +7171,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7165,7 +7195,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "364f92b8af54a110",
+      "workpoint_id": "930868cc98af809c",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7188,7 +7218,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7212,7 +7242,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "48fa7d487f8473d3",
+      "workpoint_id": "2fa2bfe0884a3878",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7235,7 +7265,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7259,7 +7289,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "281491c4e1aa1636",
+      "workpoint_id": "949ddf3a926838d7",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7282,7 +7312,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7306,7 +7336,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "abdda0a3d719def5",
+      "workpoint_id": "77fb4c9d0120c509",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7329,7 +7359,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7353,7 +7383,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "fb5647b2ac3b4c50",
+      "workpoint_id": "6844ee5b26d88cfe",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7376,7 +7406,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -7400,7 +7430,7 @@
       "sla_blockers": []
     },
     {
-      "workpoint_id": "d1936c1c93230927",
+      "workpoint_id": "285db9f32b2187d9",
       "identity": {
         "model_name": "Qwen/Qwen3-8B",
         "model_id": "qwen3-8b",
@@ -7423,7 +7453,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -10750,7 +10780,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -10815,7 +10845,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -13184,7 +13214,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -13249,7 +13279,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15622,7 +15652,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15691,7 +15721,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15760,7 +15790,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15829,7 +15859,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15898,7 +15928,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -15967,7 +15997,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16036,7 +16066,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16105,7 +16135,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16174,7 +16204,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16243,7 +16273,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16312,7 +16342,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16381,7 +16411,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16450,7 +16480,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16519,7 +16549,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16588,7 +16618,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16657,7 +16687,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16726,7 +16756,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16795,7 +16825,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16864,7 +16894,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -16933,7 +16963,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17002,7 +17032,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17071,7 +17101,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17140,7 +17170,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17209,7 +17239,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17278,7 +17308,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17347,7 +17377,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17416,7 +17446,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17485,7 +17515,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17554,7 +17584,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17623,7 +17653,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17692,7 +17722,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17761,7 +17791,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17830,7 +17860,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17899,7 +17929,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -17968,7 +17998,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18037,7 +18067,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18106,7 +18136,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18175,7 +18205,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18244,7 +18274,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18313,7 +18343,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18382,7 +18412,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18451,7 +18481,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18520,7 +18550,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18589,7 +18619,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18658,7 +18688,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18727,7 +18757,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18796,7 +18826,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18865,7 +18895,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -18934,7 +18964,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19003,7 +19033,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19072,7 +19102,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19141,7 +19171,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19210,7 +19240,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19279,7 +19309,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19348,7 +19378,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19417,7 +19447,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19486,7 +19516,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19555,7 +19585,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19624,7 +19654,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19693,7 +19723,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -19762,7 +19792,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "1",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -19831,7 +19861,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -19900,7 +19930,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -19969,7 +19999,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20038,7 +20068,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -20107,7 +20137,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -20176,7 +20206,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -20245,7 +20275,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20314,7 +20344,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20383,7 +20413,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 7,
         "requests": 500
       },
@@ -20452,7 +20482,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20521,7 +20551,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "5",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20590,7 +20620,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "2",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20659,7 +20689,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "3",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20728,7 +20758,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "4",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20797,7 +20827,7 @@
         "ctx_tokens": null,
         "arrival_mode": "poisson",
         "request_rate_rps": "5",
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": 42,
         "requests": 500
       },
@@ -20814,6 +20844,1041 @@
       "reference_only": false,
       "notes": [
         "Z 阶段实时运行归档：data/simulation/archives/ae-live-qwen3-8b-h200-tp1dp2-poisson-r5-seed42",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed1:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/out_1/prediction.json",
+      "artifact_sha256": "3f2ff4165f040d739839596336928a6ce835e3b443801cd58c752b71269af936",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/predict_1.yaml",
+          "sha256": "2a088ed05edec3ba8a3441cfdbb1ba31f983023d260ba6b247384ef9b300492d"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed1",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "4",
+        "dataset": "synthetic",
+        "seed": 1,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "835.1924819288397",
+        "tpot_p99_ms": "38.83071331372553",
+        "ttft_mean_ms": "348.99794495869776",
+        "tpot_mean_ms": "24.45234084797646",
+        "output_throughput_tok_s": "1066.3704155413143",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed2:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/out_1/prediction.json",
+      "artifact_sha256": "431336c3f6ad2bc97dc316bb727649c7b280ef5168f60635b9e6c11d9cf26fa3",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/predict_1.yaml",
+          "sha256": "5ee067f20375464265d307e0ed33021d5d2112ebe2d9c87b261cda7784c82799"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed2",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "4",
+        "dataset": "synthetic",
+        "seed": 2,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "748.0037686031865",
+        "tpot_p99_ms": "37.2099887568628",
+        "ttft_mean_ms": "336.3308343330895",
+        "tpot_mean_ms": "21.186272217411954",
+        "output_throughput_tok_s": "989.8542781751028",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed3:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/out_1/prediction.json",
+      "artifact_sha256": "e069e2c9c8f7b0fd1fcf4d861712aeb50581456d16294dde524d885e5c20db49",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/predict_1.yaml",
+          "sha256": "bd7362f622a7fbd1b7d76333ba57815b901cd072f966a5d3c0d7082fc7f95836"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed3",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "4",
+        "dataset": "synthetic",
+        "seed": 3,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "725.1078902899171",
+        "tpot_p99_ms": "30.413994062745797",
+        "ttft_mean_ms": "339.3094702446324",
+        "tpot_mean_ms": "19.497453228658987",
+        "output_throughput_tok_s": "965.258138320972",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed4:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/out_1/prediction.json",
+      "artifact_sha256": "1e6f95d18b5aea7b69170fd03d40dff04ca3cda893f304402d2c0cf7f167448b",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/predict_1.yaml",
+          "sha256": "7698fedd43abec9c5dc67266d2f54cd77166e460a5e895cd9bb88218ef1806f0"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed4",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "4",
+        "dataset": "synthetic",
+        "seed": 4,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "753.5511597231962",
+        "tpot_p99_ms": "34.11748661960771",
+        "ttft_mean_ms": "338.2913401735914",
+        "tpot_mean_ms": "21.248323289576593",
+        "output_throughput_tok_s": "1016.6401206096307",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed5:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/out_1/prediction.json",
+      "artifact_sha256": "0d5cf7a5b7549a7a09102692e126843ada71ac007f79d80a5fede888aba110a4",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/predict_1.yaml",
+          "sha256": "62cd159132adab13283d044664eae011ceebdec698d606fab670317189d92b56"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r4-seed5",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "4",
+        "dataset": "synthetic",
+        "seed": 5,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "809.5613405105687",
+        "tpot_p99_ms": "34.5578661843134",
+        "ttft_mean_ms": "352.9849878328108",
+        "tpot_mean_ms": "20.336320870909848",
+        "output_throughput_tok_s": "1018.9233272202802",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed1:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/predict/out_1/prediction.json",
+      "artifact_sha256": "7121358d3198dc46c97944c24604bc1f1e5a67c75079618776f9190646b5c058",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/predict/predict_1.yaml",
+          "sha256": "3aec8ede69e54d23875c6050e2a55b0b9d7dd2927476127cdf9ea9b9dee093bd"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed1",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 1,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "3639.2665278809727",
+        "tpot_p99_ms": "62.01753506274547",
+        "ttft_mean_ms": "892.0325663726511",
+        "tpot_mean_ms": "45.95392496069045",
+        "output_throughput_tok_s": "1311.151813794986",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed2:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/predict/out_1/prediction.json",
+      "artifact_sha256": "444b45d337c70e8e82ed059dd86c81b3b472e9b3a62cd07aa3f3fed16a7aac4b",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/predict/predict_1.yaml",
+          "sha256": "7ed9e5ea665d3eef2b2757bf4b345475c942fd688bd439da3476e8e352070ff8"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed2",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 2,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "2064.544224103389",
+        "tpot_p99_ms": "60.957708188235834",
+        "ttft_mean_ms": "524.7407810931005",
+        "tpot_mean_ms": "37.22479249435316",
+        "output_throughput_tok_s": "1214.6065837597705",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed3:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/predict/out_1/prediction.json",
+      "artifact_sha256": "874bbb1a20e5905c381604dae80ff047ff93fa224153fbe410b634be55b1648a",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/predict/predict_1.yaml",
+          "sha256": "be8b77fa6f7913e77c2e4756e3e42e290d7bf665798bb925df8352966f8850fb"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed3",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 3,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "830.9112356316036",
+        "tpot_p99_ms": "54.000404160784775",
+        "ttft_mean_ms": "407.5588582671251",
+        "tpot_mean_ms": "31.80630848268241",
+        "output_throughput_tok_s": "1184.5004578738383",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed4:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/predict/out_1/prediction.json",
+      "artifact_sha256": "c4aa9acd68f359cb930aa9da44982f74c7958cece35010b831e51c0deeea067a",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/predict/predict_1.yaml",
+          "sha256": "13b17308acdf6b6d1f8a3f97d45a73e4a89c7269c6a61e222cc4d209acf5a7c4"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed4",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 4,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "1004.890341166938",
+        "tpot_p99_ms": "55.797230121569264",
+        "ttft_mean_ms": "415.3604730368558",
+        "tpot_mean_ms": "39.441766104204056",
+        "output_throughput_tok_s": "1253.3178789050382",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed5:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/predict/out_1/prediction.json",
+      "artifact_sha256": "6cbec9ccebaeb4f051612010eb6014e8ddc41467e1b3b00d2074afad16e37d51",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/predict/predict_1.yaml",
+          "sha256": "7c9a992179adce48454343ae617d721ea4eb387f20f0a9d412547f6da1f20c96"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/exp_config.yaml",
+          "sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h100-tp1dp2-r5-seed5",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h100-sxm-80gb",
+        "hardware_model": null,
+        "system": "h100_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 5,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "999.3026506029273",
+        "tpot_p99_ms": "58.93375709019664",
+        "ttft_mean_ms": "434.69068757476913",
+        "tpot_mean_ms": "38.074749495411915",
+        "output_throughput_tok_s": "1261.3523526622848",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed1:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/out_1/prediction.json",
+      "artifact_sha256": "776483a76797822ed816a821bceef9b4b26079adadc801f93a26e928465cd752",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/predict_1.yaml",
+          "sha256": "26aabec72acefcc339fa943f529b0c4e9bb86b965761613224ee6aeaa20875b4"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed1",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 1,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "930.5687098523485",
+        "tpot_p99_ms": "44.95807737647059",
+        "ttft_mean_ms": "391.3098600525476",
+        "tpot_mean_ms": "26.353800115843228",
+        "output_throughput_tok_s": "1331.383844624354",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed2:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/out_1/prediction.json",
+      "artifact_sha256": "2816eb16ceda5381703c07bd1cb070c970f636cf5adea378bc49355174b64b55",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/predict_1.yaml",
+          "sha256": "34f54216f616fdf985298d1c5305dc8a1f3d1bdadafe10ff1b211e308b536a60"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed2",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 2,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "869.4920468822675",
+        "tpot_p99_ms": "43.209455133333414",
+        "ttft_mean_ms": "365.83152703504953",
+        "tpot_mean_ms": "22.289227127984365",
+        "output_throughput_tok_s": "1235.783435363501",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed3:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/out_1/prediction.json",
+      "artifact_sha256": "ffe891c648b3d0b5b797b7150ee967c7ebce70f111b76e6ebe1e37e98673365e",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/predict_1.yaml",
+          "sha256": "4fac0010c9ca9aeedd8c30ba2b20f8a55ce013de09a524f1f80483278311c10b"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed3",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 3,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "767.225608350811",
+        "tpot_p99_ms": "32.30179785098082",
+        "ttft_mean_ms": "366.4874520172625",
+        "tpot_mean_ms": "19.29956496250205",
+        "output_throughput_tok_s": "1204.3844729723905",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed4:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/out_1/prediction.json",
+      "artifact_sha256": "005f314534717d7c2d89215a48d1ee8fa9d8133df61dcde91874ba4384f2f9e9",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/predict_1.yaml",
+          "sha256": "370414022f637d9d08b0acb87d4e348002712b41700ca9bc8d5e9a6787391314"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed4",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 4,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "866.3116121074054",
+        "tpot_p99_ms": "35.86148418823529",
+        "ttft_mean_ms": "361.9032586468048",
+        "tpot_mean_ms": "21.402925128956912",
+        "output_throughput_tok_s": "1269.0855105781786",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4",
+        "身份来自 predict 输入与实际 prediction 输出"
+      ],
+      "metrics_available": {
+        "ttft_p99": true,
+        "tpot_p99": true,
+        "throughput": true,
+        "ttft_mean": true,
+        "tpot_mean": true
+      }
+    },
+    {
+      "evidence_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed5:native:predict_1",
+      "source_kind": "simulated_native",
+      "coverage_level": 3,
+      "coverage_level_key": "simulated_native_p99",
+      "artifact": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/out_1/prediction.json",
+      "artifact_sha256": "bf34fa04d87e046e2c23a79643dcdfb5dd1317be6f88fe6eef678b275521942b",
+      "supporting_artifacts": [
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/predict_1.yaml",
+          "sha256": "0336f574ea1ead17e01a806b899f2390987c84bdc2c16352a12d614860a71a8f"
+        },
+        {
+          "path": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/exp_config.yaml",
+          "sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+        }
+      ],
+      "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed5",
+      "tool_version": "0.12.1",
+      "database_mode": "SILICON",
+      "identity": {
+        "model_name": "Qwen/Qwen3-8B",
+        "model_id": "qwen3-8b",
+        "precision": "bf16",
+        "hardware_id": "nvidia-h200-sxm-141gb",
+        "hardware_model": null,
+        "system": "h200_sxm",
+        "framework": "vllm",
+        "framework_version": "0.24.0",
+        "gpu_count": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "dp_size": 2,
+        "serving_mode": "agg"
+      },
+      "workload": {
+        "input_len": 8192,
+        "output_len": 256,
+        "concurrency": null,
+        "ctx_tokens": null,
+        "arrival_mode": "poisson",
+        "request_rate_rps": "5",
+        "dataset": "synthetic",
+        "seed": 5,
+        "requests": 500
+      },
+      "metrics": {
+        "ttft_p99_ms": "854.2590297111892",
+        "tpot_p99_ms": "35.675425713725375",
+        "ttft_mean_ms": "382.0554767186062",
+        "tpot_mean_ms": "20.754512671576364",
+        "output_throughput_tok_s": "1272.9612253381513",
+        "completed_requests": 500
+      },
+      "sla_usable": true,
+      "sla_blockers": [],
+      "reference_only": false,
+      "notes": [
+        "Z 阶段实时运行归档：data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5",
         "身份来自 predict 输入与实际 prediction 输出"
       ],
       "metrics_available": {
@@ -20866,7 +21931,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -20935,7 +22000,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -21004,7 +22069,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -21073,7 +22138,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -21138,7 +22203,7 @@
         "ctx_tokens": null,
         "arrival_mode": "fixed_concurrency",
         "request_rate_rps": null,
-        "dataset": null,
+        "dataset": "synthetic",
         "seed": null,
         "requests": 500
       },
@@ -24410,7 +25475,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24479,7 +25544,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24548,7 +25613,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24617,7 +25682,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24686,7 +25751,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24755,7 +25820,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24824,7 +25889,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24893,7 +25958,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -24962,7 +26027,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25031,7 +26096,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25100,7 +26165,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25169,7 +26234,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25238,7 +26303,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25307,7 +26372,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25376,7 +26441,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25445,7 +26510,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25514,7 +26579,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25583,7 +26648,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25652,7 +26717,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25721,7 +26786,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25790,7 +26855,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25859,7 +26924,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25928,7 +26993,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -25997,7 +27062,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26066,7 +27131,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26135,7 +27200,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26204,7 +27269,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26273,7 +27338,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26342,7 +27407,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26411,7 +27476,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26480,7 +27545,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26549,7 +27614,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26618,7 +27683,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26653,7 +27718,7 @@
         "tpot_p99_ms": "8.185039370078740157480314961",
         "ttft_mean_ms": "195.35",
         "tpot_mean_ms": "8.185039370078740157480314961",
-        "output_throughput_tok_s": "0.1032",
+        "output_throughput_tok_s": "103.2",
         "completed_requests": 2
       },
       "sla_usable": false,
@@ -26687,7 +27752,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26756,7 +27821,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26825,7 +27890,7 @@
       "coverage_level": null,
       "coverage_level_key": "internal_reference",
       "artifact": "data/local.db",
-      "artifact_sha256": "ea0b4cd818d450d4ebe8d0ca534fd4b688b68660e39633951161c04b3d3f4431",
+      "artifact_sha256": "bde7fee41e961251db2e5375f305a36971c9e4806944544bc5b5336f2e421c01",
       "run_id": null,
       "tool_version": null,
       "database_mode": null,
@@ -26896,17 +27961,21 @@
     "没有目标配置的真实 Benchmark：所有实测型记录都缺身份或属于参考数据"
   ],
   "summary": {
-    "evidence_total": 294,
+    "evidence_total": 309,
     "evidence_by_kind": {
       "measured_internal": 36,
       "measured_public": 14,
-      "simulated_native": 85,
+      "simulated_native": 100,
       "simulated_scan": 159
     },
+    "native_evidence_runs": 100,
+    "native_unique_workpoints": 79,
+    "simulated_scan_runs": 159,
+    "measured_benchmark_runs": 0,
     "evidence_by_level": {
       "static_only": 0,
       "simulated_scan_only": 159,
-      "simulated_native_p99": 85,
+      "simulated_native_p99": 100,
       "measured_benchmark": 0
     },
     "workpoints_total": 147,

@@ -27,6 +27,10 @@ def p99(values: list[float]) -> float | None:
     return ordered[index]
 
 
+def fmt(value: float | None) -> str:
+    return "unknown" if value is None else f"{value:.2f}"
+
+
 def load_run(case_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     prediction = json.loads((case_dir / "prediction.json").read_text(encoding="utf-8"))
     requests = [
@@ -43,6 +47,7 @@ def analyse(name: str, case_dir: Path) -> dict[str, Any]:
     ttfts = [float(r["ttft_ms"]) for r in requests if r.get("ttft_ms") is not None]
     tpots: list[float] = []
     queue_waits: list[float] = []
+    queue_wait_missing = 0
     statuses: dict[str, int] = {}
     for request in requests:
         output_len = int(request.get("output_length") or 0)
@@ -51,10 +56,15 @@ def analyse(name: str, case_dir: Path) -> dict[str, Any]:
         if output_len > 1 and first is not None and last is not None:
             tpots.append((float(last) - float(first)) / (output_len - 1))
         waits = [
-            float(item.get("queue_wait_ms") or 0.0)
+            float(item["queue_wait_ms"])
             for item in request.get("routing_history") or []
+            if item.get("queue_wait_ms") is not None
         ]
-        queue_waits.append(max(waits) if waits else 0.0)
+        if waits:
+            queue_waits.append(max(waits))
+        else:
+            # 缺失不是 0：没有 routing 采样时保持 unknown。
+            queue_wait_missing += 1
         status = str(request.get("terminal_status") or "unknown")
         statuses[status] = statuses.get(status, 0) + 1
     half = len(requests) // 2
@@ -69,6 +79,8 @@ def analyse(name: str, case_dir: Path) -> dict[str, Any]:
         "p99_tpot_ms_all": p99(tpots),
         "p99_queue_wait_ms": p99(queue_waits),
         "max_queue_wait_ms": max(queue_waits) if queue_waits else None,
+        "queue_wait_available_requests": len(queue_waits),
+        "queue_wait_missing_requests": queue_wait_missing,
         "p99_ttft_first_half": p99(
             [float(r["ttft_ms"]) for r in first_half if r.get("ttft_ms") is not None]
         ),
@@ -105,9 +117,14 @@ def main() -> int:
     ]
     for case in cases:
         lines.append(
-            f"| {case['case_id']} | {case['completed']} | {case['p99_ttft_ms_all']:.2f} "
-            f"| {case['p99_tpot_ms_all']:.2f} | {case['p99_queue_wait_ms']:.2f} "
-            f"| {case['p99_ttft_first_half']:.2f} | {case['p99_ttft_second_half']:.2f} |"
+            f"| {case['case_id']} | {case['completed']} "
+            f"| {fmt(case['p99_ttft_ms_all'])} "
+            f"| {fmt(case['p99_tpot_ms_all'])} "
+            f"| {fmt(case['p99_queue_wait_ms'])} "
+            f"（{case['queue_wait_available_requests']} 请求；"
+            f"缺 {case['queue_wait_missing_requests']}） "
+            f"| {fmt(case['p99_ttft_first_half'])} "
+            f"| {fmt(case['p99_ttft_second_half'])} |"
         )
     lines.extend(
         [
@@ -119,7 +136,8 @@ def main() -> int:
             "| 每请求到达/首 token/末 token 时间 | 可用 | `arrival_time_ms` / "
             "`first_token_ms` / `last_token_ms` |",
             "| 每请求 TTFT / E2E | 可用 | `ttft_ms` / `e2e_latency_ms` |",
-            "| 每请求路由队列等待 | 可用 | `routing_history[].queue_wait_ms` |",
+            "| 每请求路由队列等待 | 可用（逐请求） | `routing_history[].queue_wait_ms`；"
+        "缺失保持 unknown |",
             "| 每请求终止状态 | 可用 | `terminal_status` 计数 |",
             "| 队列长度/等待请求数时间序列 | **不可用** | 工具只给单请求路由等待，"
             "没有全局队列采样 |",

@@ -30,7 +30,7 @@ SLA **默认只接受 `exact_match`**（模型 revision、精度、硬件、卡�
 > 按任务书 §6「敏感价格文件建议不入 Git」未纳入版本库。克隆后请先把该文件放到
 > `data/raw/`，否则第 3 步会报缺文件。实测（缺该文件时的行为）：
 >
-> - `pytest` → **`105 passed, 95 skipped`**（依赖 Excel 的用例自动 skip，不会误报失败）；
+> - `pytest` → **`1157 passed`**（可选依赖缺失时个别用例自动 skip，不会误报失败）；
 > - `import-excel` 报缺文件并返回非零；`validate-import` 如实报 `校验项: 20，通过 17，失败 3`
 >   （三项分别是 GPU 价格 2 行、模型价格 3 行、效能 32 行的计数不符，这正是"缺数据就说缺数据"）；
 > - 不依赖 Excel 的部分仍可完整运行：`init-db`、`import-sglang`、`import-vllm`、
@@ -387,7 +387,9 @@ GPU 独立匹配证据，不跨硬件复用 P99：
 | Qwen3-8B / bf16 / vLLM 0.24.0 | H100 SXM | TP1×DP1/DP2/DP4 | 同上 |
 | 同上 | H200 SXM | TP1×DP1/DP2 | 同上 |
 
-当前覆盖矩阵为 **79 个 SLA 可用工作点**、85 条原生证据、0 条真实实测。
+当前覆盖矩阵为 **79 个 SLA 可用工作点**、**100 次原生模拟运行**
+（85 条基础证据 + 15 条 AF 多 seed 运行；同一工作点的多 seed 不增加独立工作点数）、
+0 条真实实测。
 不做插值；没有原生证据的组合只给静态结论。DP 副本使用整部署预测，
 不用单副本吞吐乘倍数；固定并发与 Poisson 到达分别建模，不合并排名。
 
@@ -415,7 +417,12 @@ GPU 独立匹配证据，不跨硬件复用 P99：
   [`docs/af_phase_validation.md`](docs/af_phase_validation.md)、
   [`docs/af_reproducibility.md`](docs/af_reproducibility.md)、
   [`docs/af_load_stability.md`](docs/af_load_stability.md)、
-  [`docs/af_real_gpu_validation.md`](docs/af_real_gpu_validation.md)。
+  [`docs/af_real_gpu_validation.md`](docs/af_real_gpu_validation.md)；
+  AG 实验完整性与 Benchmark 准备见
+  [`docs/ag_phase_validation.md`](docs/ag_phase_validation.md)、
+  [`docs/ag_experiment_contract.md`](docs/ag_experiment_contract.md)、
+  [`docs/ag_load_analysis.md`](docs/ag_load_analysis.md)、
+  [`docs/ag_benchmark_pipeline.md`](docs/ag_benchmark_pipeline.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -758,6 +765,12 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/af_reproducibility.md`](docs/af_reproducibility.md) | **AF1** 三组工作点 × 5 seed 的运行级重复性报告（自动生成） |
 | [`docs/af_load_stability.md`](docs/af_load_stability.md) | **AF3** 有限窗口队列/尾延迟能力矩阵与结果（自动生成） |
 | [`docs/af_real_gpu_validation.md`](docs/af_real_gpu_validation.md) | **AF5** 真实 GPU 验证条件化门禁（当前未执行） |
+| [`docs/ag_phase_validation.md`](docs/ag_phase_validation.md) | **AG0–AG8** 实验完整性、负载证据与 Benchmark 导入闭环验收 |
+| [`docs/ag_experiment_contract.md`](docs/ag_experiment_contract.md) | **AG1/AG2** 实验清单、预期 seed 与两层状态 |
+| [`docs/ag_load_analysis.md`](docs/ag_load_analysis.md) | **AG3** 有限窗口负载与队列来源分析（自动生成） |
+| [`docs/ag_benchmark_pipeline.md`](docs/ag_benchmark_pipeline.md) | **AG4** Benchmark 导入校验与无 GPU 夹具回归 |
+| [`docs/ag_calibration_report.md`](docs/ag_calibration_report.md) | **AG6** 真实误差 unknown 与夹具链路状态（自动生成） |
+| [`docs/ag_real_gpu_validation_plan.md`](docs/ag_real_gpu_validation_plan.md) | **AG5** 真实 GPU 对照验证计划（条件任务，未执行） |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

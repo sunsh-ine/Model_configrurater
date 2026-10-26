@@ -1465,6 +1465,8 @@ def _simulate(
             archive["native_input"] = str(config.external_config)
 
     try:
+        from llm_capacity_pricing.perf.experiment_audit import load_manifests
+
         result = load_archived(
             sweeper_csv=archive["sweeper_csv"],
             native_prediction=archive["native_prediction"],
@@ -1478,6 +1480,7 @@ def _simulate(
             target=target,
             top_n=config.top_n,
             archives=config.archives,
+            experiment_manifests=load_manifests(),
         )
     except (ValueError, FileNotFoundError, OSError) as exc:
         # 归档缺失/格式不对属于输入问题：报出来，但不动其它领域

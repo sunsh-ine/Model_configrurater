@@ -836,6 +836,24 @@ def sim_html(sim: Any) -> str:
                     num(candidate.metrics.sim_p99_tpot_ms),
                     f"{num(candidate.sla_margin_ttft_ms)} / {num(candidate.sla_margin_tpot_ms)}",
                     verdict + " " + chip(status_kind, status_text),
+                    {
+                        "complete": "完整",
+                        "incomplete": "不完整",
+                        "invalid": "无效",
+                        None: "—",
+                    }.get(
+                        getattr(candidate, "experiment_completeness", None),
+                        str(getattr(candidate, "experiment_completeness", "—")),
+                    ),
+                    {
+                        "usable": "可用",
+                        "fixture_only": "仅夹具",
+                        "unknown": "unknown",
+                        "not_available": "无匹配实测",
+                    }.get(
+                        getattr(candidate, "calibration_status", "unknown"),
+                        "unknown",
+                    ),
                 ]
             )
         parts.append(
@@ -848,6 +866,8 @@ def sim_html(sim: Any) -> str:
                     "TPOT P99 ms",
                     "SLA 裕量 ms",
                     "证据状态",
+                    "实验完整性",
+                    "校准",
                 ],
                 rows,
                 numeric=(1, 2, 3, 4, 5),

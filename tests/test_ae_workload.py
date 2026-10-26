@@ -239,7 +239,12 @@ def test_multi_seed_reliability_is_exposed(tmp_path):
     assert sim is not None
     reliability = sim.reliability()
     assert len(reliability) == 1
+    # AF 归档中的 seed42 被清单明确排除，不参与本实验聚合。
     assert reliability[0]["status"] == "mixed"
+    assert reliability[0]["experiment_completeness"] == "complete"
+    assert reliability[0]["experiment_expected_runs"] == 5
+    assert reliability[0]["experiment_found_runs"] == 5
+    assert reliability[0]["experiment_unexpected_runs"] == 0
     assert reliability[0]["runs"] >= 5
     assert reliability[0]["pass_count"] >= 1
     assert reliability[0]["pass_count"] < reliability[0]["runs"]

@@ -16,6 +16,11 @@ from llm_capacity_pricing.app.archive_integrity import (
     verify_predict_metadata,
 )
 from llm_capacity_pricing.app.offline_archives import find_archives
+from llm_capacity_pricing.perf.experiment_audit import (
+    archive_matches_manifest,
+    load_manifests,
+    run_evidence_problems,
+)
 from llm_capacity_pricing.perf.sla_gate import (
     aggregate_run_verdicts,
     evaluate_p99_gate,
@@ -40,6 +45,7 @@ def main() -> int:
     parser.add_argument("--md-out", default="docs/ad_capacity.md")
     args = parser.parse_args()
 
+    manifests = load_manifests()
     points = []
     for concurrency in sorted(set(args.concurrency)):
         entries = find_archives(
@@ -59,7 +65,7 @@ def main() -> int:
         entries = [
             entry
             for entry in entries
-            if entry.dp_size == args.dp and entry.pp_size in (None, 1)
+            if entry.dp_size == args.dp and entry.pp_size == 1
         ]
         if not entries:
             points.append(
@@ -103,6 +109,37 @@ def main() -> int:
             )
             continue
         entries = next(iter(workloads.values()))
+        matching = [
+            manifest
+            for manifest in manifests
+            if entries and archive_matches_manifest(entries[0], manifest)
+        ]
+        if len(matching) > 1:
+            points.append(
+                {
+                    "concurrency": concurrency,
+                    "status": "unknown",
+                    "reason": "同一工作点匹配到多份实验清单，无法唯一归属",
+                }
+            )
+            continue
+        matching_manifest = matching[0] if matching else None
+        expected_seeds = (
+            set(matching_manifest.expected_seeds)
+            if matching_manifest is not None
+            else None
+        )
+        required_completed = (
+            matching_manifest.required_completed_requests
+            if matching_manifest is not None
+            else MIN_COMPLETED
+        )
+        if matching_manifest is not None and matching_manifest.out_of_scope_seeds:
+            entries = [
+                entry
+                for entry in entries
+                if entry.seed not in matching_manifest.out_of_scope_seeds
+            ]
         run_results = []
         for entry in entries:
             prediction_path = ROOT / entry.native_prediction
@@ -151,18 +188,35 @@ def main() -> int:
                     }
                 )
                 continue
+            if matching_manifest is not None:
+                planned = {
+                    run.seed: run for run in matching_manifest.runs
+                }.get(entry.seed)
+                hash_problems = run_evidence_problems(
+                    entry, prediction_path, planned
+                )
+                if hash_problems:
+                    run_results.append(
+                        {
+                            "status": "unknown",
+                            "reason": "；".join(hash_problems),
+                            "seed": entry.seed,
+                            "archive": entry.native_prediction,
+                        }
+                    )
+                    continue
             completed = prediction.get("completed_requests")
             try:
                 completed_count = int(completed) if completed is not None else None
             except (TypeError, ValueError):
                 completed_count = None
-            if completed_count is None or completed_count < MIN_COMPLETED:
+            if completed_count is None or completed_count < required_completed:
                 run_results.append(
                     {
                         "status": "unknown",
                         "reason": (
                             f"实际完成请求数不足或未知：{completed}"
-                            f"（需要 >= {MIN_COMPLETED}）"
+                            f"（需要 >= {required_completed}）"
                         ),
                         "seed": entry.seed,
                         "archive": entry.native_prediction,
@@ -227,6 +281,26 @@ def main() -> int:
                 }
             )
             continue
+        if expected_seeds is not None:
+            found_seeds = {
+                run.get("seed")
+                for run in run_results
+                if run.get("seed") is not None
+            }
+            if found_seeds != expected_seeds:
+                points.append(
+                    {
+                        "concurrency": concurrency,
+                        "status": "unknown",
+                        "reason": (
+                            "实验清单不完整：预期 "
+                            f"{sorted(expected_seeds)}，实际 {sorted(found_seeds)}"
+                        ),
+                        "expected_runs": len(expected_seeds),
+                        "found_runs": len(found_seeds),
+                    }
+                )
+                continue
         status, pass_count = aggregate_run_verdicts(
             [run["status"] for run in run_results]
         )

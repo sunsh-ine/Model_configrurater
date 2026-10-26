@@ -1,13 +1,14 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "sla": {
     "ttft_p99_ms_max": "6000",
     "tpot_p99_ms_max": "40"
   },
-  "note": "运行级统计；多次运行的 P99 平均值不等于合并请求样本后的 P99。这是模拟预测波动，不是真实模型误差。",
+  "note": "运行级统计；预期 seed 来自冻结实验清单，缺失即 incomplete。多次运行的 P99 平均值不等于合并请求样本后的 P99；这是模拟预测波动，不是真实模型误差。",
   "groups": [
     {
       "group_id": "8b_h100_dp2_r4",
+      "experiment_id": null,
       "model_id": "qwen3-8b",
       "hardware_id": "nvidia-h100-sxm-80gb",
       "tp": 1,
@@ -29,7 +30,10 @@
           "tpot_p99_ms": 38.83071331372553,
           "output_throughput_tok_s": 1066.3704155413143,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/out_1/prediction.json",
+          "archive_sha256": "3f2ff4165f040d739839596336928a6ce835e3b443801cd58c752b71269af936",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 2,
@@ -38,7 +42,10 @@
           "tpot_p99_ms": 37.2099887568628,
           "output_throughput_tok_s": 989.8542781751028,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/out_1/prediction.json",
+          "archive_sha256": "431336c3f6ad2bc97dc316bb727649c7b280ef5168f60635b9e6c11d9cf26fa3",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 3,
@@ -47,7 +54,10 @@
           "tpot_p99_ms": 30.413994062745797,
           "output_throughput_tok_s": 965.258138320972,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/out_1/prediction.json",
+          "archive_sha256": "e069e2c9c8f7b0fd1fcf4d861712aeb50581456d16294dde524d885e5c20db49",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 4,
@@ -56,7 +66,10 @@
           "tpot_p99_ms": 34.11748661960771,
           "output_throughput_tok_s": 1016.6401206096307,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/out_1/prediction.json",
+          "archive_sha256": "1e6f95d18b5aea7b69170fd03d40dff04ca3cda893f304402d2c0cf7f167448b",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 5,
@@ -65,11 +78,14 @@
           "tpot_p99_ms": 34.5578661843134,
           "output_throughput_tok_s": 1018.9233272202802,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/out_1/prediction.json",
+          "archive_sha256": "0d5cf7a5b7549a7a09102692e126843ada71ac007f79d80a5fede888aba110a4",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         }
       ],
+      "expected_run_count": 5,
       "run_count": 5,
-      "requested_run_count": 5,
       "missing_run_count": 0,
       "pass_count": 5,
       "fail_count": 0,
@@ -86,6 +102,7 @@
     },
     {
       "group_id": "8b_h100_dp2_r5",
+      "experiment_id": null,
       "model_id": "qwen3-8b",
       "hardware_id": "nvidia-h100-sxm-80gb",
       "tp": 1,
@@ -107,7 +124,10 @@
           "tpot_p99_ms": 62.01753506274547,
           "output_throughput_tok_s": 1311.151813794986,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/predict/out_1/prediction.json",
+          "archive_sha256": "7121358d3198dc46c97944c24604bc1f1e5a67c75079618776f9190646b5c058",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 2,
@@ -116,7 +136,10 @@
           "tpot_p99_ms": 60.957708188235834,
           "output_throughput_tok_s": 1214.6065837597705,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/predict/out_1/prediction.json",
+          "archive_sha256": "444b45d337c70e8e82ed059dd86c81b3b472e9b3a62cd07aa3f3fed16a7aac4b",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 3,
@@ -125,7 +148,10 @@
           "tpot_p99_ms": 54.000404160784775,
           "output_throughput_tok_s": 1184.5004578738383,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/predict/out_1/prediction.json",
+          "archive_sha256": "874bbb1a20e5905c381604dae80ff047ff93fa224153fbe410b634be55b1648a",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 4,
@@ -134,7 +160,10 @@
           "tpot_p99_ms": 55.797230121569264,
           "output_throughput_tok_s": 1253.3178789050382,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/predict/out_1/prediction.json",
+          "archive_sha256": "c4aa9acd68f359cb930aa9da44982f74c7958cece35010b831e51c0deeea067a",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         },
         {
           "seed": 5,
@@ -143,11 +172,14 @@
           "tpot_p99_ms": 58.93375709019664,
           "output_throughput_tok_s": 1261.3523526622848,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/predict/out_1/prediction.json",
+          "archive_sha256": "6cbec9ccebaeb4f051612010eb6014e8ddc41467e1b3b00d2074afad16e37d51",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/exp_config.yaml",
+          "config_sha256": "c2ab3c703b3b36c8b785b61cf8fe39877c7d2a0a5df8ccb80f70e9c2ffdce7d8"
         }
       ],
+      "expected_run_count": 5,
       "run_count": 5,
-      "requested_run_count": 5,
       "missing_run_count": 0,
       "pass_count": 0,
       "fail_count": 5,
@@ -164,6 +196,7 @@
     },
     {
       "group_id": "8b_h200_dp2_r5",
+      "experiment_id": null,
       "model_id": "qwen3-8b",
       "hardware_id": "nvidia-h200-sxm-141gb",
       "tp": 1,
@@ -185,7 +218,10 @@
           "tpot_p99_ms": 44.95807737647059,
           "output_throughput_tok_s": 1331.383844624354,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/out_1/prediction.json",
+          "archive_sha256": "776483a76797822ed816a821bceef9b4b26079adadc801f93a26e928465cd752",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/exp_config.yaml",
+          "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
         },
         {
           "seed": 2,
@@ -194,7 +230,10 @@
           "tpot_p99_ms": 43.209455133333414,
           "output_throughput_tok_s": 1235.783435363501,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/out_1/prediction.json",
+          "archive_sha256": "2816eb16ceda5381703c07bd1cb070c970f636cf5adea378bc49355174b64b55",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/exp_config.yaml",
+          "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
         },
         {
           "seed": 3,
@@ -203,7 +242,10 @@
           "tpot_p99_ms": 32.30179785098082,
           "output_throughput_tok_s": 1204.3844729723905,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/out_1/prediction.json",
+          "archive_sha256": "ffe891c648b3d0b5b797b7150ee967c7ebce70f111b76e6ebe1e37e98673365e",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/exp_config.yaml",
+          "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
         },
         {
           "seed": 4,
@@ -212,7 +254,10 @@
           "tpot_p99_ms": 35.86148418823529,
           "output_throughput_tok_s": 1269.0855105781786,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/out_1/prediction.json",
+          "archive_sha256": "005f314534717d7c2d89215a48d1ee8fa9d8133df61dcde91874ba4384f2f9e9",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/exp_config.yaml",
+          "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
         },
         {
           "seed": 5,
@@ -221,11 +266,14 @@
           "tpot_p99_ms": 35.675425713725375,
           "output_throughput_tok_s": 1272.9612253381513,
           "completed_requests": 500,
-          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/out_1/prediction.json"
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/out_1/prediction.json",
+          "archive_sha256": "bf34fa04d87e046e2c23a79643dcdfb5dd1317be6f88fe6eef678b275521942b",
+          "config_file": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/exp_config.yaml",
+          "config_sha256": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
         }
       ],
+      "expected_run_count": 5,
       "run_count": 5,
-      "requested_run_count": 5,
       "missing_run_count": 0,
       "pass_count": 3,
       "fail_count": 2,

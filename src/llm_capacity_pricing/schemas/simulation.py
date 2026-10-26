@@ -242,15 +242,32 @@ class SimulationCandidate(BaseModel):
     #: 原始证据（保存的输出文件），用于回溯到具体一行
     source_file: str | None = None
     source_sha256: str | None = None
+    source_config_file: str | None = None
+    source_config_sha256: str | None = None
     source_row: int | None = None
     #: 该候选自己的证据来源（多硬件/多归档时不能只看全局 tool）
     source_tool_version: str | None = None
     source_database_mode: str | None = None
     source_database_mode_source: DatabaseModeSource = "unknown"
-    #: AF2：同一工作点多次 seed 运行的重复性状态
+    #: AF2/AG2：同一工作点多次 seed 运行的重复性状态
     repeatability_status: str | None = None
     repeatability_runs: int | None = None
     repeatability_pass_count: int | None = None
+    #: AG2：实验完整性（预期运行是否齐全、是否都有可用 P99 与足够请求数）
+    experiment_completeness: str | None = None
+    experiment_expected_runs: int | None = None
+    experiment_found_runs: int | None = None
+    experiment_valid_runs: int | None = None
+    experiment_incomplete_runs: int | None = None
+    experiment_unexpected_runs: int | None = None
+    #: P99 是否有最低样本支撑（与“完整重复实验”是两个独立门槛）
+    p99_statistically_evaluable: bool | None = None
+    #: AG7：该候选是否已有匹配实测；没有时误差保持 unknown
+    calibration_status: str = "unknown"
+    calibration_note: str | None = None
+    calibration_ttft_relative_error: Decimal | None = None
+    calibration_tpot_relative_error: Decimal | None = None
+    calibration_throughput_relative_error: Decimal | None = None
     # ---- AB3：决策质量（不改变 verdict）----
     sla_margin_ttft_ms: Decimal | None = None
     sla_margin_tpot_ms: Decimal | None = None
@@ -313,6 +330,7 @@ def repeatability_group_key(candidate: SimulationCandidate) -> tuple[Any, ...]:
         deployment.cp_size,
         deployment.replicas,
         deployment.gpus_per_worker,
+        candidate.source_tool_version,
         workload.input_len,
         workload.output_len,
         workload.concurrency,
@@ -398,6 +416,13 @@ class SimulationResult(BaseModel):
             reasons.append(
                 f"多 seed 重复性未判定：{pass_text}"
                 f"{candidate.repeatability_runs} 次运行有证据冲突或缺 P99"
+            )
+        if candidate.experiment_completeness in ("incomplete", "invalid", "excluded"):
+            reasons.append(
+                "实验清单不完整："
+                f"预期 {candidate.experiment_expected_runs if candidate.experiment_expected_runs is not None else '未知'} 次、"
+                f"发现 {candidate.experiment_found_runs if candidate.experiment_found_runs is not None else '未知'} 次、"
+                f"有效 {candidate.experiment_valid_runs if candidate.experiment_valid_runs is not None else '未知'} 次"
             )
         return reasons
 
@@ -531,6 +556,13 @@ class SimulationResult(BaseModel):
                 "request_rate_rps": candidates[0].workload.request_rate_rps,
                 "dataset": candidates[0].workload.dataset,
                 "num_requests": candidates[0].workload.num_requests,
+                "experiment_completeness": candidates[0].experiment_completeness,
+                "experiment_expected_runs": candidates[0].experiment_expected_runs,
+                "experiment_found_runs": candidates[0].experiment_found_runs,
+                "experiment_valid_runs": candidates[0].experiment_valid_runs,
+                "experiment_incomplete_runs": candidates[0].experiment_incomplete_runs,
+                "experiment_unexpected_runs": candidates[0].experiment_unexpected_runs,
+                "calibration_status": candidates[0].calibration_status,
                 "stop_condition": candidates[0].workload.stop_condition,
             }
             for candidates in groups.values()

@@ -1,0 +1,38 @@
+format_version: sglang-bench-serving-jsonl/v1.per_request
+evidence_id: ag-fixture-bench-h200-tp1dp2-c32
+record_id: ag-fixture-bench-h200-tp1dp2-c32
+model_id: qwen3-8b
+model_name: Qwen/Qwen3-8B
+model_revision: fixture-rev-001
+weight_precision: bf16
+kv_precision: bf16
+hardware_id: nvidia-h200-sxm-141gb
+hardware_model: NVIDIA H200 SXM
+deployment_gpu_count: 2
+framework: sglang
+framework_version: 0.5.6
+tp_size: 1
+dp_size: 2
+pp_size: 1
+dataset_name: synthetic
+configured_max_concurrency: 32
+arrival_mode: fixed_concurrency
+input_len: 8192
+output_len: 256
+performance_source_kind: synthetic_fixture
+client_tool: openai-compatible streaming client
+client_events:
+  start: request_sent
+  first_token: first_stream_chunk_with_content
+  last_token: stream_end
+  tpot: (last_token - first_token)/(output_tokens-1); not ITL pool
+metric_definitions:
+  ttft_p99_ms: m.latency.ttft.p99
+  tpot_p99_ms: m.latency.tpot.p99
+  output_throughput_tok_s: m.throughput.cluster.output
+evidence:
+  source_file: requests.jsonl
+  source_sha256: d30d644317bafa7679f7bc810f7788a87f8a6b8ddce71a3e4016e997585455fb
+  collected_at: '2026-10-26T00:00:00Z'
+  operator: fixture
+frozen_identity_sha256: d93e07995255d7d418bf47b79b56a05d4e0e1b2e28b0c9b34f0ea8c20a78a8a5

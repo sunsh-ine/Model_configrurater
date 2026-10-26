@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "real_benchmark": {
+    "measured_benchmark_runs": 0,
+    "calibration_status": "unknown",
+    "note": "没有目标配置的真实 GPU Benchmark；不得计算真实预测误差。"
+  },
+  "fixture_pipeline": {
+    "calibration_status": "fixture_only",
+    "matched": true,
+    "calibration_usable": false,
+    "errors": {
+      "ttft_p99_ms": {
+        "predicted": 237.0,
+        "measured": "237.0",
+        "absolute": "0.0",
+        "relative": "0"
+      },
+      "tpot_p99_ms": {
+        "predicted": 11.653543307086615,
+        "measured": "11.65354330708661417322834646",
+        "absolute": "8.2677165354E-16",
+        "relative": "7.094594594566216216216216214E-17"
+      },
+      "output_throughput_tok_s": {
+        "predicted": 1114.5578231292518,
+        "measured": "1114.557823129251700680272109",
+        "absolute": "9.9319727891E-14",
+        "relative": "8.911132812485961914062499999E-17"
+      }
+    },
+    "note": "synthetic_fixture 只验证导入与误差计算链路，不进入校准库。"
+  },
+  "simulation_uncertainty": {
+    "groups": [
+      {
+        "group_id": "8b_h100_dp2_r4",
+        "repeatability_status": "all_pass",
+        "ttft_p99_min": 725.1078902899171,
+        "ttft_p99_max": 835.1924819288397,
+        "tpot_p99_min": 30.413994062745797,
+        "tpot_p99_max": 38.83071331372553,
+        "note": "模拟不确定度，不是实测误差"
+      },
+      {
+        "group_id": "8b_h100_dp2_r5",
+        "repeatability_status": "all_fail",
+        "ttft_p99_min": 830.9112356316036,
+        "ttft_p99_max": 3639.2665278809727,
+        "tpot_p99_min": 54.000404160784775,
+        "tpot_p99_max": 62.01753506274547,
+        "note": "模拟不确定度，不是实测误差"
+      },
+      {
+        "group_id": "8b_h200_dp2_r5",
+        "repeatability_status": "mixed",
+        "ttft_p99_min": 767.225608350811,
+        "ttft_p99_max": 930.5687098523485,
+        "tpot_p99_min": 32.30179785098082,
+        "tpot_p99_max": 44.95807737647059,
+        "note": "模拟不确定度，不是实测误差"
+      }
+    ],
+    "note": "多 seed 范围是模拟预测波动；不能当作真实模型误差，也不能据 5 次运行推算真实达标概率。"
+  }
+}

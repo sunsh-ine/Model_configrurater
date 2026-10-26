@@ -275,10 +275,45 @@ def test_two_distinct_seeds_create_repeatability_evidence():
             tpot_p99_ms_max=Decimal("40"),
         ),
     )
-    statuses = {c.repeatability_status for c in result.candidates}
-    assert statuses <= {"all_pass", "all_fail", "mixed"}
-    assert None not in statuses
-    assert all(c.repeatability_runs == 2 for c in result.candidates)
+    # 没有实验清单时，多 seed 只能证明“找到的两次”，不能声称完整实验。
+    assert all(c.repeatability_status == "incomplete" for c in result.candidates)
+    assert all(c.experiment_completeness == "incomplete" for c in result.candidates)
+
+
+def test_complete_two_seed_manifest_yields_a_complete_classification():
+    from decimal import Decimal
+
+    from llm_capacity_pricing.perf.aisimulate_adapter import (
+        SimulationTarget,
+        load_archived,
+    )
+    from llm_capacity_pricing.perf.experiment_audit import load_manifests
+
+    base = next(
+        item
+        for item in load_manifests()
+        if item.experiment_id == "af-8b-h200-dp2-r5"
+    )
+    manifest = base.model_copy(
+        update={
+            "expected_seeds": [1, 2],
+            "runs": [run for run in base.runs if run.seed in (1, 2)],
+        }
+    )
+    result = load_archived(
+        archives=[_af_archive_spec(1), _af_archive_spec(2)],
+        target=SimulationTarget(
+            ttft_p99_ms_max=Decimal("6000"),
+            tpot_p99_ms_max=Decimal("40"),
+        ),
+        experiment_manifests=[manifest],
+    )
+    assert all(c.experiment_completeness == "complete" for c in result.candidates)
+    assert {c.repeatability_status for c in result.candidates} <= {
+        "all_pass",
+        "all_fail",
+        "mixed",
+    }
 
 
 def test_reliability_groups_different_request_counts_separately():
