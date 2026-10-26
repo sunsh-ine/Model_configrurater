@@ -213,3 +213,40 @@ def test_trace_identity_must_match():
     check_comparability(candidate, target)
     assert candidate.comparable is False
     assert any("trace 标识不同" in item for item in candidate.comparability_reasons)
+
+
+def test_multi_seed_reliability_is_exposed(tmp_path):
+    from decimal import Decimal
+
+    from llm_capacity_pricing.app.demo_service import DemoInputs, run_demo
+
+    outcome = run_demo(
+        DemoInputs(
+            model_id="qwen3-8b",
+            hardware_id="nvidia-h200-sxm-141gb",
+            gpu_count=2,
+            tp_sizes=(1,),
+            concurrency=32,
+            arrival_mode="poisson",
+            request_rate_rps=Decimal("5"),
+            ttft_p99_ms_max=Decimal("6000"),
+            tpot_p99_ms_max=Decimal("40"),
+        ),
+        out_dir=tmp_path / "multi-seed",
+        write_files=False,
+    )
+    sim = outcome.result.simulation
+    assert sim is not None
+    reliability = sim.reliability()
+    assert len(reliability) == 1
+    assert reliability[0]["status"] == "mixed"
+    assert reliability[0]["runs"] >= 5
+    assert reliability[0]["pass_count"] >= 1
+    assert reliability[0]["pass_count"] < reliability[0]["runs"]
+    assert reliability[0]["system"] == "h200_sxm"
+    assert reliability[0]["arrival_mode"] == "poisson"
+    assert reliability[0]["request_rate_rps"] == Decimal("5")
+    assert reliability[0]["dataset"]
+    assert "多 seed 重复性" in outcome.technical_md
+    assert "工作点" in outcome.technical_md
+    assert "证据分层" in outcome.technical_md

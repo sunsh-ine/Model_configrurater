@@ -16,8 +16,13 @@ from llm_capacity_pricing.app.archive_integrity import (
     verify_predict_metadata,
 )
 from llm_capacity_pricing.app.offline_archives import find_archives
+from llm_capacity_pricing.perf.sla_gate import (
+    aggregate_run_verdicts,
+    evaluate_p99_gate,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
+MIN_COMPLETED = 500
 
 
 def main() -> int:
@@ -48,6 +53,8 @@ def main() -> int:
             framework_version="0.24.0",
             gpu_limit=None,
             tp_sizes=(args.tp,),
+            arrival_mode="fixed_concurrency",
+            min_requests=0,
         )
         entries = [
             entry
@@ -63,63 +70,230 @@ def main() -> int:
                 }
             )
             continue
-        entry = entries[0]
-        prediction_path = ROOT / entry.native_prediction
-        try:
-            run_dir = prediction_path.parents[2]
-            manifest = json.loads(
-                (run_dir / "manifest.json").read_text(encoding="utf-8")
+        workloads: dict[tuple[Any, ...], list[Any]] = {}
+        for entry in entries:
+            key = (
+                entry.model_name,
+                entry.system,
+                entry.precision,
+                entry.backend,
+                entry.backend_version,
+                entry.gpu_count,
+                entry.tp_size,
+                entry.pp_size,
+                entry.dp_size,
+                entry.arrival_mode,
+                entry.request_rate_rps,
+                entry.dataset,
+                entry.requests,
+                entry.trace_id,
             )
-            rel_pred = str(prediction_path.relative_to(run_dir))
-            index = prediction_path.parent.name.rsplit("_", 1)[-1]
-            rel_input = f"predict/predict_{index}.yaml"
-        except Exception:
+            workloads.setdefault(key, []).append(entry)
+        if len(workloads) > 1:
             points.append(
                 {
                     "concurrency": concurrency,
                     "status": "unknown",
-                    "reason": "无法定位归档 manifest，不能验证预测来源",
+                    "reason": (
+                        "同一并发点存在多个不同部署/负载身份，不能合并为重复运行"
+                        "不能合并为重复运行"
+                    ),
+                    "variants": len(workloads),
                 }
             )
             continue
-        problems = verify_files(run_dir, manifest, [rel_input, rel_pred])
-        if not problems:
-            problems.extend(verify_predict_metadata(run_dir, manifest, rel_input))
-        if problems:
-            points.append(
-                {
-                    "concurrency": concurrency,
-                    "status": "unknown",
-                    "reason": "归档完整性/元数据校验失败：" + "；".join(problems),
-                }
+        entries = next(iter(workloads.values()))
+        run_results = []
+        for entry in entries:
+            prediction_path = ROOT / entry.native_prediction
+            try:
+                run_dir = prediction_path.parents[2]
+                manifest = json.loads(
+                    (run_dir / "manifest.json").read_text(encoding="utf-8")
+                )
+                rel_pred = str(prediction_path.relative_to(run_dir))
+                index = prediction_path.parent.name.rsplit("_", 1)[-1]
+                rel_input = f"predict/predict_{index}.yaml"
+            except Exception:
+                run_results.append(
+                    {
+                        "status": "unknown",
+                        "reason": "无法定位归档 manifest，不能验证预测来源",
+                        "seed": entry.seed,
+                        "archive": entry.native_prediction,
+                    }
+                )
+                continue
+            problems = verify_files(run_dir, manifest, [rel_input, rel_pred])
+            if not problems:
+                problems.extend(verify_predict_metadata(run_dir, manifest, rel_input))
+            if problems:
+                run_results.append(
+                    {
+                        "status": "unknown",
+                        "reason": "归档完整性/元数据校验失败：" + "；".join(problems),
+                        "seed": entry.seed,
+                        "archive": entry.native_prediction,
+                    }
+                )
+                continue
+            try:
+                prediction = json.loads(
+                    prediction_path.read_text(encoding="utf-8")
+                )
+            except Exception:  # noqa: BLE001
+                run_results.append(
+                    {
+                        "status": "unknown",
+                        "reason": "预测文件不是有效 JSON",
+                        "seed": entry.seed,
+                        "archive": entry.native_prediction,
+                    }
+                )
+                continue
+            completed = prediction.get("completed_requests")
+            try:
+                completed_count = int(completed) if completed is not None else None
+            except (TypeError, ValueError):
+                completed_count = None
+            if completed_count is None or completed_count < MIN_COMPLETED:
+                run_results.append(
+                    {
+                        "status": "unknown",
+                        "reason": (
+                            f"实际完成请求数不足或未知：{completed}"
+                            f"（需要 >= {MIN_COMPLETED}）"
+                        ),
+                        "seed": entry.seed,
+                        "archive": entry.native_prediction,
+                    }
+                )
+                continue
+            gate = evaluate_p99_gate(
+                ttft_p99_ms=prediction.get("p99_ttft_ms"),
+                tpot_p99_ms=prediction.get("p99_tpot_ms"),
+                ttft_samples=prediction.get("num_ttft_samples"),
+                tpot_samples=prediction.get("num_tpot_samples"),
+                ttft_limit_ms=args.ttft,
+                tpot_limit_ms=args.tpot,
             )
-            continue
-        prediction = json.loads(prediction_path.read_text(encoding="utf-8"))
-        ttft = prediction.get("p99_ttft_ms")
-        tpot = prediction.get("p99_tpot_ms")
-        if ttft is None or tpot is None:
-            points.append(
+            if gate.verdict == "insufficient_prediction":
+                run_results.append(
+                    {
+                        "status": "unknown",
+                        "reason": "；".join(gate.reasons),
+                        "seed": entry.seed,
+                        "archive": entry.native_prediction,
+                    }
+                )
+                continue
+            run_results.append(
                 {
-                    "concurrency": concurrency,
-                    "status": "unknown",
-                    "reason": "归档缺少 TTFT/TPOT P99，不能判定达标或失败",
+                    "status": gate.verdict,
+                    "ttft_p99_ms": prediction.get("p99_ttft_ms"),
+                    "tpot_p99_ms": prediction.get("p99_tpot_ms"),
+                    "throughput_tok_s": prediction.get("output_throughput_tok_s"),
+                    "completed_requests": prediction.get("completed_requests"),
+                    "seed": entry.seed,
                     "archive": entry.native_prediction,
                 }
             )
+        same_seed: dict[Any, tuple[Any, ...]] = {}
+        seed_conflict = False
+        for run in run_results:
+            seed = run.get("seed")
+            if seed is None:
+                continue
+            signature = (
+                run.get("status"),
+                run.get("ttft_p99_ms"),
+                run.get("tpot_p99_ms"),
+                run.get("throughput_tok_s"),
+                run.get("output_throughput_tok_s"),
+                run.get("completed_requests"),
+                run.get("request_throughput_rps"),
+            )
+            previous = same_seed.get(seed)
+            if previous is not None and previous != signature:
+                seed_conflict = True
+            else:
+                same_seed[seed] = signature
+        if seed_conflict:
+            points.append(
+                {
+                    "concurrency": concurrency,
+                    "status": "unknown",
+                    "reason": "同一 seed 的多个归档预测值/结论冲突，不能合并",
+                }
+            )
             continue
-        passed = (
-            Decimal(str(ttft)) <= args.ttft
-            and Decimal(str(tpot)) <= args.tpot
+        status, pass_count = aggregate_run_verdicts(
+            [run["status"] for run in run_results]
         )
+        if status == "unknown":
+            reasons = []
+            for run in run_results:
+                reason = run.get("reason")
+                if reason and reason not in reasons:
+                    reasons.append(reason)
+            points.append(
+                {
+                    "concurrency": concurrency,
+                    "status": "unknown",
+                    "reason": "；".join(reasons) or "多 seed 运行中存在缺 P99 的归档",
+                    "runs": len(run_results),
+                    "pass_count": pass_count,
+                    "seeds": [run.get("seed") for run in run_results],
+                }
+            )
+            continue
+        known = [
+            run
+            for run in run_results
+            if run["status"] in ("predicted_pass", "predicted_fail")
+        ]
+        worst = max(
+            known,
+            key=lambda run: Decimal(str(run.get("tpot_p99_ms") or 0)),
+        )
+        ttfts = [
+            Decimal(str(run["ttft_p99_ms"]))
+            for run in known
+            if run.get("ttft_p99_ms") is not None
+        ]
+        tpots = [
+            Decimal(str(run["tpot_p99_ms"]))
+            for run in known
+            if run.get("tpot_p99_ms") is not None
+        ]
+        throughputs = [
+            Decimal(str(run["throughput_tok_s"]))
+            for run in known
+            if run.get("throughput_tok_s") is not None
+        ]
         points.append(
             {
                 "concurrency": concurrency,
-                "status": "predicted_pass" if passed else "predicted_fail",
-                "ttft_p99_ms": ttft,
-                "tpot_p99_ms": tpot,
-                "throughput_tok_s": prediction.get("output_throughput_tok_s"),
-                "completed_requests": prediction.get("completed_requests"),
-                "archive": entry.native_prediction,
+                "status": status,
+                "ttft_p99_ms": float(max(ttfts)) if ttfts else None,
+                "tpot_p99_ms": float(max(tpots)) if tpots else None,
+                "throughput_tok_s": float(min(throughputs)) if throughputs else None,
+                "completed_requests": min(
+                    run["completed_requests"]
+                    for run in known
+                    if run.get("completed_requests") is not None
+                )
+                if any(run.get("completed_requests") is not None for run in known)
+                else None,
+                "archive": worst.get("archive"),
+                "runs": len(run_results),
+                "pass_count": pass_count,
+                "seeds": [run.get("seed") for run in run_results],
+                "reason": (
+                    f"多 seed 结果不一致：{pass_count}/{len(run_results)} 通过"
+                    if status == "mixed"
+                    else None
+                ),
             }
         )
 
@@ -130,6 +304,9 @@ def main() -> int:
     ]
     unknown = [
         point["concurrency"] for point in points if point["status"] == "unknown"
+    ]
+    mixed = [
+        point["concurrency"] for point in points if point["status"] == "mixed"
     ]
     doc = {
         "schema_version": "1.0",
@@ -144,6 +321,7 @@ def main() -> int:
         "verified_pass_concurrency": verified_pass,
         "highest_verified_pass": max(verified_pass) if verified_pass else None,
         "unknown_concurrency": unknown,
+        "mixed_concurrency": mixed,
         "note": (
             "只报告已验证的原生回放点；未验证并发点保持 unknown，不做插值。"
             "最高已验证并发不是生产容量保证。"
@@ -163,20 +341,22 @@ def main() -> int:
         f"- 负载：ISL{args.input_len} / OSL{args.output_len}",
         f"- SLA：TTFT P99 ≤ {args.ttft} ms，TPOT P99 ≤ {args.tpot} ms",
         "",
-        "| 并发 | 状态 | TTFT P99 | TPOT P99 | 吞吐 tok/s |",
-        "|---|---|---|---|---|",
+        "| 并发 | 状态 | 运行/通过 | TTFT P99 | TPOT P99 | 吞吐 tok/s | 说明 |",
+        "|---|---|---|---|---|---|---|",
     ]
     for point in points:
         lines.append(
             f"| C{point['concurrency']} | {point['status']} | "
+            f"{point.get('runs', 1)}/{point.get('pass_count', '—')} | "
             f"{point.get('ttft_p99_ms', '—')} | {point.get('tpot_p99_ms', '—')} | "
-            f"{point.get('throughput_tok_s', '—')} |"
+            f"{point.get('throughput_tok_s', '—')} | {point.get('reason') or '—'} |"
         )
     lines.extend(
         [
             "",
             f"- 已验证最高达标并发：{doc['highest_verified_pass'] or '无'}",
             f"- 未验证并发点：{unknown or '无'}",
+            f"- 多 seed 结果不一致的并发点：{mixed or '无'}",
             "",
             "> 只使用已验证工作点；未验证区间不做插值，也不代表生产容量保证。",
             "",

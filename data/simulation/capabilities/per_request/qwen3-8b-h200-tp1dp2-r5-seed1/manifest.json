@@ -1,0 +1,11 @@
+{
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "capture": "per_request",
+  "files": {
+    "predict.yaml": "26aabec72acefcc339fa943f529b0c4e9bb86b965761613224ee6aeaa20875b4",
+    "stderr.log": "5f8fd609b06dd1d78f154954502e5038818ca5f2bf7239ba168cfbea98ef7d71",
+    "prediction.json": "10229bbcb28e478ba48a1313657d158a704d2fe5809428d604de090926e90796",
+    "requests.jsonl": "c27ba4485bd16682d123bea905d97e3c12de5a5cf1bc36b5077aca0e2a37a779"
+  }
+}

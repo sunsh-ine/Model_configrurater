@@ -1,0 +1,244 @@
+{
+  "schema_version": "1.0",
+  "sla": {
+    "ttft_p99_ms_max": "6000",
+    "tpot_p99_ms_max": "40"
+  },
+  "note": "运行级统计；多次运行的 P99 平均值不等于合并请求样本后的 P99。这是模拟预测波动，不是真实模型误差。",
+  "groups": [
+    {
+      "group_id": "8b_h100_dp2_r4",
+      "model_id": "qwen3-8b",
+      "hardware_id": "nvidia-h100-sxm-80gb",
+      "tp": 1,
+      "dp": 2,
+      "arrival_mode": "poisson",
+      "request_rate_rps": 4,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "runs": [
+        {
+          "seed": 1,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 835.1924819288397,
+          "tpot_p99_ms": 38.83071331372553,
+          "output_throughput_tok_s": 1066.3704155413143,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed1/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 2,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 748.0037686031865,
+          "tpot_p99_ms": 37.2099887568628,
+          "output_throughput_tok_s": 989.8542781751028,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed2/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 3,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 725.1078902899171,
+          "tpot_p99_ms": 30.413994062745797,
+          "output_throughput_tok_s": 965.258138320972,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed3/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 4,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 753.5511597231962,
+          "tpot_p99_ms": 34.11748661960771,
+          "output_throughput_tok_s": 1016.6401206096307,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed4/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 5,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 809.5613405105687,
+          "tpot_p99_ms": 34.5578661843134,
+          "output_throughput_tok_s": 1018.9233272202802,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r4-seed5/predict/out_1/prediction.json"
+        }
+      ],
+      "run_count": 5,
+      "requested_run_count": 5,
+      "missing_run_count": 0,
+      "pass_count": 5,
+      "fail_count": 0,
+      "pass_ratio": 1.0,
+      "repeatability_status": "all_pass",
+      "ttft_p99_min": 725.1078902899171,
+      "ttft_p99_max": 835.1924819288397,
+      "ttft_p99_mean_of_runs": 774.2833282111417,
+      "tpot_p99_min": 30.413994062745797,
+      "tpot_p99_max": 38.83071331372553,
+      "tpot_p99_mean_of_runs": 35.026009787451045,
+      "throughput_min": 965.258138320972,
+      "throughput_max": 1066.3704155413143
+    },
+    {
+      "group_id": "8b_h100_dp2_r5",
+      "model_id": "qwen3-8b",
+      "hardware_id": "nvidia-h100-sxm-80gb",
+      "tp": 1,
+      "dp": 2,
+      "arrival_mode": "poisson",
+      "request_rate_rps": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "runs": [
+        {
+          "seed": 1,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 3639.2665278809727,
+          "tpot_p99_ms": 62.01753506274547,
+          "output_throughput_tok_s": 1311.151813794986,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed1/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 2,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 2064.544224103389,
+          "tpot_p99_ms": 60.957708188235834,
+          "output_throughput_tok_s": 1214.6065837597705,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed2/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 3,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 830.9112356316036,
+          "tpot_p99_ms": 54.000404160784775,
+          "output_throughput_tok_s": 1184.5004578738383,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed3/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 4,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 1004.890341166938,
+          "tpot_p99_ms": 55.797230121569264,
+          "output_throughput_tok_s": 1253.3178789050382,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed4/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 5,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 999.3026506029273,
+          "tpot_p99_ms": 58.93375709019664,
+          "output_throughput_tok_s": 1261.3523526622848,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h100-tp1dp2-r5-seed5/predict/out_1/prediction.json"
+        }
+      ],
+      "run_count": 5,
+      "requested_run_count": 5,
+      "missing_run_count": 0,
+      "pass_count": 0,
+      "fail_count": 5,
+      "pass_ratio": 0.0,
+      "repeatability_status": "all_fail",
+      "ttft_p99_min": 830.9112356316036,
+      "ttft_p99_max": 3639.2665278809727,
+      "ttft_p99_mean_of_runs": 1707.782995877166,
+      "tpot_p99_min": 54.000404160784775,
+      "tpot_p99_max": 62.01753506274547,
+      "tpot_p99_mean_of_runs": 58.3413269247064,
+      "throughput_min": 1184.5004578738383,
+      "throughput_max": 1311.151813794986
+    },
+    {
+      "group_id": "8b_h200_dp2_r5",
+      "model_id": "qwen3-8b",
+      "hardware_id": "nvidia-h200-sxm-141gb",
+      "tp": 1,
+      "dp": 2,
+      "arrival_mode": "poisson",
+      "request_rate_rps": 5,
+      "seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "runs": [
+        {
+          "seed": 1,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 930.5687098523485,
+          "tpot_p99_ms": 44.95807737647059,
+          "output_throughput_tok_s": 1331.383844624354,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed1/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 2,
+          "status": "predicted_fail",
+          "ttft_p99_ms": 869.4920468822675,
+          "tpot_p99_ms": 43.209455133333414,
+          "output_throughput_tok_s": 1235.783435363501,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed2/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 3,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 767.225608350811,
+          "tpot_p99_ms": 32.30179785098082,
+          "output_throughput_tok_s": 1204.3844729723905,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed3/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 4,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 866.3116121074054,
+          "tpot_p99_ms": 35.86148418823529,
+          "output_throughput_tok_s": 1269.0855105781786,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed4/predict/out_1/prediction.json"
+        },
+        {
+          "seed": 5,
+          "status": "predicted_pass",
+          "ttft_p99_ms": 854.2590297111892,
+          "tpot_p99_ms": 35.675425713725375,
+          "output_throughput_tok_s": 1272.9612253381513,
+          "completed_requests": 500,
+          "archive": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5/predict/out_1/prediction.json"
+        }
+      ],
+      "run_count": 5,
+      "requested_run_count": 5,
+      "missing_run_count": 0,
+      "pass_count": 3,
+      "fail_count": 2,
+      "pass_ratio": 0.6,
+      "repeatability_status": "mixed",
+      "ttft_p99_min": 767.225608350811,
+      "ttft_p99_max": 930.5687098523485,
+      "ttft_p99_mean_of_runs": 857.5714013808043,
+      "tpot_p99_min": 32.30179785098082,
+      "tpot_p99_max": 44.95807737647059,
+      "tpot_p99_mean_of_runs": 38.40124805254909,
+      "throughput_min": 1204.3844729723905,
+      "throughput_max": 1331.383844624354
+    }
+  ]
+}

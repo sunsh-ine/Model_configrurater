@@ -410,7 +410,12 @@ GPU 独立匹配证据，不跨硬件复用 P99：
   [`docs/ad_parallelism_matrix.md`](docs/ad_parallelism_matrix.md)；
   AE 负载身份、容量补点与校准准备见
   [`docs/ae_phase_validation.md`](docs/ae_phase_validation.md)、
-  [`docs/ae_workload_contract.md`](docs/ae_workload_contract.md)。
+  [`docs/ae_workload_contract.md`](docs/ae_workload_contract.md)；
+  AF 统一门禁、重复性与校准加固见
+  [`docs/af_phase_validation.md`](docs/af_phase_validation.md)、
+  [`docs/af_reproducibility.md`](docs/af_reproducibility.md)、
+  [`docs/af_load_stability.md`](docs/af_load_stability.md)、
+  [`docs/af_real_gpu_validation.md`](docs/af_real_gpu_validation.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -749,6 +754,10 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/ae_capacity_comparison.md`](docs/ae_capacity_comparison.md) | **AE2/AE3** 固定并发补点与 Poisson 到达率实验 |
 | [`docs/ae_benchmark_calibration_plan.md`](docs/ae_benchmark_calibration_plan.md) | **AE5** 真实 Benchmark 元数据与校准匹配规则 |
 | [`docs/ae_phase_validation.md`](docs/ae_phase_validation.md) | **AE0–AE6** 负载真实性、容量可靠性与校准准备验收 |
+| [`docs/af_phase_validation.md`](docs/af_phase_validation.md) | **AF0–AF7** 统一 P99 门禁、多 seed 重复性、可靠性推荐与校准加固 |
+| [`docs/af_reproducibility.md`](docs/af_reproducibility.md) | **AF1** 三组工作点 × 5 seed 的运行级重复性报告（自动生成） |
+| [`docs/af_load_stability.md`](docs/af_load_stability.md) | **AF3** 有限窗口队列/尾延迟能力矩阵与结果（自动生成） |
+| [`docs/af_real_gpu_validation.md`](docs/af_real_gpu_validation.md) | **AF5** 真实 GPU 验证条件化门禁（当前未执行） |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

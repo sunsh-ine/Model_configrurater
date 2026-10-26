@@ -247,6 +247,10 @@ class SimulationCandidate(BaseModel):
     source_tool_version: str | None = None
     source_database_mode: str | None = None
     source_database_mode_source: DatabaseModeSource = "unknown"
+    #: AF2：同一工作点多次 seed 运行的重复性状态
+    repeatability_status: str | None = None
+    repeatability_runs: int | None = None
+    repeatability_pass_count: int | None = None
     # ---- AB3：决策质量（不改变 verdict）----
     sla_margin_ttft_ms: Decimal | None = None
     sla_margin_tpot_ms: Decimal | None = None
@@ -283,6 +287,46 @@ class SimulationSearchAudit(BaseModel):
     truncated: list[str] = Field(default_factory=list)
     #: complete / partial / partial_with_failures / offline_archives
     effective_scope: str = "unknown"
+
+
+def repeatability_group_key(candidate: SimulationCandidate) -> tuple[Any, ...]:
+    """AF2：重复性分组必须使用完整部署 + 负载身份。
+
+    只按模型/系统/并行/长度分组会把不同后端、精度、trace 或请求数的工作点
+    合并成一组，从而把 A 配置的失败算到 B 配置头上。
+    """
+    deployment = candidate.deployment
+    workload = candidate.workload
+    return (
+        deployment.model_name,
+        deployment.model_precision,
+        deployment.system,
+        deployment.backend,
+        deployment.backend_version,
+        deployment.gpu_count,
+        deployment.serving_mode,
+        deployment.tp_size,
+        deployment.pp_size,
+        deployment.dp_size,
+        deployment.moe_tp_size,
+        deployment.moe_ep_size,
+        deployment.cp_size,
+        deployment.replicas,
+        deployment.gpus_per_worker,
+        workload.input_len,
+        workload.output_len,
+        workload.concurrency,
+        workload.prefix,
+        workload.ctx_tokens,
+        workload.arrival_mode,
+        str(workload.request_rate_rps)
+        if workload.request_rate_rps is not None
+        else None,
+        workload.dataset,
+        workload.trace_id,
+        workload.num_requests,
+        workload.stop_condition,
+    )
 
 
 class SimulationResult(BaseModel):
@@ -334,6 +378,27 @@ class SimulationResult(BaseModel):
             )
         if candidate.budget_status == "exceeds_budget":
             reasons.extend(candidate.budget_reasons or ["超出预算"])
+        # AF2：单次 seed 通过不足以代表工作点稳定达标。
+        if candidate.repeatability_status == "mixed":
+            reasons.append(
+                f"多 seed 重复性不足：{candidate.repeatability_pass_count}/"
+                f"{candidate.repeatability_runs} 通过（mixed），"
+                "不能作为正式推荐"
+            )
+        elif candidate.repeatability_status == "all_fail":
+            reasons.append(
+                f"多 seed 全部未通过：{candidate.repeatability_runs} 次运行"
+            )
+        elif candidate.repeatability_status == "incomplete":
+            pass_text = (
+                f"{candidate.repeatability_pass_count}/"
+                if candidate.repeatability_pass_count is not None
+                else ""
+            )
+            reasons.append(
+                f"多 seed 重复性未判定：{pass_text}"
+                f"{candidate.repeatability_runs} 次运行有证据冲突或缺 P99"
+            )
         return reasons
 
     def eligible(self) -> list[SimulationCandidate]:
@@ -435,6 +500,41 @@ class SimulationResult(BaseModel):
         if not pool:
             return passed[0]
         return max(pool, key=lambda c: c.metrics.sim_output_throughput_tok_s or Decimal(0))
+
+    def reliability(self) -> list[dict[str, Any]]:
+        """按工作点汇总多次 seed 的运行级结果（不合并逐请求分布）。"""
+        groups: dict[tuple[Any, ...], list[SimulationCandidate]] = {}
+        for candidate in self.candidates:
+            if candidate.repeatability_status is None:
+                continue
+            key = repeatability_group_key(candidate)
+            groups.setdefault(key, []).append(candidate)
+        return [
+            {
+                "status": candidates[0].repeatability_status,
+                "runs": candidates[0].repeatability_runs,
+                "pass_count": candidates[0].repeatability_pass_count,
+                "candidates": [c.candidate_id for c in candidates],
+                # AF6：报告需要展示工作点身份，不能只给一个聚合状态
+                "model_name": candidates[0].deployment.model_name,
+                "model_precision": candidates[0].deployment.model_precision,
+                "system": candidates[0].deployment.system,
+                "backend": candidates[0].deployment.backend,
+                "backend_version": candidates[0].deployment.backend_version,
+                "tp_size": candidates[0].deployment.tp_size,
+                "pp_size": candidates[0].deployment.pp_size,
+                "dp_size": candidates[0].deployment.dp_size,
+                "input_len": candidates[0].workload.input_len,
+                "output_len": candidates[0].workload.output_len,
+                "concurrency": candidates[0].workload.concurrency,
+                "arrival_mode": candidates[0].workload.arrival_mode,
+                "request_rate_rps": candidates[0].workload.request_rate_rps,
+                "dataset": candidates[0].workload.dataset,
+                "num_requests": candidates[0].workload.num_requests,
+                "stop_condition": candidates[0].workload.stop_condition,
+            }
+            for candidates in groups.values()
+        ]
 
     def min_gpu_for_sla(self) -> SimulationCandidate | None:
         """在预测达标且资源可行的候选里，返回 GPU 数最少的那个。

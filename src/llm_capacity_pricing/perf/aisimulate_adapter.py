@@ -37,6 +37,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from llm_capacity_pricing.perf.sla_gate import evaluate_p99_gate
 from llm_capacity_pricing.schemas.simulation import (
     SIMULATION_TRUST_LABEL,
     SimulationCandidate,
@@ -46,6 +47,7 @@ from llm_capacity_pricing.schemas.simulation import (
     SimulationSearchAudit,
     SimulationToolIdentity,
     SimulationWorkload,
+    repeatability_group_key,
 )
 
 #: 扫描器 CSV 列 -> SimulationDeployment 属性
@@ -518,32 +520,24 @@ def check_tool_identity(
 
 
 def assess_verdict(candidate: SimulationCandidate, target: SimulationTarget) -> None:
-    """就地算出 ``predicted_pass`` / ``predicted_fail`` / ``insufficient_prediction``。
-
-    规则（全部由我们自己的阈值说了算）：
-
-    * 缺 P99、或样本不足 -> ``insufficient_prediction``（**不得**用均值顶替 P99）；
-    * 未设任何 P99 阈值 -> ``insufficient_prediction``（没有判据就不给结论）；
-    * 任一项 P99 超阈 -> ``predicted_fail``；两项都不超 -> ``predicted_pass``。
-
-    另外记录"均值达标但 P99 超限"这类口径陷阱，便于报告直接引用。
-    """
-    reasons: list[str] = []
+    """就地算出 verdict；阈值/缺失/样本/比较统一走 ``evaluate_p99_gate``。"""
     metrics = candidate.metrics
-
-    if target.ttft_p99_ms_max is None and target.tpot_p99_ms_max is None:
-        candidate.verdict = "insufficient_prediction"
-        candidate.verdict_reasons = ["未给出任何 P99 阈值：没有判据，不给模拟结论"]
-        return
-
-    missing: list[str] = []
-    if target.ttft_p99_ms_max is not None and metrics.sim_p99_ttft_ms is None:
-        missing.append("TTFT P99")
-    if target.tpot_p99_ms_max is not None and metrics.sim_p99_tpot_ms is None:
-        missing.append("TPOT P99")
-    if missing:
-        reasons.append("缺少预测值：" + "、".join(missing))
-        if metrics.sim_mean_ttft_ms is not None or metrics.sim_mean_tpot_ms is not None:
+    gate = evaluate_p99_gate(
+        ttft_p99_ms=metrics.sim_p99_ttft_ms,
+        tpot_p99_ms=metrics.sim_p99_tpot_ms,
+        ttft_samples=metrics.sim_ttft_samples,
+        tpot_samples=metrics.sim_tpot_samples,
+        ttft_limit_ms=target.ttft_p99_ms_max,
+        tpot_limit_ms=target.tpot_p99_ms_max,
+    )
+    reasons = list(gate.reasons)
+    if gate.verdict == "insufficient_prediction":
+        # 只有均值、没有 P99 时，把口径陷阱写出来
+        if (
+            metrics.sim_p99_ttft_ms is None
+            and metrics.sim_p99_tpot_ms is None
+            and (metrics.sim_mean_ttft_ms is not None or metrics.sim_mean_tpot_ms is not None)
+        ):
             reasons.append(
                 "只有均值口径的预测（扫描器输出）；官方明确其 SLA 过滤是聚合均值、"
                 "不是 P99，因此**不得**据此判定达标"
@@ -552,49 +546,21 @@ def assess_verdict(candidate: SimulationCandidate, target: SimulationTarget) -> 
         candidate.verdict_reasons = reasons
         return
 
-    # 样本数：P99 必须有样本支撑（官方文档：零样本不是"很快"）
-    sample_issues: list[str] = []
-    for label, samples, needed in (
-        ("TTFT", metrics.sim_ttft_samples, target.ttft_p99_ms_max is not None),
-        ("TPOT", metrics.sim_tpot_samples, target.tpot_p99_ms_max is not None),
-    ):
-        if not needed:
-            continue
-        if samples is None:
-            sample_issues.append(f"{label} 样本数未给出")
-        elif samples < MIN_SAMPLES_FOR_P99:
-            sample_issues.append(f"{label} 样本数仅 {samples}（< {MIN_SAMPLES_FOR_P99}）")
-    if sample_issues:
-        reasons.append("样本不足，P99 不可信：" + "、".join(sample_issues))
-        candidate.verdict = "insufficient_prediction"
-        candidate.verdict_reasons = reasons
-        return
-
-    failures: list[str] = []
-    if target.ttft_p99_ms_max is not None and metrics.sim_p99_ttft_ms > target.ttft_p99_ms_max:
-        failures.append(
-            f"TTFT P99 {metrics.sim_p99_ttft_ms}ms > 阈值 {target.ttft_p99_ms_max}ms"
+    if gate.verdict == "predicted_fail":
+        mean_passes = (
+            (target.ttft_p99_ms_max is None or metrics.sim_mean_ttft_ms is None
+             or metrics.sim_mean_ttft_ms <= target.ttft_p99_ms_max)
+            and (target.tpot_p99_ms_max is None or metrics.sim_mean_tpot_ms is None
+                 or metrics.sim_mean_tpot_ms <= target.tpot_p99_ms_max)
         )
-    if target.tpot_p99_ms_max is not None and metrics.sim_p99_tpot_ms > target.tpot_p99_ms_max:
-        failures.append(
-            f"TPOT P99 {metrics.sim_p99_tpot_ms}ms > 阈值 {target.tpot_p99_ms_max}ms"
-        )
+        if mean_passes:
+            reasons.append(
+                "口径提示：均值口径看起来达标，但 P99 超限 —— "
+                "只按均值判断会得出相反结论（官方 SLA 过滤即均值口径）"
+            )
 
-    # 口径陷阱：均值达标但 P99 超限 —— 必须判 fail，并把陷阱写出来
-    mean_passes = (
-        (target.ttft_p99_ms_max is None or metrics.sim_mean_ttft_ms is None
-         or metrics.sim_mean_ttft_ms <= target.ttft_p99_ms_max)
-        and (target.tpot_p99_ms_max is None or metrics.sim_mean_tpot_ms is None
-             or metrics.sim_mean_tpot_ms <= target.tpot_p99_ms_max)
-    )
-    if failures and mean_passes:
-        reasons.append(
-            "口径提示：均值口径看起来达标，但 P99 超限 —— "
-            "只按均值判断会得出相反结论（官方 SLA 过滤即均值口径）"
-        )
-
-    candidate.verdict = "predicted_fail" if failures else "predicted_pass"
-    candidate.verdict_reasons = reasons + failures
+    candidate.verdict = gate.verdict
+    candidate.verdict_reasons = reasons
     _attach_decision_quality(candidate, target)
 
 
@@ -956,9 +922,14 @@ def parse_native_prediction(
         for name, value in (("tp", dep.tp_size), ("pp", dep.pp_size), ("dp", dep.dp_size))
         if value is not None
     ) or "parallel?"
+    suffix = ""
+    if workload.arrival_mode in ("poisson", "constant_rate"):
+        suffix = f"-r{workload.request_rate_rps}"
+    if workload.seed is not None:
+        suffix += f"-s{workload.seed}"
     candidate_id = (
         f"sim-native:{dep.model_name}@{dep.system}-{parallel_bits}"
-        f"-c{workload.concurrency}-n{workload.num_requests}"
+        f"-c{workload.concurrency}-n{workload.num_requests}{suffix}"
     )
     return SimulationCandidate(
         candidate_id=candidate_id,
@@ -1392,6 +1363,103 @@ def load_archived(
     for candidate in candidates:
         check_comparability(candidate, effective_target)
         assess_verdict(candidate, effective_target)
+
+    seeded: dict[tuple[Any, ...], list[SimulationCandidate]] = {}
+    for candidate in candidates:
+        if candidate.workload.seed is None:
+            continue
+        key = repeatability_group_key(candidate)
+        seeded.setdefault(key, []).append(candidate)
+    status_by_key: dict[
+        tuple[Any, ...], tuple[str, int, int | None, str]
+    ] = {}
+    for key, group in seeded.items():
+        # 只有一个 seed（或同一 seed 的重复归档）不构成重复性证据。
+        by_seed: dict[int, SimulationCandidate] = {}
+        conflicting_seed = False
+        for item in group:
+            seed = item.workload.seed
+            previous = by_seed.get(seed)  # type: ignore[arg-type]
+            if previous is None:
+                by_seed[seed] = item  # type: ignore[index]
+            elif (
+                previous.verdict != item.verdict
+                or previous.metrics.sim_p99_ttft_ms
+                != item.metrics.sim_p99_ttft_ms
+                or previous.metrics.sim_p99_tpot_ms
+                != item.metrics.sim_p99_tpot_ms
+                or previous.metrics.sim_output_throughput_tok_s
+                != item.metrics.sim_output_throughput_tok_s
+                or previous.metrics.sim_completed_requests
+                != item.metrics.sim_completed_requests
+                or previous.metrics.sim_ttft_samples
+                != item.metrics.sim_ttft_samples
+                or previous.metrics.sim_tpot_samples
+                != item.metrics.sim_tpot_samples
+            ):
+                conflicting_seed = True
+        if conflicting_seed:
+            # 同一 seed 出现矛盾结论：不能挑一个"好"结果继续推荐。
+            note = "多 seed 重复性未判定：同一 seed 的归档结论冲突"
+            status_by_key[key] = ("incomplete", len(by_seed), None, note)
+            for candidate in group:
+                candidate.repeatability_status = "incomplete"
+                candidate.repeatability_runs = len(by_seed)
+                candidate.repeatability_pass_count = None
+                candidate.notes.append(note)
+            continue
+        if len(by_seed) < 2:
+            continue
+        unique_runs = list(by_seed.values())
+        passed = sum(1 for c in unique_runs if c.verdict == "predicted_pass")
+        failed = sum(1 for c in unique_runs if c.verdict == "predicted_fail")
+        incomplete = len(unique_runs) - passed - failed
+        if incomplete:
+            # 缺 P99 的运行是证据不足，不是一次"失败"；不据此判 mixed，
+            # 但也绝不能只凭通过的那次 seed 进入正式推荐。
+            note = (
+                f"多 seed 重复性未判定：{passed}/{len(unique_runs)} 通过，"
+                f"{incomplete} 次运行缺 P99 结论"
+            )
+            status_by_key[key] = (
+                "incomplete",
+                len(unique_runs),
+                passed,
+                note,
+            )
+            for candidate in group:
+                candidate.repeatability_status = "incomplete"
+                candidate.repeatability_runs = len(unique_runs)
+                candidate.repeatability_pass_count = passed
+                candidate.notes.append(note)
+            continue
+        if passed == len(unique_runs):
+            status = "all_pass"
+        elif failed == len(unique_runs):
+            status = "all_fail"
+        else:
+            status = "mixed"
+        note = f"多 seed 重复性：{passed}/{len(unique_runs)} 通过（{status}）"
+        status_by_key[key] = (status, len(unique_runs), passed, note)
+        for candidate in group:
+            candidate.repeatability_status = status
+            candidate.repeatability_runs = len(unique_runs)
+            candidate.repeatability_pass_count = passed
+            candidate.notes.append(note)
+
+    # 同一工作点的无 seed 归档也要继承重复性结论；否则它会绕过 mixed /
+    # incomplete 的推荐门槛，看起来像一次干净的独立运行。
+    for candidate in candidates:
+        if candidate.workload.seed is not None:
+            continue
+        info = status_by_key.get(repeatability_group_key(candidate))
+        if info is None:
+            continue
+        status, runs, pass_count, note = info
+        candidate.repeatability_status = status
+        candidate.repeatability_runs = runs
+        candidate.repeatability_pass_count = pass_count
+        candidate.notes.append(note)
 
     if top_n is not None and top_n > 0:
         # 短名单**在判完可比性之后**裁：优先保留能与目标直接比较的候选，

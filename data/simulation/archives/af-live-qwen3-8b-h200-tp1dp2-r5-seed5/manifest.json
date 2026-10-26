@@ -1,0 +1,72 @@
+{
+  "archive_version": "ab-1",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "run_id": "af-live-qwen3-8b-h200-tp1dp2-r5-seed5",
+  "run_dir": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5",
+  "work_root": "data/simulation/archives/af-live-qwen3-8b-h200-tp1dp2-r5-seed5",
+  "created_at": "2026-10-26T05:58:02+00:00",
+  "source": "AF1 seed reproducibility",
+  "spec": {
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bf16",
+    "system": "h200_sxm",
+    "isl": 8192,
+    "osl": 256,
+    "concurrency": null,
+    "backend": "vllm",
+    "backend_version": "0.24.0",
+    "max_total_gpus": null,
+    "database_mode": "SILICON"
+  },
+  "database_mode_source": "archive_declared",
+  "workpoint": {
+    "model": "Qwen/Qwen3-8B",
+    "system": "h200_sxm",
+    "precision": "bf16",
+    "input_len": 8192,
+    "output_len": 256,
+    "concurrency": null,
+    "tp": 1,
+    "pp": 1,
+    "dp": 2,
+    "requests": 500
+  },
+  "predictions": [
+    {
+      "predict": "predict/predict_1.yaml",
+      "prediction": "predict/out_1/prediction.json",
+      "metrics": {
+        "p99_ttft_ms": 854.2590297111892,
+        "p99_tpot_ms": 35.675425713725375,
+        "mean_ttft_ms": 382.0554767186062,
+        "mean_tpot_ms": 20.754512671576364,
+        "output_throughput_tok_s": 1272.9612253381513,
+        "completed_requests": 500,
+        "decode_gpus_per_worker": 1
+      }
+    }
+  ],
+  "inputs": {
+    "predict/predict_1.yaml": "0336f574ea1ead17e01a806b899f2390987c84bdc2c16352a12d614860a71a8f",
+    "exp_config.yaml": "30c8534ab5992adec805fdc7067f6baf15e82f5d35dd33f69066294f7bf1d006"
+  },
+  "outputs": {
+    "predict/out_1/prediction.json": "bf34fa04d87e046e2c23a79643dcdfb5dd1317be6f88fe6eef678b275521942b"
+  },
+  "errors": [],
+  "run_errors": [],
+  "candidate_errors": {},
+  "not_aligned": {},
+  "not_replayed": {},
+  "native_metrics": {
+    "p99_ttft_ms": 854.2590297111892,
+    "p99_tpot_ms": 35.675425713725375,
+    "mean_ttft_ms": 382.0554767186062,
+    "mean_tpot_ms": 20.754512671576364,
+    "output_throughput_tok_s": 1272.9612253381513,
+    "completed_requests": 500,
+    "decode_gpus_per_worker": 1
+  },
+  "sla_note": "P99 是否达标由本仓库的 SLA 规则判定；此处只保存预测值"
+}

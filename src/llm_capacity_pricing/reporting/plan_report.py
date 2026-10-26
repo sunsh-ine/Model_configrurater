@@ -496,6 +496,125 @@ _SURFACE_LABEL = {
 }
 
 
+def _workload_identity_text(workload: Any) -> str:
+    """AF6：把负载身份压成一行，缺失项明确写 unknown。"""
+    if workload.arrival_mode in ("poisson", "constant_rate"):
+        load = (
+            f"{_fmt(workload.request_rate_rps)} req/s"
+            f"（{workload.arrival_mode}）"
+        )
+    else:
+        load = f"并发 {_fmt(workload.concurrency)}"
+    parts = [
+        f"{_fmt(workload.input_len)}/{_fmt(workload.output_len)}",
+        load,
+        f"数据集 {_fmt(workload.dataset)}",
+    ]
+    if getattr(workload, "seed", None) is not None:
+        parts.append(f"seed {_fmt(workload.seed)}")
+    if getattr(workload, "num_requests", None) is not None:
+        parts.append(f"{_fmt(workload.num_requests)} 请求")
+    return "，".join(parts)
+
+
+def _candidate_evidence_text(candidate: Any) -> str:
+    """AF6：单次模拟 / 多 seed 模拟 / 预测不足，三种证据类型分开写。"""
+    if candidate.repeatability_status == "incomplete":
+        return (
+            f"多 seed 模拟（重复性 unknown，"
+            f"{_fmt(candidate.repeatability_runs)} 次运行）"
+        )
+    if candidate.repeatability_status is not None:
+        return (
+            f"多 seed 模拟（{_fmt(candidate.repeatability_pass_count)}/"
+            f"{_fmt(candidate.repeatability_runs)} 通过）"
+        )
+    runs = getattr(candidate, "repeatability_runs", None)
+    if runs is not None and runs > 1:
+        return f"多 seed 模拟（重复性 unknown，{runs} 次运行）"
+    if candidate.verdict == "insufficient_prediction":
+        return "预测不足（unknown）"
+    return "单次模拟"
+
+
+def _reliability_workload_text(item: dict[str, Any]) -> str:
+    if item.get("arrival_mode") in ("poisson", "constant_rate"):
+        load = (
+            f"{_fmt(item.get('request_rate_rps'))} req/s"
+            f"（{item['arrival_mode']}）"
+        )
+    else:
+        load = f"并发 {_fmt(item.get('concurrency'))}"
+    return (
+        f"{_fmt(item.get('model_name'))}（{_fmt(item.get('model_precision'))}） / "
+        f"{_fmt(item.get('system'))} / "
+        f"{_fmt(item.get('backend'))} {_fmt(item.get('backend_version'))} / "
+        f"TP{_fmt(item.get('tp_size'))}×PP{_fmt(item.get('pp_size'))}"
+        f"×DP{_fmt(item.get('dp_size'))} / "
+        f"{_fmt(item.get('input_len'))}/{_fmt(item.get('output_len'))} / "
+        f"{load} / 数据集 {_fmt(item.get('dataset'))}"
+        + (
+            f" / {item['num_requests']} 请求"
+            if item.get("num_requests") is not None
+            else ""
+        )
+    )
+
+
+def _evidence_summary(result: PlanResult, simulation: Any, add: Any) -> None:
+    """AF6：实测 / 模拟 / unknown 与容量有效范围放在同一处。"""
+    measured = [
+        c
+        for c in result.candidates
+        if c.sla_status in ("observed_pass", "observed_fail")
+    ]
+    predicted = [
+        c
+        for c in simulation.candidates
+        if c.verdict in ("predicted_pass", "predicted_fail")
+    ]
+    unknown_sim = [
+        c for c in simulation.candidates if c.verdict == "insufficient_prediction"
+    ]
+    add("**证据分层与有效范围**：")
+    add("")
+    add(
+        "- 实测证据："
+        + (
+            f"{len(measured)} 个候选具备匹配实测（"
+            + "、".join(f"`{c.candidate_id}`" for c in measured[:5])
+            + "）"
+            if measured
+            else "无（本轮没有任何候选具备目标配置的匹配实测）"
+        )
+    )
+    add(
+        "- 模拟证据："
+        + (
+            f"{len(predicted)} 个候选有 P99 预测结论；"
+            f"其中多 seed 工作点 {len(simulation.reliability())} 个"
+            if predicted
+            else "无可用 P99 预测"
+        )
+    )
+    add(
+        "- 预测不足（unknown）："
+        + (f"{len(unknown_sim)} 个候选，不能据此判断达标" if unknown_sim else "无")
+    )
+    audit = getattr(simulation, "search_audit", None)
+    if audit is not None:
+        add(
+            "- 容量/搜索有效范围："
+            + {
+                "complete": "本轮已比较全部通过筛选的部署",
+                "partial": "**不完整**：有部署因回放上限未验证 P99",
+                "partial_with_failures": "**不完整**：有候选回放失败",
+                "offline_archives": "离线归档选择（仅包含已归档的部署）",
+            }.get(audit.effective_scope, audit.effective_scope)
+        )
+    add("")
+
+
 def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None:
     """渲染「模拟部署配置推荐（非实测）」一节。
 
@@ -596,17 +715,7 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         )
         add(f"| 部署模式 | {_SERVING_MODE_LABEL.get(dep.serving_mode, dep.serving_mode)} |")
         workload = headline.workload
-        if workload.arrival_mode in ("poisson", "constant_rate"):
-            load_detail = (
-                f"到达率 {_fmt(workload.request_rate_rps)} req/s"
-                f"（{workload.arrival_mode}）"
-            )
-        else:
-            load_detail = f"并发 {_fmt(workload.concurrency)}"
-        add(
-            f"| 负载 | 输入 {_fmt(workload.input_len)} / "
-            f"输出 {_fmt(workload.output_len)} / {load_detail} |"
-        )
+        add(f"| 负载身份 | {_workload_identity_text(workload)} |")
         add(
             f"| 模拟输出吞吐 | {_fmt(metrics.sim_output_throughput_tok_s)} tok/s"
             f"（{_fmt(metrics.sim_tokens_per_gpu)} tok/s/GPU） |"
@@ -638,6 +747,7 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             + _EVIDENCE_LABEL.get(headline.evidence_status, headline.evidence_status)
             + " |"
         )
+        add(f"| 证据类型 | {_candidate_evidence_text(headline)} |")
         add(f"| 资源效率 | {_fmt(metrics.sim_tokens_per_gpu)} tok/s/GPU |")
         min_gpu = simulation.min_gpu_for_sla()
         add(
@@ -712,18 +822,22 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
         if others:
             add("**其它候选（截断展示）**：")
             add("")
-            add("| 候选 | GPU | 并行 | 并发 | 吞吐 tok/s | TTFT P99 | TPOT P99 | 结论 |")
-            add("|---|---|---|---|---|---|---|---|")
+            add(
+                "| 候选 | GPU | 并行 | 负载身份 | 吞吐 tok/s | TTFT P99 | TPOT P99 "
+                "| 结论 | 证据类型 |"
+            )
+            add("|---|---|---|---|---|---|---|---|---|")
             for candidate in others:
                 m = candidate.metrics
                 d = candidate.deployment
                 add(
                     f"| `{candidate.candidate_id}` | {_fmt(d.gpu_count)} "
                     f"| TP{_fmt(d.tp_size)}×PP{_fmt(d.pp_size)}×DP{_fmt(d.dp_size)} "
-                    f"| {_fmt(candidate.workload.concurrency)} "
+                    f"| {_workload_identity_text(candidate.workload)} "
                     f"| {_fmt(m.sim_output_throughput_tok_s)} "
                     f"| {_fmt(m.sim_p99_ttft_ms)} | {_fmt(m.sim_p99_tpot_ms)} "
-                    f"| {_VERDICT_LABEL.get(candidate.verdict, candidate.verdict)} |"
+                    f"| {_VERDICT_LABEL.get(candidate.verdict, candidate.verdict)} "
+                    f"| {_candidate_evidence_text(candidate)} |"
                 )
             add("")
 
@@ -768,6 +882,29 @@ def _simulation_section(result: PlanResult, add: Any, *, limit: int = 5) -> None
             if len(audit.filtered) > 8:
                 add(f"- …… 另有 {len(audit.filtered) - 8} 条，详见 manifest。")
         add("")
+
+    reliability = simulation.reliability() if hasattr(simulation, "reliability") else []
+    if reliability:
+        add("**多 seed 重复性（运行级）**：")
+        add("")
+        add("| 工作点 | 状态 | 运行数 | 通过数 |")
+        add("|---|---|---|---|")
+        for item in reliability:
+            status_label = {
+                "all_pass": "全部通过",
+                "all_fail": "全部未通过",
+                "mixed": "部分通过（mixed）",
+                "incomplete": "未判定（缺 P99）",
+            }.get(item["status"], item["status"])
+            add(
+                f"| {_reliability_workload_text(item)} | {status_label} "
+                f"| {item['runs']} | {item['pass_count']} |"
+            )
+        add("")
+        add("> 运行均值不等于池化 P99；这是模拟波动，不是实测误差。")
+        add("")
+
+    _evidence_summary(result, simulation, add)
 
     add("**本节结论的限制**：")
     add("")

@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "tool": "aisimulate",
+  "tool_version": "0.12.1",
+  "capture": "per_request",
+  "cases": [
+    {
+      "case_id": "8b_h100_dp2_r5_seed3",
+      "requests": 500,
+      "terminal_status": {
+        "completed": 500
+      },
+      "completed": 500,
+      "p99_ttft_ms_all": 830.9112356316036,
+      "p99_tpot_ms_all": 54.000404160784775,
+      "p99_queue_wait_ms": 0.0,
+      "max_queue_wait_ms": 0.0,
+      "p99_ttft_first_half": 705.0180369507761,
+      "p99_ttft_second_half": 851.0764252786175,
+      "note": "有限请求窗口；可按到达时间分段比较，但不能据此证明长期队列稳定。"
+    },
+    {
+      "case_id": "8b_h200_dp2_r5_seed1",
+      "requests": 500,
+      "terminal_status": {
+        "completed": 500
+      },
+      "completed": 500,
+      "p99_ttft_ms_all": 930.5687098523485,
+      "p99_tpot_ms_all": 44.95807737647059,
+      "p99_queue_wait_ms": 0.0,
+      "max_queue_wait_ms": 0.0,
+      "p99_ttft_first_half": 660.2613038671025,
+      "p99_ttft_second_half": 975.9672153807041,
+      "note": "有限请求窗口；可按到达时间分段比较，但不能据此证明长期队列稳定。"
+    }
+  ],
+  "note": "有限窗口预测；不推断长期稳定最大 RPS。"
+}

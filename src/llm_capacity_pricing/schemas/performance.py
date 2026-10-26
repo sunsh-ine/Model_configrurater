@@ -67,7 +67,14 @@ PRODUCTION_TRUST_LEVELS: tuple[str, ...] = (
 MetricSide = Literal["client", "server", "unknown"]
 
 #: 请求到达方式
-ArrivalMode = Literal["unbounded", "request_rate", "max_concurrency", "unknown"]
+ArrivalMode = Literal[
+    "unbounded",
+    "request_rate",
+    "max_concurrency",
+    "poisson",
+    "constant_rate",
+    "unknown",
+]
 
 #: SLA 判定状态（M23）
 SlaStatus = Literal[

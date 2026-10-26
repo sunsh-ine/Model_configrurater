@@ -67,6 +67,7 @@ class ArchiveEntry:
     arrival_mode: str | None = None
     request_rate_rps: str | None = None
     dataset: str | None = None
+    trace_id: str | None = None
     seed: int | None = None
 
     @property
@@ -82,6 +83,12 @@ class ArchiveEntry:
             self.tp_size,
             self.pp_size,
             self.dp_size,
+            self.arrival_mode,
+            self.request_rate_rps,
+            self.dataset,
+            self.trace_id if hasattr(self, "trace_id") else None,
+            self.requests,
+            self.seed,
         )
 
     @property
@@ -154,6 +161,7 @@ def _entry_from_paths(
     arrival_mode: str | None = None,
     request_rate_rps: str | None = None,
     dataset: str | None = None,
+    trace_id: str | None = None,
     seed: int | None = None,
 ) -> ArchiveEntry:
     return ArchiveEntry(
@@ -181,6 +189,7 @@ def _entry_from_paths(
         arrival_mode=arrival_mode,
         request_rate_rps=request_rate_rps,
         dataset=dataset,
+        trace_id=trace_id,
         seed=seed,
         native_prediction=str(native_prediction.relative_to(ROOT)),
         native_input=str(native_input.relative_to(ROOT)),
@@ -324,6 +333,7 @@ def archive_entries() -> list[ArchiveEntry]:
                         str(request_rate) if request_rate is not None else None
                     ),
                     dataset=source.get("dataset"),
+                    trace_id=load.get("trace_id") or load.get("trace_path"),
                     seed=_int(load.get("seed")),
                 )
             )
@@ -339,6 +349,28 @@ def _rate_equal(left: str | None, right: str | None) -> bool:
         return Decimal(str(left)) == Decimal(str(right))
     except Exception:  # noqa: BLE001
         return str(left) == str(right)
+
+
+def _prediction_signature(entry: ArchiveEntry) -> tuple[Any, ...] | None:
+    """读取预测的核心数值，用于识别同 seed 但结论不同的重复归档。
+
+    读不到就返回 ``None``：交给下游完整性校验处理，不在这里猜测。
+    """
+    try:
+        payload = json.loads(
+            (ROOT / entry.native_prediction).read_text(encoding="utf-8")
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    keys = (
+        "p99_ttft_ms",
+        "p99_tpot_ms",
+        "output_throughput_tok_s",
+        "completed_requests",
+        "num_ttft_samples",
+        "num_tpot_samples",
+    )
+    return tuple(str(payload.get(key)) for key in keys)
 
 
 def find_archives(
@@ -415,7 +447,22 @@ def find_archives(
     deduped: dict[tuple[Any, ...], ArchiveEntry] = {}
     for entry in matches:
         current = deduped.get(entry.deployment_key)
-        if current is None or entry.sort_key > current.sort_key:
+        if current is None:
+            deduped[entry.deployment_key] = entry
+            continue
+        current_sig = _prediction_signature(current)
+        entry_sig = _prediction_signature(entry)
+        if (
+            current_sig is not None
+            and entry_sig is not None
+            and current_sig != entry_sig
+        ):
+            # 同一部署/负载/seed 却有不同预测值：保留两条，交给下游判定冲突，
+            # 不能按"证据更完整"悄悄丢掉其中一条。
+            deduped[
+                entry.deployment_key + (entry.native_prediction,)
+            ] = entry
+        elif entry.sort_key > current.sort_key:
             deduped[entry.deployment_key] = entry
     return sorted(
         deduped.values(),

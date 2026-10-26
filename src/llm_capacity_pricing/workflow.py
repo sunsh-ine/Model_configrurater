@@ -163,6 +163,7 @@ def _workload_signature(request: PlanRequest):
         output_len_target=request.workload.output_len,
         dataset_name=request.workload.dataset,
         arrival_mode=request.workload.arrival_mode,  # type: ignore[arg-type]
+        request_rate_rps=request.workload.request_rate_rps,
         configured_concurrency=request.workload.concurrency,
     )
 

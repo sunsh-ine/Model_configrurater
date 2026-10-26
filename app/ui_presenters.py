@@ -868,6 +868,16 @@ def sim_html(sim: Any) -> str:
                 "<p class='note'><b>并行身份与工作点说明</b></p>"
                 f"<ul class='plain'>{items}</ul>"
             )
+        reliability = sim.reliability() if hasattr(sim, "reliability") else []
+        if reliability:
+            parts.append(
+                "<div class='callout warn'><b>多 seed 重复性</b>："
+                + "；".join(
+                    f"{item['status']}（{item['pass_count']}/{item['runs']} 通过）"
+                    for item in reliability
+                )
+                + "。运行均值不等于池化 P99，属于模拟波动。</div>"
+            )
         audit = getattr(sim, "search_audit", None)
         if audit is not None:
             scope = {
