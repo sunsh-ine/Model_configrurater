@@ -80,3 +80,11 @@ def test_out_of_plan_config_change_invalidates_runs():
     finalized = finalize_manifest(manifest)
     assert all(run.status == "invalid" for run in finalized.runs)
     assert any("超出允许字段" in note for run in finalized.runs for note in run.notes)
+
+
+def test_aborted_preregistered_manifest_round_trips():
+    manifest = _manifest().model_copy(update={"execution_status": "aborted"})
+    dumped = manifest.model_dump(mode="json")
+    reloaded = type(manifest).model_validate(dumped)
+    assert reloaded.execution_status == "aborted"
+    assert reloaded.manifest_status == "preregistered"

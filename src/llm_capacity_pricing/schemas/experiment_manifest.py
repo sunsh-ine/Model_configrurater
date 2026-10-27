@@ -57,7 +57,9 @@ class ExperimentManifest(BaseModel):
     #: 标准化基础配置及其哈希；只允许 allowed_variation_fields 变化
     base_config: dict[str, Any] | None = None
     base_config_sha256: str | None = None
-    allowed_variation_fields: list[str] = Field(default_factory=lambda: ["seed"])
+    allowed_variation_fields: list[str] = Field(
+        default_factory=lambda: ["traffic.load.seed"]
+    )
     tool: str = "aisimulate"
     tool_version: str | None = None
 
@@ -140,10 +142,24 @@ class ExperimentManifest(BaseModel):
                 raise ValueError("预注册实验必须记录 preregistered_at")
             if self.base_config is None or not self.base_config_sha256:
                 raise ValueError("预注册实验必须冻结 base_config 与哈希")
-            if self.execution_status not in ("planned", "running", "completed"):
+            if self.execution_status not in (
+                "planned",
+                "running",
+                "completed",
+                "aborted",
+            ):
                 raise ValueError("预注册实验的 execution_status 非法")
-        if "seed" not in self.allowed_variation_fields:
-            raise ValueError("allowed_variation_fields 必须包含 seed")
+        if not self.allowed_variation_fields:
+            raise ValueError("allowed_variation_fields 不得为空")
+        if any("." not in field for field in self.allowed_variation_fields):
+            raise ValueError("allowed_variation_fields 必须是配置路径（如 traffic.load.seed）")
+        if self.manifest_status == "preregistered" and set(
+            self.allowed_variation_fields
+        ) != {"traffic.load.seed"}:
+            raise ValueError(
+                "预注册实验只允许 traffic.load.seed 变化，"
+                "不得放开其它配置路径"
+            )
         config_hashes = {
             run.config_sha256 for run in self.runs if run.config_sha256
         }

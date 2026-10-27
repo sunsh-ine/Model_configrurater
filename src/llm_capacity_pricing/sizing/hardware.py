@@ -263,6 +263,7 @@ SIGNATURE_PRODUCT_NAMES: dict[str, str] = {
     "nvidia-h200-sxm-141gb": "NVIDIA H200 SXM",
     "nvidia-h100-nvl-94gb": "NVIDIA H100 NVL",
     "nvidia-b200-sxm": "NVIDIA B200 SXM",
+    "nvidia-rtx-3090-24gb": "NVIDIA GeForce RTX 3090",
     "ascend-910c": "Ascend 910C",
 }
 

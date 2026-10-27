@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from decimal import Decimal
@@ -29,7 +30,9 @@ def test_fixture_recomputes_counts_and_metrics():
     assert metrics["cancelled_count"] == 1
     assert metrics["ttft_p99_ms"] is not None
     assert metrics["tpot_p99_ms"] is not None
-    assert metrics["output_throughput_tok_s"] is not None
+    # 失败/取消请求没有时序，严格规则下吞吐保持 unknown。
+    assert metrics["output_throughput_tok_s"] is None
+    assert metrics["window_coverage"] == "unverified"
 
 
 def test_pipeline_accepts_fixture_and_cross_checks_import():
@@ -127,7 +130,7 @@ def test_fixture_calibration_is_never_usable():
         "dataset": "synthetic",
         "p99_ttft_ms": float(metrics["ttft_p99_ms"]),
         "p99_tpot_ms": float(metrics["tpot_p99_ms"]),
-        "output_throughput_tok_s": float(metrics["output_throughput_tok_s"]),
+        "output_throughput_tok_s": 1000.0,
         "metric_definitions": metrics["metric_definitions"],
     }
     result = run_import_pipeline(
@@ -188,8 +191,32 @@ def test_source_kind_cannot_be_self_upgraded(tmp_path):
 def test_registered_attestation_can_verify_internal_measurement(tmp_path):
     metadata = json.loads(json.dumps(METADATA))
     metadata["performance_source_kind"] = "internal_measurement"
+    metadata["environment"] = {
+        "gpu_name": "NVIDIA H200 SXM",
+        "driver_version": "570.00",
+        "cuda_version": "12.8",
+    }
+    metadata["measurement_window_ms"] = {"start_ms": 0, "end_ms": 20000}
     identity = metadata["frozen_identity_sha256"]
     raw_sha = metadata["evidence"]["source_sha256"]
+    env_sha = hashlib.sha256(
+        json.dumps(metadata["environment"], sort_keys=True).encode()
+    ).hexdigest()
+    run_manifest = tmp_path / "run_manifest.json"
+    run_manifest.write_text(
+        json.dumps(
+            {
+                "raw_sha256": raw_sha,
+                "identity_sha256": identity,
+                "environment_sha256": env_sha,
+                "model_name": metadata["model_name"],
+                "framework": metadata["framework"],
+                "framework_version": metadata["framework_version"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_sha = hashlib.sha256(run_manifest.read_bytes()).hexdigest()
     registry = tmp_path / "attestations.json"
     registry.write_text(
         json.dumps(
@@ -200,10 +227,12 @@ def test_registered_attestation_can_verify_internal_measurement(tmp_path):
                         "declared_source_kind": "internal_measurement",
                         "raw_sha256": raw_sha,
                         "identity_sha256": identity,
+                        "environment_sha256": env_sha,
                         "verified_by": "fixture-operator",
                         "verified_at": "2026-10-26T00:00:00Z",
                         "environment": {"gpu": "fixture"},
-                        "run_manifest_sha256": "a" * 64,
+                        "run_manifest_file": "run_manifest.json",
+                        "run_manifest_sha256": manifest_sha,
                     }
                 ]
             }
@@ -214,7 +243,10 @@ def test_registered_attestation_can_verify_internal_measurement(tmp_path):
         RAW, metadata, evidence_root=FIXTURE, registry=registry
     )
     assert result["verified_source_kind"] == "internal_measurement"
+    # 该夹具含无时序的失败/取消请求：可以入库，但不能获得 SLA 资格。
+    assert result["accepted"] is True
     assert result["imported"]["performance_source_kind"] == "internal_measurement"
+    assert result["qualification"]["sla_evaluable"] is False
 
 
 def test_metric_coverage_exposes_partial_samples():
@@ -285,3 +317,19 @@ def test_malformed_attestation_hashes_do_not_verify(tmp_path):
         RAW, metadata, evidence_root=FIXTURE, registry=registry
     )
     assert result["verified_source_kind"] == "unverified_upload"
+
+
+def test_three_qualification_layers_are_separate():
+    result = run_import_pipeline(RAW, METADATA, evidence_root=FIXTURE)
+    qualification = result["qualification"]
+    assert qualification["ingest_accepted"] is True
+    assert qualification["sla_evaluable"] is False
+    assert qualification["calibration_usable"] is False
+    assert any("来源未认证" in item for item in qualification["sla_reasons"])
+    assert any("显式测量窗口" in item for item in qualification["sla_reasons"])
+
+
+def test_client_and_server_framework_are_recorded_separately():
+    result = run_import_pipeline(RAW, METADATA, evidence_root=FIXTURE)
+    assert result["imported"]["server_framework"] == "sglang"
+    assert result["imported"]["benchmark_client"] == "openai-compatible-stream-client/v1"

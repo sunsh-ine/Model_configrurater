@@ -19,8 +19,10 @@
 
 | 模型 | 硬件 | 最高覆盖级别 | 已有证据数 | 可做成本分析 |
 |---|---|---|---|---|
+| qwen3-8b | NVIDIA GeForce RTX 3090 | static_only | 0 | 否 |
 | qwen3-8b | NVIDIA H100 SXM | simulated_native_p99 | 37 | 是 |
 | qwen3-8b | NVIDIA H200 SXM | simulated_native_p99 | 21 | 否 |
+| qwen3-32b | NVIDIA GeForce RTX 3090 | static_only | 0 | 否 |
 | qwen3-32b | NVIDIA H100 SXM | simulated_native_p99 | 182 | 是 |
 | qwen3-32b | NVIDIA H200 SXM | simulated_native_p99 | 19 | 否 |
 
@@ -245,11 +247,14 @@
 - 按级别：static_only=0；simulated_scan_only=159；simulated_native_p99=100；measured_benchmark=0
 - 工作点总数：147
 - SLA 可用工作点：79
+- 真实 GPU Benchmark 运行数：5；真实工作点数：1
 - 仅参考记录：50
 - 阻塞的归档运行：0
 - 阻塞的候选回放：0（同一运行内其它成功候选仍可用）
 
 已知缺口：
+- qwen3-8b × NVIDIA GeForce RTX 3090 只有静态规划，没有该工作点的性能证据
+- qwen3-32b × NVIDIA GeForce RTX 3090 只有静态规划，没有该工作点的性能证据
 - 没有任何证据达到 4 级（目标配置的真实 Benchmark）
 - 没有目标配置的真实 Benchmark：所有实测型记录都缺身份或属于参考数据
 

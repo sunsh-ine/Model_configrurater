@@ -15,8 +15,11 @@ Benchmark metadata 只能声明 `performance_source_kind`。AH 将其拆成：
 
 * `synthetic_fixture`：可自证为夹具，但永远 `calibration_status=fixture_only`；
 * `internal_measurement`：必须匹配 `data/benchmark/source_attestations.json`
-  中登记的受控执行记录（绑定原始 SHA256、身份 SHA256、环境、操作人、
-  run manifest SHA256），否则降级为 `unverified_upload`；
+  中登记的受控执行记录，并同时核验：
+  - 原始 SHA256、身份 SHA256、环境 SHA256；
+  - `run_manifest_file` 实际存在且 SHA256 与登记一致；
+  - run manifest 中的模型/框架/版本与 metadata 一致；
+  否则降级为 `unverified_upload`；
 * 其他声明：一律 `unverified_upload`，不能凭 metadata 字符串获得实测身份。
 
 `unverified_upload` 在 `BenchmarkRecord` / `Evidence` 中按外部参考处理，
@@ -31,7 +34,8 @@ Benchmark metadata 只能声明 `performance_source_kind`。AH 将其拆成：
 `ExperimentManifest.manifest_status`：
 
 * `preregistered`：运行前创建，`execution_status=planned`，冻结
-  `base_config`/`base_config_sha256`、预期 seed、允许变化字段（默认仅 `seed`）；
+  `base_config`/`base_config_sha256`、预期 seed、允许变化字段
+  （默认仅 `traffic.load.seed`，按配置路径精确匹配）；
 * `reconstructed`：从历史归档反向整理，不能宣称运行前已冻结。
 
 现有 AF 三组清单均为 `reconstructed`。新实验使用：
@@ -48,7 +52,7 @@ python scripts/finalize_experiment.py --manifest data/simulation/experiments/<id
 * 每个 seed 的 `predict.yaml` 实际 SHA256；
 * `exp_config.yaml` SHA256；
 * 归档预测 SHA256；
-* 去掉允许变化字段后的标准化配置 SHA256；
+* 去掉允许变化**路径**后的标准化配置 SHA256；
 * 完成请求数与运行状态。
 
 标准化配置与预注册基准不一致 → run `invalid`，实验不能 `complete`。

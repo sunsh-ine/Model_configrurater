@@ -293,6 +293,29 @@ def run_from_adapter(
 ) -> BenchmarkRun:
     """从 SGLang/vLLM 适配器的解析结果构造 run（真实导入路径）。"""
     sig = signature_from_record(record)
+    workload_update = {}
+    arrival = metadata.get("arrival_mode")
+    if arrival:
+        if arrival == "fixed_concurrency":
+            arrival = "max_concurrency"
+        workload_update["arrival_mode"] = arrival
+    if metadata.get("load_profile_kind"):
+        workload_update["load_profile_kind"] = metadata["load_profile_kind"]
+    if metadata.get("configured_max_concurrency") is not None:
+        workload_update["configured_concurrency"] = metadata.get(
+            "configured_max_concurrency"
+        )
+    if metadata.get("request_rate_rps") is not None:
+        workload_update["request_rate_rps"] = metadata.get("request_rate_rps")
+    sig = sig.model_copy(
+        update={
+            "workload": sig.workload.model_copy(update=workload_update),
+            # PP=1 / EP=1 表示没有该并行维度；保留在原始记录中，但签名不把它
+            # 当成需要建模的 PP/EP 拓扑。
+            "pp_size": None if sig.pp_size == 1 else sig.pp_size,
+            "ep_size": None if sig.ep_size == 1 else sig.ep_size,
+        }
+    )
     trust, trust_warning = trust_for_source_kind(record.performance_source_kind)
     # P0-2：`internal_measurement` 是**自我声明**，metadata 无论怎么写都
     # **不能**直接授予本地可信等级 —— 导入后一律先视为**待核验**。

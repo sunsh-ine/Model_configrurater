@@ -30,7 +30,7 @@ SLA **默认只接受 `exact_match`**（模型 revision、精度、硬件、卡�
 > 按任务书 §6「敏感价格文件建议不入 Git」未纳入版本库。克隆后请先把该文件放到
 > `data/raw/`，否则第 3 步会报缺文件。实测（缺该文件时的行为）：
 >
-> - `pytest` → **`1173 passed`**（可选依赖缺失时个别用例自动 skip，不会误报失败）；
+> - `pytest` → **`1179 passed`**（可选依赖缺失时个别用例自动 skip，不会误报失败）；
 > - `import-excel` 报缺文件并返回非零；`validate-import` 如实报 `校验项: 20，通过 17，失败 3`
 >   （三项分别是 GPU 价格 2 行、模型价格 3 行、效能 32 行的计数不符，这正是"缺数据就说缺数据"）；
 > - 不依赖 Excel 的部分仍可完整运行：`init-db`、`import-sglang`、`import-vllm`、
@@ -388,8 +388,8 @@ GPU 独立匹配证据，不跨硬件复用 P99：
 | 同上 | H200 SXM | TP1×DP1/DP2 | 同上 |
 
 当前覆盖矩阵为 **79 个 SLA 可用工作点**、**100 次原生模拟运行**
-（85 条基础证据 + 15 条 AF 多 seed 运行；同一工作点的多 seed 不增加独立工作点数）、
-0 条真实实测。
+（85 条基础证据 + 15 条 AF 多 seed 运行；同一工作点的多 seed 不增加独立工作点数）。
+另有 **5 次已验证的 RTX 3090 真实 Benchmark、1 个真实工作点**（探索性运行另有 4 个，未计入验证覆盖），与模拟证据分开统计。
 不做插值；没有原生证据的组合只给静态结论。DP 副本使用整部署预测，
 不用单副本吞吐乘倍数；固定并发与 Poisson 到达分别建模，不合并排名。
 
@@ -427,7 +427,12 @@ GPU 独立匹配证据，不跨硬件复用 P99：
   [`docs/ah_phase_validation.md`](docs/ah_phase_validation.md)、
   [`docs/ah_evidence_trust_contract.md`](docs/ah_evidence_trust_contract.md)、
   [`docs/ah_decision_explanation.md`](docs/ah_decision_explanation.md)、
-  [`docs/ah_customer_scenarios.md`](docs/ah_customer_scenarios.md)。
+  [`docs/ah_customer_scenarios.md`](docs/ah_customer_scenarios.md)；
+  AI RTX 3090 实测与客户场景见
+  [`docs/ai_phase_validation.md`](docs/ai_phase_validation.md)、
+  [`docs/ai_rtx3090_environment.md`](docs/ai_rtx3090_environment.md)、
+  [`docs/ai_rtx3090_results.md`](docs/ai_rtx3090_results.md)、
+  [`docs/ai_customer_scenario.md`](docs/ai_customer_scenario.md)。
 
 ## 1.6 自然语言入口（Command Code Agent，实验性）
 
@@ -782,6 +787,13 @@ TP/DP 候选枚举与四类静态可行性状态、JSON/Markdown 资源规划报
 | [`docs/ah_customer_scenarios.md`](docs/ah_customer_scenarios.md) | **AH4** 三组客户场景端到端回放 |
 | [`docs/ah_benchmark_readiness.md`](docs/ah_benchmark_readiness.md) | **AH2** Benchmark 导入准备度（真实实测 0） |
 | [`docs/ah_real_gpu_interface.md`](docs/ah_real_gpu_interface.md) | **AH6** 真实 GPU 接口与门禁（未执行） |
+| [`docs/ai_phase_validation.md`](docs/ai_phase_validation.md) | **AI0–AI8** RTX 3090 实测、认证与客户场景验收 |
+| [`docs/ai_rtx3090_environment.md`](docs/ai_rtx3090_environment.md) | **AI1** RTX 3090 环境与 vLLM 部署 |
+| [`docs/ai_benchmark_protocol.md`](docs/ai_benchmark_protocol.md) | **AI2/AI3** 逐请求 Benchmark 协议与实验矩阵 |
+| [`docs/ai_rtx3090_results.md`](docs/ai_rtx3090_results.md) | **AI3/AI4** RTX 3090 实测结果与正式重复性 |
+| [`docs/ai_calibration_analysis.md`](docs/ai_calibration_analysis.md) | **AI5** 3090 无模拟支持与校准 unknown |
+| [`docs/ai_customer_scenario.md`](docs/ai_customer_scenario.md) | **AI6** RTX 3090 客户场景 D |
+| [`docs/ai_verification_summary.json`](docs/ai_verification_summary.json) | **AI8** 机器可读验收摘要 |
 | [`docs/n5_usability_test_kit.md`](docs/n5_usability_test_kit.md) | **N5** 易用性验收总览（参与者任务单与评分指南已分开存放） |
 | [`docs/n6_environment_report.md`](docs/n6_environment_report.md) | **N6-1** compute01 只读环境检查（含最小测试方案与待批事项） |
 | [`docs/phase5_final_validation.md`](docs/phase5_final_validation.md) | 第五阶段验证报告（真实数据接入与方案交付验证） |

@@ -1,0 +1,385 @@
+{
+  "schema_version": "1.0",
+  "hardware": "NVIDIA GeForce RTX 3090 24GB",
+  "model": "Qwen/Qwen3-8B BF16",
+  "framework": "vllm 0.11.0",
+  "sla_for_scenario_d": {
+    "ttft_p99_ms_max": 6000.0,
+    "tpot_p99_ms_max": 40.0
+  },
+  "aisimulate_rtx3090_support": false,
+  "aisimulate_note": "AISimulate 0.12.1 的 systems 目录没有 rtx3090；按 AI5 情况 B，RTX 3090 实测只作为独立真实证据，预测校准保持 unknown。",
+  "runs": [
+    {
+      "run_id": "ai-e1-c4",
+      "summary": {
+        "created_at": "2026-10-27T04:51:24+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 100,
+        "concurrency": 4,
+        "request_rate": null,
+        "seed": 1,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 202584.01967212558
+        },
+        "success_count": 100,
+        "failure_count": 0,
+        "elapsed_s": 202.58401967212558
+      },
+      "metrics": {
+        "ttft_p99_ms": "1825.9811010211706",
+        "tpot_p99_ms": "31.17994743527150878431372549",
+        "output_throughput_tok_s": "126.3673217731221462251356019"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": false,
+        "sla_reasons": [
+          "来源未认证为 internal_measurement"
+        ],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": null,
+      "source_verified": "unverified_upload",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e1c8-seed1",
+      "summary": {
+        "created_at": "2026-10-27T03:45:48+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 500,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 1,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 646575.6927207112
+        },
+        "success_count": 500,
+        "failure_count": 0,
+        "elapsed_s": 646.5756927207112
+      },
+      "metrics": {
+        "ttft_p99_ms": "2220.3345838934183",
+        "tpot_p99_ms": "38.25699673856006117647058824",
+        "output_throughput_tok_s": "197.9659944551761630052381266"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": true,
+        "sla_reasons": [],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": "measured_internal",
+      "source_verified": "internal_measurement",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e1c8-seed2",
+      "summary": {
+        "created_at": "2026-10-27T03:58:09+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 500,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 2,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 645515.639603138
+        },
+        "success_count": 500,
+        "failure_count": 0,
+        "elapsed_s": 645.515639603138
+      },
+      "metrics": {
+        "ttft_p99_ms": "1765.264080837369",
+        "tpot_p99_ms": "39.22447206489011372549019608",
+        "output_throughput_tok_s": "198.2910903269426573294662804"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": true,
+        "sla_reasons": [],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": "measured_internal",
+      "source_verified": "internal_measurement",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e1c8-seed3",
+      "summary": {
+        "created_at": "2026-10-27T04:10:15+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 500,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 3,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 648720.1306149364
+        },
+        "success_count": 500,
+        "failure_count": 0,
+        "elapsed_s": 648.7201306149364
+      },
+      "metrics": {
+        "ttft_p99_ms": "1801.0997660458088",
+        "tpot_p99_ms": "39.61600232504161960784313725",
+        "output_throughput_tok_s": "197.3115893269196403401658174"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": true,
+        "sla_reasons": [],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": "measured_internal",
+      "source_verified": "internal_measurement",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e1c8-seed4",
+      "summary": {
+        "created_at": "2026-10-27T04:22:27+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 500,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 4,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 647714.1435220838
+        },
+        "success_count": 500,
+        "failure_count": 0,
+        "elapsed_s": 647.7141435220838
+      },
+      "metrics": {
+        "ttft_p99_ms": "1813.7152157723904",
+        "tpot_p99_ms": "39.35606796659675294117647059",
+        "output_throughput_tok_s": "197.6180407362616788558493849"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": true,
+        "sla_reasons": [],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": "measured_internal",
+      "source_verified": "internal_measurement",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e1c8-seed5",
+      "summary": {
+        "created_at": "2026-10-27T04:34:19+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 500,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 5,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 643937.7547949553
+        },
+        "success_count": 500,
+        "failure_count": 0,
+        "elapsed_s": 643.9377547949553
+      },
+      "metrics": {
+        "ttft_p99_ms": "1799.352703616023",
+        "tpot_p99_ms": "38.4303069143903",
+        "output_throughput_tok_s": "198.7769765740139984935744731"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": true,
+        "sla_reasons": [],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": "measured_internal",
+      "source_verified": "internal_measurement",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e2-c8",
+      "summary": {
+        "created_at": "2026-10-27T04:45:37+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 4096,
+        "output_len_requested": 256,
+        "num_requests": 100,
+        "concurrency": 8,
+        "request_rate": null,
+        "seed": 1,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 188515.81427827477
+        },
+        "success_count": 100,
+        "failure_count": 0,
+        "elapsed_s": 188.51581427827477
+      },
+      "metrics": {
+        "ttft_p99_ms": "7088.30132894218",
+        "tpot_p99_ms": "54.23231779360303647058823529",
+        "output_throughput_tok_s": "135.7976257748378972650056422"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": false,
+        "sla_reasons": [
+          "来源未认证为 internal_measurement"
+        ],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": null,
+      "source_verified": "unverified_upload",
+      "sla": {
+        "ttft_pass": false,
+        "tpot_pass": false
+      }
+    },
+    {
+      "run_id": "ai-e3-c2",
+      "summary": {
+        "created_at": "2026-10-27T04:47:42+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 8192,
+        "output_len_requested": 256,
+        "num_requests": 20,
+        "concurrency": 2,
+        "request_rate": null,
+        "seed": 1,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 107566.44656509161
+        },
+        "success_count": 20,
+        "failure_count": 0,
+        "elapsed_s": 107.56644656509161
+      },
+      "metrics": {
+        "ttft_p99_ms": "4138.742288574576",
+        "tpot_p99_ms": "34.95736909555453725490196078",
+        "output_throughput_tok_s": "47.59848599164924457406059347"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": false,
+        "sla_reasons": [
+          "来源未认证为 internal_measurement",
+          "TTFT/TPOT 有效样本少于 30",
+          "成功请求少于 30"
+        ],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": null,
+      "source_verified": "unverified_upload",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    },
+    {
+      "run_id": "ai-e5-poisson-c8",
+      "summary": {
+        "created_at": "2026-10-27T04:42:11+00:00",
+        "base_url": "http://127.0.0.1:18000",
+        "model": "Qwen/Qwen3-8B",
+        "input_len_requested": 2048,
+        "output_len_requested": 256,
+        "num_requests": 100,
+        "concurrency": 8,
+        "request_rate": 0.5,
+        "seed": 1,
+        "measurement_window_ms": {
+          "start_ms": 0.0,
+          "end_ms": 197450.0385839492
+        },
+        "success_count": 100,
+        "failure_count": 0,
+        "elapsed_s": 197.4500385839492
+      },
+      "metrics": {
+        "ttft_p99_ms": "1364.8053482174873",
+        "tpot_p99_ms": "37.94782269088660980392156863",
+        "output_throughput_tok_s": "129.6530513926221901345969159"
+      },
+      "qualification": {
+        "ingest_accepted": true,
+        "sla_evaluable": false,
+        "sla_reasons": [
+          "来源未认证为 internal_measurement"
+        ],
+        "calibration_usable": false,
+        "calibration_reason": "未提供预测，未执行校准"
+      },
+      "data_trust": null,
+      "source_verified": "unverified_upload",
+      "sla": {
+        "ttft_pass": true,
+        "tpot_pass": true
+      }
+    }
+  ],
+  "formal_repeatability": {
+    "runs": 5,
+    "pass_count": 5,
+    "ttft_p99_min": 1765.264080837369,
+    "ttft_p99_max": 2220.3345838934183,
+    "tpot_p99_min": 38.25699673856006,
+    "tpot_p99_max": 39.61600232504162,
+    "throughput_min": 197.31158932691963,
+    "throughput_max": 198.776976574014
+  }
+}

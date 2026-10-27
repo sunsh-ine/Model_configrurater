@@ -177,6 +177,12 @@ def signature_from_record(record: BenchmarkRecord) -> BenchmarkSignature:
         metric_ids.append("m.latency.tpot.p99")
     if record.itl_p99_ms is not None:
         metric_ids.append("m.latency.itl.p99")
+    if record.e2e_p99_ms is not None:
+        metric_ids.append("m.latency.e2e.p99")
+    if record.output_tps_cluster is not None:
+        metric_ids.append("m.throughput.cluster.output")
+    if record.failure_rate is not None:
+        metric_ids.append("m.reliability.failure_rate")
 
     return BenchmarkSignature(
         signature_id=f"sig_record:{record.record_id}",

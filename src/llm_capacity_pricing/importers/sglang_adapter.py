@@ -100,6 +100,8 @@ def _looks_per_request(row: dict[str, Any]) -> bool:
 
 def _aggregate_per_request(
     rows: list[dict[str, Any]],
+    *,
+    measurement_window_ms: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[str], dict[str, str]]:
     """把逐请求样本聚合成汇总指标。
 
@@ -120,6 +122,9 @@ def _aggregate_per_request(
     ends_ms: list[Decimal] = []
     timed_latencies = 0
     untimed_latencies = 0
+    all_arrivals_ms: list[Decimal] = []
+    all_ends_ms: list[Decimal] = []
+    all_untimed_latencies = 0
     total_out = Decimal(0)
     total_in = Decimal(0)
     success = 0
@@ -135,6 +140,16 @@ def _aggregate_per_request(
         status = str(
             row.get("terminal_status") or row.get("status") or ""
         ).lower()
+        arrival_ms_all = dec(row.get("arrival_ms", row.get("arrival_time_ms")))
+        timestamp_all = dec(row.get("timestamp"))
+        if arrival_ms_all is None and timestamp_all is not None:
+            arrival_ms_all = timestamp_all * Decimal(1000)
+        if latency is not None:
+            if arrival_ms_all is not None:
+                all_arrivals_ms.append(arrival_ms_all)
+                all_ends_ms.append(arrival_ms_all + latency)
+            else:
+                all_untimed_latencies += 1
         successful = (
             row.get("success", True) is not False
             and status in ("", "completed", "success", "succeeded", "ok")
@@ -188,6 +203,22 @@ def _aggregate_per_request(
     if itls:
         flags.append("itl_present_kept_separate_from_tpot")
 
+    explicit_duration = None
+    if measurement_window_ms:
+        start = dec(measurement_window_ms.get("start_ms"))
+        end = dec(measurement_window_ms.get("end_ms"))
+        if (
+            start is not None
+            and end is not None
+            and end > start
+            and all_untimed_latencies == 0
+            and all_arrivals_ms
+            and all_ends_ms
+            and len(all_arrivals_ms) == len(rows)
+            and start <= min(all_arrivals_ms)
+            and end >= max(all_ends_ms)
+        ):
+            explicit_duration = (end - start) / Decimal(1000)
     summary: dict[str, Any] = {
         "num_requests": len(rows),
         "success_count": success,
@@ -202,8 +233,13 @@ def _aggregate_per_request(
         "mean_e2e_ms": mean(e2es),
         "p99_e2e_ms": percentile_nearest_rank(e2es, 99),
         "duration_s": (
-            (max(ends_ms) - min(arrivals_ms)) / Decimal(1000)
-            if arrivals_ms and ends_ms and untimed_latencies == 0
+            explicit_duration
+            if explicit_duration is not None
+            else (max(all_ends_ms) - min(all_arrivals_ms)) / Decimal(1000)
+            if all_arrivals_ms
+            and all_ends_ms
+            and all_untimed_latencies == 0
+            and len(all_arrivals_ms) == len(rows)
             else None
         ),
     }
@@ -255,7 +291,9 @@ def _parse(
     if per_request:
         if len(rows) == 1 and not _looks_per_request(rows[0]):
             raise BenchmarkParseError("声明为 per_request 格式，但文件不像逐请求样本")
-        aggregate, agg_flags, agg_defs = _aggregate_per_request(rows)
+        aggregate, agg_flags, agg_defs = _aggregate_per_request(
+            rows, measurement_window_ms=metadata.get("measurement_window_ms")
+        )
         metrics_defs.update(agg_defs)
         extra_flags.extend(agg_flags)
         emit_rows = [aggregate]
@@ -292,13 +330,18 @@ def _parse(
             deployment_gpu_count=n_gpu,
             evidence_id=ev.evidence_id,
             performance_source_kind=metadata.get("performance_source_kind", "official_benchmark"),
-            framework="sglang",
+            framework=metadata.get("server_framework")
+            or metadata.get("framework")
+            or "sglang",
             framework_version=metadata.get("framework_version"),
             model_revision=metadata.get("model_revision"),
             # V3.1 R2：严格匹配需要这些身份字段；元数据声明了就带上，没声明保持 None
             model_precision=metadata.get("weight_precision") or metadata.get("model_precision"),
             tp_size=metadata.get("tp_size"),
             dp_size=metadata.get("dp_size"),
+            pp_size=metadata.get("pp_size"),
+            ep_size=metadata.get("ep_size"),
+            deployment_mode=metadata.get("deployment_mode", "unknown"),
             dataset_name=metadata.get("dataset_name"),
             verification_status=metadata.get("verification_status", "partial_evidence"),
             format_version=fmt,
@@ -315,17 +358,25 @@ def _parse(
         rec.num_requests = int_or_none(pick(row, "num_requests", aliases))
         rec.success_count = int_or_none(pick(row, "success_count", aliases))
         rec.duration_s = dec(pick(row, "duration_s", aliases))
-        rec.configured_concurrency = int_or_none(pick(row, "max_concurrency", aliases))
+        rec.configured_concurrency = int_or_none(
+            pick(row, "max_concurrency", aliases)
+        ) or int_or_none(metadata.get("configured_max_concurrency"))
         rec.request_rate_rps = dec(pick(row, "request_rate", aliases))
         raw_rate = pick(row, "request_rate", aliases)
         if is_non_numeric(raw_rate):
             rec.quality_flags.append("non_numeric_request_rate_left_null")
             rec.raw_metrics["request_rate_raw"] = str(raw_rate)
         rec.input_tokens_target = int_or_none(
-            metadata.get("input_tokens_target", pick(row, "mean_input_tokens", aliases))
+            metadata.get(
+                "input_tokens_target",
+                metadata.get("input_len", pick(row, "mean_input_tokens", aliases)),
+            )
         )
         rec.output_tokens_target = int_or_none(
-            metadata.get("output_tokens_target", pick(row, "mean_output_tokens", aliases))
+            metadata.get(
+                "output_tokens_target",
+                metadata.get("output_len", pick(row, "mean_output_tokens", aliases)),
+            )
         )
         rec.dataset_name = metadata.get("dataset_name")
 

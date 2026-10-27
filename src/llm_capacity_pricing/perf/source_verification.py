@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping
@@ -30,6 +31,22 @@ def load_attestations(
     return [item for item in items if isinstance(item, dict)]
 
 
+def _canonical_sha(payload: Any) -> str | None:
+    if payload is None:
+        return None
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _is_sha256(value: Any) -> bool:
     if not isinstance(value, str) or len(value) != 64:
         return False
@@ -42,12 +59,52 @@ def _attestation_matches(
     raw_sha256: str,
     identity_sha256: str,
     declared: str,
+    environment_sha256: str | None,
+    registry_dir: Path,
+    metadata: Mapping[str, Any],
 ) -> bool:
     attested_raw = attestation.get("raw_sha256")
     attested_identity = attestation.get("identity_sha256")
     if not _is_sha256(raw_sha256) or not _is_sha256(identity_sha256):
         return False
     if not _is_sha256(attested_raw) or not _is_sha256(attested_identity):
+        return False
+    if not environment_sha256:
+        return False
+    if attestation.get("environment_sha256") != environment_sha256:
+        return False
+    manifest_file = attestation.get("run_manifest_file")
+    manifest_sha = attestation.get("run_manifest_sha256")
+    if not manifest_file or not _is_sha256(manifest_sha):
+        return False
+    candidate = Path(manifest_file)
+    if not candidate.is_absolute():
+        candidate = registry_dir / candidate
+        if not candidate.is_file():
+            candidate = ROOT / manifest_file
+    if not candidate.is_file():
+        return False
+    if _sha256_file(candidate) != str(manifest_sha).lower():
+        return False
+    try:
+        run_manifest = json.loads(candidate.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return False
+    for key in ("raw_sha256", "identity_sha256", "environment_sha256"):
+        if run_manifest.get(key) != {
+            "raw_sha256": raw_sha256,
+            "identity_sha256": identity_sha256,
+            "environment_sha256": environment_sha256,
+        }[key]:
+            return False
+    if run_manifest.get("model_name") not in (None, metadata.get("model_name")):
+        return False
+    if run_manifest.get("framework") not in (None, metadata.get("framework")):
+        return False
+    if run_manifest.get("framework_version") not in (
+        None,
+        metadata.get("framework_version"),
+    ):
         return False
     return (
         attestation.get("declared_source_kind") == declared
@@ -58,7 +115,6 @@ def _attestation_matches(
         and bool(attestation.get("verified_at"))
         and isinstance(attestation.get("environment"), dict)
         and bool(attestation.get("environment"))
-        and _is_sha256(attestation.get("run_manifest_sha256"))
     )
 
 
@@ -91,12 +147,18 @@ def resolve_source_kind(
             "reason": "synthetic_fixture 只用于管线回归，不是真实实测",
         }
     if declared == "internal_measurement":
+        registry_path = Path(registry) if registry is not None else DEFAULT_REGISTRY
+        registry_dir = registry_path.parent
+        environment_sha = _canonical_sha(metadata.get("environment"))
         for attestation in load_attestations(registry):
             if _attestation_matches(
                 attestation,
                 raw_sha256=raw_sha256,
                 identity_sha256=identity_sha256,
                 declared=declared,
+                environment_sha256=environment_sha,
+                registry_dir=registry_dir,
+                metadata=metadata,
             ):
                 return {
                     "declared_source_kind": declared,

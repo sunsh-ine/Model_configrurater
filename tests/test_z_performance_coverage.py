@@ -45,7 +45,11 @@ def test_catalog_static_matrix_only_contains_supported_hardware():
         for item in doc["catalog"]["hardware"]
         if item["supported_in_phase2"]
     }
-    assert supported == {"nvidia-h100-sxm-80gb", "nvidia-h200-sxm-141gb"}
+    assert supported == {
+        "nvidia-h100-sxm-80gb",
+        "nvidia-h200-sxm-141gb",
+        "nvidia-rtx-3090-24gb",
+    }
     assert {row["hardware_id"] for row in doc["static_matrix"]} == supported
     assert {row["model_id"] for row in doc["static_matrix"]} == {
         "qwen3-8b",

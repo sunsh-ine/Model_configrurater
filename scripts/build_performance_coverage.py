@@ -41,6 +41,8 @@ from llm_capacity_pricing.app.archive_integrity import (
     verify_files,
     verify_predict_metadata,
 )
+from llm_capacity_pricing.perf.benchmark_ingest import identity_sha256
+from llm_capacity_pricing.perf.source_verification import resolve_source_kind
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -1321,6 +1323,10 @@ def render_markdown(doc: dict[str, Any]) -> str:
     )
     lines.append(f"- 工作点总数：{summary['workpoints_total']}")
     lines.append(f"- SLA 可用工作点：{summary['workpoints_sla_usable']}")
+    lines.append(
+        f"- 真实 GPU Benchmark 运行数：{summary.get('real_benchmark_runs', 0)}；"
+        f"真实工作点数：{summary.get('real_benchmark_workpoints', 0)}"
+    )
     lines.append(f"- 仅参考记录：{summary['reference_only_records']}")
     lines.append(f"- 阻塞的归档运行：{summary['blocked_runs']}")
     lines.append(
@@ -1413,6 +1419,9 @@ def build() -> dict[str, Any]:
 
     groups = group_workpoints(evidence)
     summary = summarize(evidence, groups, blocked_runs)
+    real = real_benchmark_coverage()
+    summary["real_benchmark_runs"] = real["runs"]
+    summary["real_benchmark_workpoints"] = real["workpoints"]
     summary["blocked_candidates"] = len(blocked_candidates)
     static_matrix = build_static_matrix(
         models, hardware, evidence, cost_hardware
@@ -1460,8 +1469,104 @@ def build() -> dict[str, Any]:
         "blocked_runs": blocked_runs,
         "blocked_candidates": blocked_candidates,
         "gaps": gaps,
+        "real_benchmark": real,
         "summary": summary,
     }
+
+
+def _rtx_persisted_trust() -> dict[str, str]:
+    import os
+
+    configured = os.environ.get("LCP_RTX_DB")
+    db_path = Path(configured) if configured else (
+        ROOT / "data/exports/ai_rtx3090/rtx3090.db"
+    )
+    if not db_path.is_file():
+        return {}
+    try:
+        from llm_capacity_pricing.services import open_db
+
+        db, repo = open_db(db_path)
+        try:
+            with db.session() as session:
+                return {
+                    run.run_id: run.data_trust
+                    for run in repo.list_benchmark_runs(session)
+                }
+        finally:
+            db.dispose()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def real_benchmark_coverage() -> dict[str, Any]:
+    """AI8：单独统计真实 GPU Benchmark，不混入模拟证据分级。"""
+    root = ROOT / "data/benchmark/rtx3090"
+    runs: list[dict[str, Any]] = []
+    workpoints: set[tuple[Any, ...]] = set()
+    persisted_trust = _rtx_persisted_trust()
+    if not root.exists():
+        return {"runs": 0, "workpoints": 0, "items": []}
+    for directory in sorted(root.glob("*")):
+        metadata_path = directory / "metadata.yaml"
+        summary_path = directory / "client_summary.json"
+        if not metadata_path.is_file() or not summary_path.is_file():
+            continue
+        metadata = load_yaml(metadata_path)
+        summary = load_json(summary_path)
+        report_path = directory / "import_report.json"
+        if not report_path.is_file():
+            continue
+        report = load_json(report_path)
+        validation = report.get("validation") or {}
+        if not validation.get("accepted"):
+            continue
+        requests_path = directory / "requests.jsonl"
+        if not requests_path.is_file():
+            continue
+        raw_sha = sha256(requests_path)
+        if (metadata.get("evidence") or {}).get("source_sha256") != raw_sha:
+            continue
+        verification = resolve_source_kind(
+            metadata,
+            raw_sha256=raw_sha,
+            identity_sha256=identity_sha256(metadata),
+            registry=ROOT / "data/benchmark/source_attestations.json",
+        )
+        if verification.get("verified_source_kind") != "internal_measurement":
+            continue
+        # 只认数据库中已持久化并升级的可信等级；不从校验报告推断。
+        trust = persisted_trust.get(f"rtx3090:{directory.name}")
+        if trust != "measured_internal":
+            continue
+        key = (
+            metadata.get("model_name"),
+            metadata.get("hardware_id"),
+            metadata.get("input_len"),
+            metadata.get("output_len"),
+            metadata.get("configured_max_concurrency"),
+            metadata.get("arrival_mode"),
+            metadata.get("request_rate_rps"),
+        )
+        workpoints.add(key)
+        runs.append(
+            {
+                "run_id": directory.name,
+                "model_name": metadata.get("model_name"),
+                "hardware_id": metadata.get("hardware_id"),
+                "framework": metadata.get("framework"),
+                "framework_version": metadata.get("framework_version"),
+                "input_len": metadata.get("input_len"),
+                "output_len": metadata.get("output_len"),
+                "concurrency": metadata.get("configured_max_concurrency"),
+                "arrival_mode": metadata.get("arrival_mode"),
+                "request_rate_rps": metadata.get("request_rate_rps"),
+                "num_requests": summary.get("num_requests"),
+                "success_count": summary.get("success_count"),
+                "data_trust": trust,
+            }
+        )
+    return {"runs": len(runs), "workpoints": len(workpoints), "items": runs}
 
 
 def main() -> int:

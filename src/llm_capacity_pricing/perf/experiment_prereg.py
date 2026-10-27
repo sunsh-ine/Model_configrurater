@@ -26,26 +26,39 @@ ROOT = Path(__file__).resolve().parents[3]
 MODEL_MANIFEST = ROOT / "data/models/model_manifest.yaml"
 
 
-def _strip_seed(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _strip_seed(item)
-            for key, item in value.items()
-            if key != "seed"
-        }
-    if isinstance(value, list):
-        return [_strip_seed(item) for item in value]
-    return value
+DEFAULT_ALLOWED_VARIATION = ("traffic.load.seed",)
 
 
-def normalize_config(config: Mapping[str, Any]) -> dict[str, Any]:
-    """递归去掉声明允许变化的 seed，其余保持原样。"""
-    return _strip_seed(copy.deepcopy(dict(config)))
+def _remove_path(doc: dict[str, Any], path: str) -> None:
+    parts = path.split(".")
+    current: Any = doc
+    for part in parts[:-1]:
+        if not isinstance(current, dict) or part not in current:
+            return
+        current = current[part]
+    if isinstance(current, dict):
+        current.pop(parts[-1], None)
 
 
-def config_sha256(config: Mapping[str, Any]) -> str:
+def normalize_config(
+    config: Mapping[str, Any],
+    allowed_fields: list[str] | tuple[str, ...] = DEFAULT_ALLOWED_VARIATION,
+) -> dict[str, Any]:
+    """只移除声明允许变化的配置路径，其余保持原样。"""
+    doc = copy.deepcopy(dict(config))
+    for path in allowed_fields:
+        _remove_path(doc, path)
+    return doc
+
+
+def config_sha256(
+    config: Mapping[str, Any],
+    allowed_fields: list[str] | tuple[str, ...] = DEFAULT_ALLOWED_VARIATION,
+) -> str:
     payload = json.dumps(
-        normalize_config(config), ensure_ascii=False, sort_keys=True
+        normalize_config(config, allowed_fields),
+        ensure_ascii=False,
+        sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
@@ -109,7 +122,7 @@ def build_preregistered_manifest(
         preregistered_at=created,
         base_config=base,
         base_config_sha256=config_sha256(base),
-        allowed_variation_fields=["seed"],
+        allowed_variation_fields=["traffic.load.seed"],
         tool="aisimulate",
         tool_version=tool_version,
         model_name=model_name,
@@ -159,7 +172,9 @@ def _finalize_seed(
         completed = payload.get("completed_requests")
         predict_file = ROOT / entry.native_input
         predict_doc = yaml.safe_load(predict_file.read_text(encoding="utf-8")) or {}
-        normalized_sha = config_sha256(predict_doc)
+        normalized_sha = config_sha256(
+            predict_doc, manifest.allowed_variation_fields
+        )
         if normalized_sha != manifest.base_config_sha256:
             problems.append("predict.yaml 的变化超出允许字段（seed）")
         status = (

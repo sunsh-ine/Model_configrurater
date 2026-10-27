@@ -1599,6 +1599,7 @@ def import_performance_run(
     db_path: str | Path = "data/local.db",
     *,
     kind: str = "vllm",
+    qualification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """导入一次压测结果（M20）。走第一阶段已验证的版本化适配器。"""
     # 先解析来源类型：未知 kind 要立刻报错，而不是先读文件再失败
@@ -1616,6 +1617,19 @@ def import_performance_run(
         )
         for record in records
     ]
+    if qualification is not None:
+        for run in runs:
+            run.quality_flags.extend(
+                [
+                    f"qualification:ingest_accepted={qualification.get('ingest_accepted')}",
+                    f"qualification:sla_evaluable={qualification.get('sla_evaluable')}",
+                    f"qualification:calibration_usable={qualification.get('calibration_usable')}",
+                    *[
+                        f"qualification:sla_reason={reason}"
+                        for reason in qualification.get("sla_reasons") or []
+                    ],
+                ]
+            )
     db, repo = open_db(db_path)
     try:
         with db.session() as session:

@@ -126,6 +126,7 @@ def build_decision_evidence(result: PlanResult) -> dict[str, Any]:
         if candidate is None:
             return None
         return {
+            "source": "simulated",
             "candidate_id": candidate.candidate_id,
             "gpu_count": candidate.deployment.gpu_count,
             "tp_size": candidate.deployment.tp_size,
@@ -166,6 +167,105 @@ def build_decision_evidence(result: PlanResult) -> dict[str, Any]:
         for c in result.candidates
         if c.sla_status in ("observed_pass", "observed_fail")
     ]
+    measured_passed = [c for c in measured if c.sla_status == "observed_pass"]
+
+    def measured_ref(candidate: Any) -> dict[str, Any]:
+        return {
+            "source": "measured",
+            "candidate_id": candidate.candidate_id,
+            "gpu_count": candidate.gpu_count,
+            "tp_size": candidate.tp_size,
+            "dp_size": candidate.dp_size,
+            "verdict": candidate.sla_status,
+            "experiment_completeness": getattr(
+                candidate, "experiment_completeness", None
+            ),
+            "calibration_status": getattr(
+                candidate, "calibration_status", "unknown"
+            ),
+        }
+
+    recommend_measured = None
+    min_gpu_measured = None
+    throughput_measured = None
+    min_cost_measured = None
+    if measured_passed and not result.blockers and result.status != "blocked":
+        measured_configs = {
+            (c.tp_size, c.dp_size, c.gpu_count) for c in measured_passed
+        }
+        if len(measured_configs) > 1:
+            # 不同部署配置的实测吞吐不可直接横向排序；只展示，不据此推荐。
+            measured_passed_for_rank = []
+        else:
+            measured_passed_for_rank = measured_passed
+        if effective_ranking == "cost":
+            costed = [
+                c
+                for c in measured_passed_for_rank
+                if c.total_cash_over_horizon is not None
+                and c.currency
+                and c.cost_basis
+                and c.horizon_years is not None
+                and not c.cost_incomplete
+            ]
+            cost_groups = {
+                (c.currency, c.cost_basis, c.horizon_years) for c in costed
+            }
+            if (
+                costed
+                and len(cost_groups) == 1
+                and len(costed) == len(measured_passed_for_rank)
+            ):
+                recommend_measured = measured_ref(
+                    min(costed, key=lambda c: c.total_cash_over_horizon)
+                )
+        else:
+            throughput_pool = [
+                c
+                for c in measured_passed_for_rank
+                if c.output_throughput_tok_s is not None
+            ]
+            if len(throughput_pool) == 1:
+                recommend_measured = measured_ref(throughput_pool[0])
+        if measured_passed_for_rank:
+            min_gpu_measured = measured_ref(
+                min(measured_passed_for_rank, key=lambda c: c.gpu_count)
+            )
+        measured_costed = [
+            c
+            for c in measured_passed_for_rank
+            if c.total_cash_over_horizon is not None
+            and c.currency
+            and c.cost_basis
+            and c.horizon_years is not None
+            and not c.cost_incomplete
+        ]
+        if (
+            measured_costed
+            and len(
+                {
+                    (c.currency, c.cost_basis, c.horizon_years)
+                    for c in measured_costed
+                }
+            )
+            == 1
+            and len(measured_costed) == len(measured_passed_for_rank)
+        ):
+            min_cost_measured = measured_ref(
+                min(measured_costed, key=lambda c: c.total_cash_over_horizon)
+            )
+        throughput_pool = [
+            c
+            for c in measured_passed
+            if c.output_throughput_tok_s is not None
+        ]
+        if throughput_pool:
+            throughput_measured = measured_ref(
+                max(
+                    throughput_pool,
+                    key=lambda c: c.output_throughput_tok_s,
+                )
+            )
     simulated = [
         c
         for c in (simulation.candidates if simulation else [])
@@ -190,11 +290,19 @@ def build_decision_evidence(result: PlanResult) -> dict[str, Any]:
         "cost_ranking_available": cost_ok,
         "cost_ranking_reasons": list(cost_reasons),
         "ranking": ranking,
-        "recommended": ref(recommended),
+        "recommended": recommend_measured or ref(recommended),
+        "recommendation_source": (
+            "measured"
+            if recommend_measured is not None
+            else "simulated"
+            if ref(recommended) is not None
+            else None
+        ),
+        "simulated_recommendation": ref(recommended),
         "best_effort": ref(best_effort),
-        "min_gpu_for_sla": ref(min_gpu),
-        "throughput_best": ref(throughput_best),
-        "min_cost_best": ref(min_cost) if cost_ok else None,
+        "min_gpu_for_sla": min_gpu_measured or ref(min_gpu),
+        "throughput_best": throughput_measured or ref(throughput_best),
+        "min_cost_best": min_cost_measured or (ref(min_cost) if cost_ok else None),
         "candidates": [_candidate_entry(c, simulation) for c in result.candidates],
         "simulation_candidates": simulation_candidates,
         "evidence": evidence,

@@ -1,0 +1,20 @@
+{
+  "gpu_name": "NVIDIA GeForce RTX 3090",
+  "gpu_count": 1,
+  "memory_mib": 24576,
+  "compute_capability": "8.6",
+  "driver_version": "570.124.04",
+  "cuda_version": "12.8",
+  "os": "Ubuntu 22.04.4 LTS",
+  "cpu_model": "Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz",
+  "host_memory_gib": 15,
+  "python": "3.10.12",
+  "framework": "vllm",
+  "framework_version": "0.11.0",
+  "torch": "2.8.0+cu128",
+  "transformers": "4.57.1",
+  "model_path": "/user-storage/b20251021174752115jsiyqm/Qwen3-8B",
+  "model_files_sha256": "852c69a83071fabb9ee7d72b393ff03bf5649faacb8da5f262957c8c2f5142ff",
+  "model_precision": "bf16",
+  "kv_precision": "bf16"
+}

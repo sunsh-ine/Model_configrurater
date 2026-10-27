@@ -151,7 +151,7 @@ def main() -> int:
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "manifest_status": "reconstructed",
         "execution_status": "completed",
-        "allowed_variation_fields": ["seed"],
+        "allowed_variation_fields": ["traffic.load.seed"],
         "tool": "aisimulate",
         "tool_version": "0.12.1",
         "model_name": identity["model_name"],

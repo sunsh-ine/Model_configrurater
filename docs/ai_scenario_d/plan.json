@@ -1,0 +1,240 @@
+{
+  "request_id": "ai-scenario-d-rtx3090",
+  "status": "partial",
+  "domains": {
+    "input": "computed",
+    "sizing": "computed",
+    "performance": "computed",
+    "governance": "not_configured",
+    "economics": "not_configured"
+  },
+  "request_echo": {
+    "model_id": "qwen3-8b",
+    "model_repo_id": "Qwen/Qwen3-8B",
+    "hardware_ids": [
+      "nvidia-rtx-3090-24gb"
+    ],
+    "server_id": "compute01-rtx3090-1gpu",
+    "workload": {
+      "input_len": 2048,
+      "output_len": 256,
+      "concurrency": 8,
+      "dataset": "random",
+      "arrival_mode": "max_concurrency",
+      "request_rate_rps": null
+    },
+    "sla_requirement_id": "ai-3090-sla",
+    "sla": {
+      "requirement_id": "ai-3090-sla",
+      "ttft_p99_ms_max": "6000",
+      "tpot_p99_ms_max": "40"
+    },
+    "budget": null,
+    "max_total_gpus": 1,
+    "cost_template": null,
+    "demand_scenario": null,
+    "candidate_count": 1,
+    "billing_rules_in_db": [
+      "syn-billing-qwen3-32b"
+    ]
+  },
+  "candidates": [
+    {
+      "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+      "hardware_id": "nvidia-rtx-3090-24gb",
+      "tp_size": 1,
+      "dp_size": 1,
+      "gpu_count": 1,
+      "nodes_required": 1,
+      "static_status": "conditional_feasible",
+      "headroom_bytes": 2076151235,
+      "static_reasons": [],
+      "performance_status": "computed",
+      "match_level": "exact_match",
+      "sla_status": "observed_pass",
+      "rank_bucket": "verified_sla_met",
+      "output_throughput_tok_s": "197.3115893269196403401658174",
+      "ttft_p99_ms": "2220.3345838934183",
+      "tpot_p99_ms": "39.61600232504161960784313725",
+      "evidence_run_ids": [
+        "rtx3090:ai-e1c8-seed1",
+        "rtx3090:ai-e1c8-seed2",
+        "rtx3090:ai-e1c8-seed3",
+        "rtx3090:ai-e1c8-seed4",
+        "rtx3090:ai-e1c8-seed5"
+      ],
+      "economics_status": "not_configured",
+      "plan_id": null,
+      "cost_basis": null,
+      "currency": null,
+      "horizon_years": null,
+      "capex_one_time": null,
+      "annual_cash_opex": null,
+      "annual_total_cost": null,
+      "total_cash_over_horizon": null,
+      "cost_incomplete": true,
+      "coverage_gaps": [],
+      "annual_revenue": null,
+      "capacity_check": null,
+      "budget_status": null,
+      "governance_status": "not_configured",
+      "quote_publishable": false,
+      "quote_blockers": [],
+      "notes": [
+        "qwen3-8b × NVIDIA GeForce RTX 3090：TP1 × DP1 = 1 卡 → 条件可行"
+      ]
+    }
+  ],
+  "external_references": [],
+  "simulation": null,
+  "blockers": [],
+  "missing_inputs": [
+    "cost: 未给出成本方案模板，无法计算 TCO",
+    "governance: 未给出 SLA 证据与审批引用，因此不生成报价资格结论"
+  ],
+  "next_data_needed": [
+    "提供 cost.plan_file / cost.template_id（并导入成本目录）",
+    "如需报价资格：先 record-sla-evidence 生成证据、import-quote-approvals 导入审批，再在 governance 中引用其 ID"
+  ],
+  "recommendations": [
+    "资源占用最小的静态可行候选：`qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16`（1 卡，TP1×DP1）—— 这是**资源**结论，不含性能与经济性判断",
+    "具备匹配实测且达标 SLA 的候选：`qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16`",
+    "性能证据分布：已实测满足 1 个",
+    "本结果**不包含**跨维度综合评分：成本、性能与报价资格三者独立"
+  ],
+  "decision_evidence": {
+    "schema_version": "1.0",
+    "objectives_are_independent": [
+      "min_gpu",
+      "max_throughput",
+      "min_cost"
+    ],
+    "min_cost_available": false,
+    "requested_ranking": "throughput",
+    "effective_ranking": "throughput",
+    "cost_ranking_available": false,
+    "cost_ranking_reasons": [
+      "没有模拟结果"
+    ],
+    "ranking": "throughput",
+    "recommended": {
+      "source": "measured",
+      "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+      "gpu_count": 1,
+      "tp_size": 1,
+      "dp_size": 1,
+      "verdict": "observed_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "recommendation_source": "measured",
+    "simulated_recommendation": null,
+    "best_effort": null,
+    "min_gpu_for_sla": {
+      "source": "measured",
+      "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+      "gpu_count": 1,
+      "tp_size": 1,
+      "dp_size": 1,
+      "verdict": "observed_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "throughput_best": {
+      "source": "measured",
+      "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+      "gpu_count": 1,
+      "tp_size": 1,
+      "dp_size": 1,
+      "verdict": "observed_pass",
+      "experiment_completeness": null,
+      "calibration_status": "unknown"
+    },
+    "min_cost_best": null,
+    "candidates": [
+      {
+        "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+        "hardware_id": "nvidia-rtx-3090-24gb",
+        "gpu_count": 1,
+        "tp_size": 1,
+        "dp_size": 1,
+        "performance_status": "computed",
+        "sla_status": "observed_pass",
+        "match_level": "exact_match",
+        "rank_bucket": "verified_sla_met",
+        "p99": {
+          "ttft_ms": "2220.3345838934183",
+          "tpot_ms": "39.61600232504161960784313725"
+        },
+        "throughput_tok_s": "197.3115893269196403401658174",
+        "sla_margin": {
+          "ttft_ms": null,
+          "tpot_ms": null,
+          "sensitive_10pct": null,
+          "sensitive_20pct": null
+        },
+        "evidence": {
+          "type": "measured",
+          "run_ids": [
+            "rtx3090:ai-e1c8-seed1",
+            "rtx3090:ai-e1c8-seed2",
+            "rtx3090:ai-e1c8-seed3",
+            "rtx3090:ai-e1c8-seed4",
+            "rtx3090:ai-e1c8-seed5"
+          ],
+          "experiment_completeness": null,
+          "calibration_status": "unknown"
+        },
+        "repeatability": null,
+        "economics": {
+          "status": "not_configured",
+          "total_cash_over_horizon": null,
+          "currency": null,
+          "cost_incomplete": true
+        },
+        "governance": {
+          "status": "not_configured",
+          "quote_publishable": false,
+          "blockers": []
+        },
+        "notes": [
+          "qwen3-8b × NVIDIA GeForce RTX 3090：TP1 × DP1 = 1 卡 → 条件可行"
+        ]
+      }
+    ],
+    "simulation_candidates": [],
+    "evidence": {
+      "measured_candidates": [
+        "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16"
+      ],
+      "simulated_candidates": [],
+      "external_reference_count": 0,
+      "simulation_status": null
+    },
+    "blockers": [],
+    "rules": [
+      "模拟预测不是实测；predicted_* 不会变成 observed_*",
+      "成本、性能与报价资格三者独立，不提供综合评分",
+      "min_gpu / max_throughput / min_cost 是不同目标，不能混称‘最优’",
+      "实验不完整或校准 unknown 时必须显式展示，不得省略"
+    ]
+  },
+  "summary": {
+    "sizing": {
+      "conditional_feasible": 1
+    },
+    "performance_buckets": {
+      "verified_sla_met": 1
+    },
+    "publishable": [],
+    "cost_complete": [],
+    "cost_comparability": {}
+  },
+  "limitations": [
+    "结论按领域独立给出：静态可行 ≠ 性能达标 ≠ 报价可发布",
+    "未提供的数据一律标为未配置/缺失，不使用默认值补齐",
+    "经济性领域未产出结论：不得据此比较成本高低",
+    "治理领域未产出结论：正式报价资格未被评估（默认不可发布）"
+  ],
+  "generated_at": "2026-10-27T07:12:54.655758Z"
+}

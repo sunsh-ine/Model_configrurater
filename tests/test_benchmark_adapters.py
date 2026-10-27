@@ -61,9 +61,9 @@ def test_sglang_per_request_aggregation(root):
     assert rec.format_version == "sglang-bench-serving-jsonl/v1.per_request"
     assert rec.num_requests == 3
     assert rec.success_count == 2, "output_len=0 的失败请求不计入成功"
-    assert rec.duration_s == Decimal("1.25")
-    assert rec.input_tps_cluster == Decimal("2048") / Decimal("1.25")
-    assert rec.input_tps_per_gpu == Decimal("2048") / Decimal("1.25") / Decimal("8")
+    assert rec.duration_s == Decimal("2.3")
+    assert rec.input_tps_cluster == Decimal("2048") / Decimal("2.3")
+    assert rec.input_tps_per_gpu == Decimal("2048") / Decimal("2.3") / Decimal("8")
     assert rec.ttft_mean_ms == Decimal("195.35")
     assert len(evidences) == 1
 

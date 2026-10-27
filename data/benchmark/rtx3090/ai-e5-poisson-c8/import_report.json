@@ -1,0 +1,109 @@
+{
+  "validation": {
+    "accepted": true,
+    "raw_file": "/home/ssa/AI_Infer/model_configurater/llm-capacity-pricing/data/benchmark/rtx3090/ai-e5-poisson-c8/requests.jsonl",
+    "identity": {
+      "model_name": "Qwen/Qwen3-8B",
+      "model_revision": "local-sha256:852c69a83071",
+      "weight_precision": "bf16",
+      "kv_precision": "bf16",
+      "hardware_model": "NVIDIA GeForce RTX 3090",
+      "deployment_gpu_count": 1,
+      "framework": "vllm",
+      "framework_version": "0.11.0",
+      "tp_size": 1,
+      "dp_size": 1,
+      "pp_size": 1,
+      "dataset_name": "random",
+      "configured_max_concurrency": 8,
+      "arrival_mode": "poisson",
+      "request_rate_rps": 0.5,
+      "input_len": 2048,
+      "output_len": 256
+    },
+    "identity_sha256": "d2edd6fe331cfee1773f51ac3015473f2efb5fe9771fc258a53e4dbe7b01a34a",
+    "errors": [],
+    "warnings": [
+      "来源未认证：按 unverified_upload 处理，不产生实测身份"
+    ],
+    "raw_sha256": "2bdb85251e943d2618f975245a2dfde97ec164478abc1357fb9bbaaea9c33ce6",
+    "declared_sha256": "2bdb85251e943d2618f975245a2dfde97ec164478abc1357fb9bbaaea9c33ce6",
+    "digests": {
+      "raw_sha256": "2bdb85251e943d2618f975245a2dfde97ec164478abc1357fb9bbaaea9c33ce6",
+      "identity_sha256": "d2edd6fe331cfee1773f51ac3015473f2efb5fe9771fc258a53e4dbe7b01a34a",
+      "config_sha256": null,
+      "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
+      "metric_definitions_sha256": "6921d9028394376610c2b51f96187324471a23fa5f6b81e8569bf5e718f40a5c"
+    },
+    "source_verification": {
+      "declared_source_kind": "internal_measurement",
+      "verified_source_kind": "unverified_upload",
+      "verification_method": "none",
+      "attestation_id": null,
+      "verified": false,
+      "verified_for_calibration": false,
+      "reason": "缺少登记在册的受控执行记录，不能授予内部实测身份"
+    },
+    "declared_source_kind": "internal_measurement",
+    "verified_source_kind": "unverified_upload",
+    "recomputed": {
+      "num_requests": 100,
+      "success_count": 100,
+      "failure_count": 0,
+      "cancelled_count": 0,
+      "ttft_p99_ms": "1364.8053482174873",
+      "tpot_p99_ms": "37.94782269088660980392156863",
+      "e2e_p99_ms": "10326.6685269773",
+      "output_throughput_tok_s": "129.6530513926221901345969159",
+      "input_throughput_tok_s": "1037.224411140977521076775328",
+      "duration_s": "197.4500385839492",
+      "window_source": "declared_measurement_window",
+      "window_coverage": "verified",
+      "total_output_tokens": "25600",
+      "metric_definitions": {
+        "ttft_p99_ms": "m.latency.ttft.p99",
+        "tpot_p99_ms": "m.latency.tpot.p99",
+        "output_throughput_tok_s": "m.throughput.cluster.output"
+      },
+      "metric_samples": {
+        "ttft": 100,
+        "tpot": 100,
+        "e2e": 100,
+        "success": 100
+      },
+      "metric_coverage": {
+        "ttft": "1",
+        "tpot": "1",
+        "e2e": "1"
+      },
+      "metric_completeness": "complete"
+    },
+    "import_consistency": {
+      "consistent": true,
+      "errors": [],
+      "throughput_compared": true
+    },
+    "imported": {
+      "record_id": "rtx3090:ai-e5-poisson-c8",
+      "evidence_id": "rtx3090:ai-e5-poisson-c8",
+      "framework": "vllm",
+      "server_framework": "vllm",
+      "benchmark_client": "openai-compatible-stream-client/v1",
+      "performance_source_kind": "unverified_upload",
+      "num_requests": 100,
+      "success_count": 100,
+      "ttft_p99_ms": "1364.8053482174873",
+      "tpot_p99_ms": "37.94782269088660980392156863",
+      "output_throughput_tok_s": "129.6530513926221901345969159"
+    },
+    "qualification": {
+      "ingest_accepted": true,
+      "sla_evaluable": false,
+      "sla_reasons": [
+        "来源未认证为 internal_measurement"
+      ],
+      "calibration_usable": false,
+      "calibration_reason": "未提供预测，未执行校准"
+    }
+  }
+}

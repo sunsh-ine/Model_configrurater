@@ -36,3 +36,4 @@ evidence:
   collected_at: '2026-10-26T00:00:00Z'
   operator: fixture
 frozen_identity_sha256: d93e07995255d7d418bf47b79b56a05d4e0e1b2e28b0c9b34f0ea8c20a78a8a5
+benchmark_client: openai-compatible-stream-client/v1

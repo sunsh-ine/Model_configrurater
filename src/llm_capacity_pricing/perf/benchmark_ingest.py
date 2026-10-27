@@ -111,8 +111,33 @@ def recompute_metrics(
     success_rows: list[Mapping[str, Any]] = []
     failed = 0
     cancelled = 0
+    window_start: Decimal | None = None
+    window_end: Decimal | None = None
+    timed_latencies = 0
+    untimed_latencies = 0
     for row in rows:
         status = str(row.get("terminal_status") or row.get("status") or "").lower()
+        latency_all = dec(
+            row.get("latency_ms", row.get("latency", row.get("e2e_latency_ms")))
+        )
+        arrival_all = dec(row.get("arrival_ms", row.get("arrival_time_ms")))
+        timestamp_all = dec(row.get("timestamp"))
+        if arrival_all is None and timestamp_all is not None:
+            arrival_all = timestamp_all * Decimal(1000)
+        if latency_all is not None:
+            if arrival_all is not None:
+                timed_latencies += 1
+                end_all = arrival_all + latency_all
+                window_start = (
+                    arrival_all
+                    if window_start is None
+                    else min(window_start, arrival_all)
+                )
+                window_end = (
+                    end_all if window_end is None else max(window_end, end_all)
+                )
+            else:
+                untimed_latencies += 1
         if status in ("cancelled", "canceled"):
             cancelled += 1
         elif _is_success(row):
@@ -138,11 +163,6 @@ def recompute_metrics(
     e2es: list[Decimal] = []
     total_out = Decimal(0)
     total_in = Decimal(0)
-    window_start: Decimal | None = None
-    window_end: Decimal | None = None
-    max_latency: Decimal | None = None
-    timed_latencies = 0
-    untimed_latencies = 0
     for row in success_rows:
         ttft = dec(row.get("ttft_ms", row.get("ttft")))
         latency = dec(row.get("latency_ms", row.get("latency", row.get("e2e_latency_ms"))))
@@ -162,24 +182,23 @@ def recompute_metrics(
             ttfts.append(ttft)
             if output_len > 1 and latency >= ttft:
                 tpots.append((latency - ttft) / (output_len - 1))
-        max_latency = (
-            latency if max_latency is None else max(max_latency, latency)
-        )
-        # 与适配器保持一致：只有带到达时间的请求参与墙钟窗口；
-        # 一个到达时间都没有时才退回 max(latency)。
-        if arrival is not None:
-            timed_latencies += 1
-            end = arrival + latency
-            window_start = (
-                arrival if window_start is None else min(window_start, arrival)
-            )
-            window_end = end if window_end is None else max(window_end, end)
-        else:
-            untimed_latencies += 1
     window_source = "observed_success_requests"
+    window_coverage = (
+        "verified"
+        if (
+            rows
+            and timed_latencies == len(rows)
+            and timed_latencies + untimed_latencies == len(rows)
+        )
+        else "unverified"
+    )
     duration_s = (
         (window_end - window_start) / Decimal(1000)  # type: ignore[operator]
-        if timed_latencies and not untimed_latencies and window_start is not None
+        if (
+            timed_latencies == len(rows)
+            and not untimed_latencies
+            and window_start is not None
+        )
         else None
     )
     if measurement_window_ms:
@@ -194,6 +213,9 @@ def recompute_metrics(
             and (explicit_start > window_start or explicit_end < window_end)
         ):
             window_source = "declared_window_does_not_cover_samples"
+            duration_s = None
+        elif window_coverage != "verified":
+            window_source = "declared_window_coverage_unverified"
             duration_s = None
         else:
             window_source = "declared_measurement_window"
@@ -214,6 +236,7 @@ def recompute_metrics(
         ),
         "duration_s": duration_s,
         "window_source": window_source,
+        "window_coverage": window_coverage,
         "total_output_tokens": total_out,
         "metric_definitions": dict(_CANONICAL_METRICS),
         "metric_samples": {
@@ -445,12 +468,10 @@ def run_import_pipeline(
             "synthetic_fixture：只验证导入管线，不得用于生产 SLA 或校准"
         )
 
-    compare_throughput = recomputed.get("window_source") in (
-        "observed_success_requests",
-        "declared_measurement_window",
+    compare_throughput = (
+        recomputed.get("output_throughput_tok_s") is not None
+        or record.output_tps_cluster is not None
     )
-    if recomputed.get("window_source") == "declared_measurement_window":
-        compare_throughput = False
     consistency_errors = _compare_import(
         record,
         recomputed,
@@ -475,6 +496,9 @@ def run_import_pipeline(
         "record_id": record.record_id,
         "evidence_id": evidences[0].evidence_id if evidences else None,
         "framework": record.framework,
+        "server_framework": record.framework,
+        "benchmark_client": meta.get("benchmark_client")
+        or meta.get("client_tool"),
         "performance_source_kind": record.performance_source_kind,
         "num_requests": record.num_requests,
         "success_count": record.success_count,
@@ -482,6 +506,29 @@ def run_import_pipeline(
         "tpot_p99_ms": str(record.tpot_p99_ms),
         "output_throughput_tok_s": str(record.output_tps_cluster),
     }
+
+    sla_reasons: list[str] = []
+    if verification["verified_source_kind"] != "internal_measurement":
+        sla_reasons.append("来源未认证为 internal_measurement")
+    if recomputed.get("metric_completeness") != "complete":
+        sla_reasons.append("并非所有成功请求都具备 TTFT/TPOT/E2E")
+    samples = recomputed.get("metric_samples") or {}
+    if (samples.get("ttft") or 0) < 30 or (samples.get("tpot") or 0) < 30:
+        sla_reasons.append("TTFT/TPOT 有效样本少于 30")
+    if recomputed.get("window_source") != "declared_measurement_window":
+        sla_reasons.append("缺少覆盖全部样本的显式测量窗口")
+    if recomputed.get("window_coverage") != "verified":
+        sla_reasons.append("无法验证测量窗口覆盖全部成功请求（缺到达时间）")
+    if (recomputed.get("success_count") or 0) < 30:
+        sla_reasons.append("成功请求少于 30")
+    qualification = {
+        "ingest_accepted": True,
+        "sla_evaluable": not sla_reasons,
+        "sla_reasons": sla_reasons,
+        "calibration_usable": False,
+        "calibration_reason": "未提供预测，未执行校准",
+    }
+    report["qualification"] = qualification
 
     if prediction is not None:
         evidence_root_path = (
@@ -516,6 +563,23 @@ def run_import_pipeline(
             calibration_status = "unknown"
         calibration["calibration_status"] = calibration_status
         report["calibration"] = calibration
+        qualification["calibration_usable"] = calibration_status == "usable"
+        qualification["calibration_reason"] = (
+            None
+            if calibration_status == "usable"
+            else calibration.get("note")
+        )
+
+    record.raw_metrics["benchmark_client"] = meta.get("benchmark_client")
+    record.raw_metrics["server_framework"] = record.framework
+    record.raw_metrics["qualification"] = dict(qualification)
+    record.quality_flags.extend(
+        [
+            f"ingest_accepted:{qualification['ingest_accepted']}",
+            f"sla_evaluable:{qualification['sla_evaluable']}",
+            f"calibration_usable:{qualification['calibration_usable']}",
+        ]
+    )
 
     if db_path is not None:
         import tempfile

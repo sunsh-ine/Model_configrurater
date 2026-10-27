@@ -54,6 +54,33 @@ sources:
 # ---------------------------------------------------------------------------
 hardware:
   # ---- 本轮支持（第一批）-------------------------------------------------
+  - hardware_id: nvidia-rtx-3090-24gb
+    vendor: nvidia
+    product_name: "NVIDIA GeForce RTX 3090"
+    sku: "RTX 3090"
+    form_factor: PCIe
+    architecture: Ampere
+    hbm_type: GDDR6X
+    hbm_capacity_declared: "24GB"
+    capacity_normalization: binary_GiB
+    total_memory_bytes: 25769803776
+    memory_bandwidth_declared: null
+    memory_bandwidth_bytes_per_s: null
+    interconnect_within_node: null
+    tdp_declared: "350W"
+    mig_declared: null
+    source_id: null
+    source_quote: "compute01 nvidia-smi 2026-10-27: NVIDIA GeForce RTX 3090, 24576 MiB, compute_cap 8.6, driver 570.124.04"
+    verification_status: user_provided
+    supported_in_phase2: true
+    usable_memory_bytes: null
+    usable_memory_status: pending_measurement
+    fields_pending_verification:
+      - memory_bandwidth_bytes_per_s
+      - supported_weight_precisions
+      - supported_kv_cache_precisions
+      - max_sequence_length_supported
+
   - hardware_id: nvidia-h100-sxm-80gb
     vendor: nvidia
     product_name: "NVIDIA H100 SXM"
@@ -204,6 +231,22 @@ hardware:
 # 服务器形态
 # ---------------------------------------------------------------------------
 servers:
+  - server_id: compute01-rtx3090-1gpu
+    profile_name: "compute01 RTX 3090 single-GPU workstation"
+    gpu_hardware_id: nvidia-rtx-3090-24gb
+    gpus_per_node: 1
+    interconnect_declared: null
+    source_id: null
+    source_quote: "compute01 nvidia-smi 2026-10-27"
+    verification_status: user_provided
+    cpu_model: "Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz"
+    host_memory_bytes: null
+    nic_bandwidth_bytes_per_s: null
+    fields_pending_verification:
+      - host_memory_bytes
+      - nic_bandwidth_bytes_per_s
+      - gpu_numa_topology
+
   - server_id: hgx-h100-8gpu
     profile_name: "NVIDIA HGX H100 (8-GPU)"
     gpu_hardware_id: nvidia-h100-sxm-80gb
