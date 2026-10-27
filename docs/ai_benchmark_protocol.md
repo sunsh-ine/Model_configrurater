@@ -13,6 +13,8 @@
 * 独立重算：`scripts/vllm_detailed_to_requests.py` 转成逐请求 JSONL；
   E2E = TTFT + ΣITL，TPOT = (E2E - TTFT)/(output_len-1)。
 * 测量窗口：vLLM 报告的整体 `duration` 作为显式窗口；不把单请求时延当窗口。
+* 时延精度：归档 JSONL 中 `arrival_ms` / `ttft_ms` / `latency_ms` 保留 3 位小数（微秒级）；
+  这是记录精度，不改变客户端测量值。
 
 ## 2. 指标资格
 

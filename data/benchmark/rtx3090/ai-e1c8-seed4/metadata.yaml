@@ -58,7 +58,7 @@ environment:
   server_log_sha256: 325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f
 evidence:
   source_file: requests.jsonl
-  source_sha256: cb330bbe064a72c60a3e90720f042ec840eea6383e95ff4a3b0a1b7306279c8b
+  source_sha256: 1072cd58fd5b5090ff227d8eedd9a157b08c437e540cdfd9f43a6d22cd4bdb01
   collected_at: '2026-10-27T06:49:11+00:00'
   operator: compute01-controlled-run
 frozen_identity_sha256: 6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc

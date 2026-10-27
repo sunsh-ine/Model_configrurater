@@ -5,11 +5,11 @@
     {
       "attestation_id": "att-ai-e1c8-seed1",
       "declared_source_kind": "internal_measurement",
-      "raw_sha256": "bb78d463e0a5623bc9ebc6bce757bc9b2800808aae7604ddc7c3098f99f46c3b",
+      "raw_sha256": "7b6d394b4a8e35ca6e1c570ec418663725a246a1d2bcf75879cb548474fb32ff",
       "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
       "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
       "verified_by": "compute01-controlled-run",
-      "verified_at": "2026-10-27T03:47:19+00:00",
+      "verified_at": "2026-10-27T07:45:29+00:00",
       "environment": {
         "gpu_name": "NVIDIA GeForce RTX 3090",
         "gpu_count": 1,
@@ -33,17 +33,17 @@
         "server_log_sha256": "325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f"
       },
       "run_manifest_file": "run_manifests/ai-e1c8-seed1.json",
-      "run_manifest_sha256": "c7110c34200fcefbaef07ab611cd274a25a4b21326c73f01c6267cf185af27cc",
+      "run_manifest_sha256": "cc3e9d38ca1ed31f0a113c9eb15fdf00027d5dd11732ece21e8be0325ffa633f",
       "note": "AI4 controlled RTX 3090 run"
     },
     {
       "attestation_id": "att-ai-e1c8-seed2",
       "declared_source_kind": "internal_measurement",
-      "raw_sha256": "f29ec55c6a07f67bbfbc8653a066d60d6cf43a244809a7c068ee4a5845d52c5c",
+      "raw_sha256": "8387b6bbb700d9d79fb715c6783723ee1a7bcbf552b3a0dd71f5296c20c752ce",
       "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
       "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
       "verified_by": "compute01-controlled-run",
-      "verified_at": "2026-10-27T04:00:26+00:00",
+      "verified_at": "2026-10-27T07:45:30+00:00",
       "environment": {
         "gpu_name": "NVIDIA GeForce RTX 3090",
         "gpu_count": 1,
@@ -67,17 +67,17 @@
         "server_log_sha256": "325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f"
       },
       "run_manifest_file": "run_manifests/ai-e1c8-seed2.json",
-      "run_manifest_sha256": "25bf55d9961d9b482928f0aaa94a01cb7865b588f855e6ebb23822249eaa5fa8",
+      "run_manifest_sha256": "f8c167516864bbceed6cce62bca8b352c72733158cd30e73e48a028b375b6965",
       "note": "AI4 controlled RTX 3090 run"
     },
     {
       "attestation_id": "att-ai-e1c8-seed3",
       "declared_source_kind": "internal_measurement",
-      "raw_sha256": "86c2148ba822ea2f16419dda41121e9dd5cf4f03c845c8d16dcabe6f6ba9b8aa",
+      "raw_sha256": "223c9fb6a7fecca52ab12075ec096ce1424b89d0a74f0e3f31169fe55858bd70",
       "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
       "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
       "verified_by": "compute01-controlled-run",
-      "verified_at": "2026-10-27T04:11:20+00:00",
+      "verified_at": "2026-10-27T07:45:30+00:00",
       "environment": {
         "gpu_name": "NVIDIA GeForce RTX 3090",
         "gpu_count": 1,
@@ -101,17 +101,17 @@
         "server_log_sha256": "325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f"
       },
       "run_manifest_file": "run_manifests/ai-e1c8-seed3.json",
-      "run_manifest_sha256": "82ef9b5f20beb9847f6810e1fc08a57b5f729c4524fb7c7e31dc9be394e470b4",
+      "run_manifest_sha256": "ed40b715dd312b2a7f6aaf6fee4c73dcbdf364126b5dab6ecf6c77712e671f21",
       "note": "AI4 controlled RTX 3090 run"
     },
     {
       "attestation_id": "att-ai-e1c8-seed4",
       "declared_source_kind": "internal_measurement",
-      "raw_sha256": "cb330bbe064a72c60a3e90720f042ec840eea6383e95ff4a3b0a1b7306279c8b",
+      "raw_sha256": "1072cd58fd5b5090ff227d8eedd9a157b08c437e540cdfd9f43a6d22cd4bdb01",
       "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
       "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
       "verified_by": "compute01-controlled-run",
-      "verified_at": "2026-10-27T04:23:27+00:00",
+      "verified_at": "2026-10-27T07:45:31+00:00",
       "environment": {
         "gpu_name": "NVIDIA GeForce RTX 3090",
         "gpu_count": 1,
@@ -135,17 +135,17 @@
         "server_log_sha256": "325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f"
       },
       "run_manifest_file": "run_manifests/ai-e1c8-seed4.json",
-      "run_manifest_sha256": "8b253bb07604124342a9b2a64e29a34dea0147871aa6ae501c96a0b29dae2fcf",
+      "run_manifest_sha256": "8be9fdba5eb17d040976080b58fee1bed3db989437f183137a1eaf13ef8411eb",
       "note": "AI4 controlled RTX 3090 run"
     },
     {
       "attestation_id": "att-ai-e1c8-seed5",
       "declared_source_kind": "internal_measurement",
-      "raw_sha256": "6be3d486dc9aaedc81daa3ab69e1a35870f9a18378b324f98038b7e85667932a",
+      "raw_sha256": "46aa5acfc1521cf771a0584af369dc746851331c08387865b154dec7f4040e30",
       "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
       "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
       "verified_by": "compute01-controlled-run",
-      "verified_at": "2026-10-27T04:36:32+00:00",
+      "verified_at": "2026-10-27T07:45:33+00:00",
       "environment": {
         "gpu_name": "NVIDIA GeForce RTX 3090",
         "gpu_count": 1,
@@ -169,7 +169,7 @@
         "server_log_sha256": "325f076418208bf103a8460ad558190a39950e8e32f96ab07b4ccc371b4e042f"
       },
       "run_manifest_file": "run_manifests/ai-e1c8-seed5.json",
-      "run_manifest_sha256": "1ee309a9ff03f1ed65bf6750b0ff646faea06dfe571c1b9bba5ca79ec22f4ea3",
+      "run_manifest_sha256": "68e2da59c7f8fb998bc4a9afd7b55cb330d04f5b34473aed5ef6b78b61ffd0c3",
       "note": "AI4 controlled RTX 3090 run"
     }
   ]

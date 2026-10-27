@@ -10,9 +10,9 @@
     "steps_passed": 66,
     "steps_failed": 0,
     "pytest_passed": 1179,
-    "auto_search_run_id": "run_20261027T071451Z_620c3a",
-    "system_demo_run_id": "20261027T071501Z_debe99",
-    "finished_at": "2026-10-27T15:22:52+08:00"
+    "auto_search_run_id": "run_20261027T074748Z_41e20a",
+    "system_demo_run_id": "20261027T074758Z_bd9ddc",
+    "finished_at": "2026-10-27T15:56:58+08:00"
   },
   "rtx3090": {
     "host": "10.0.102.61",

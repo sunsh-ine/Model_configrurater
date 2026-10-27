@@ -1,6 +1,6 @@
 {
   "run_id": "ai-e1c8-seed1",
-  "raw_sha256": "bb78d463e0a5623bc9ebc6bce757bc9b2800808aae7604ddc7c3098f99f46c3b",
+  "raw_sha256": "7b6d394b4a8e35ca6e1c570ec418663725a246a1d2bcf75879cb548474fb32ff",
   "identity_sha256": "6da5fff2fe2e4a98f786e7e3b9fef255eff9add7dae979c5c86b31ab333e94bc",
   "environment_sha256": "a3eec00e4d2a8204240195e790e7f0d88da25ee762aa56404e79524c70b33849",
   "model_name": "Qwen/Qwen3-8B",

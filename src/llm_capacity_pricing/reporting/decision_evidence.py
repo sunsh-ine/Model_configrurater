@@ -256,16 +256,11 @@ def build_decision_evidence(result: PlanResult) -> dict[str, Any]:
             )
         throughput_pool = [
             c
-            for c in measured_passed
+            for c in measured_passed_for_rank
             if c.output_throughput_tok_s is not None
         ]
-        if throughput_pool:
-            throughput_measured = measured_ref(
-                max(
-                    throughput_pool,
-                    key=lambda c: c.output_throughput_tok_s,
-                )
-            )
+        if len(throughput_pool) == 1:
+            throughput_measured = measured_ref(throughput_pool[0])
     simulated = [
         c
         for c in (simulation.candidates if simulation else [])

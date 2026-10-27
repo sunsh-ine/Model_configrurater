@@ -32,6 +32,7 @@ def main() -> int:
     parser.add_argument("--server-log", required=True)
     parser.add_argument("--server-args", default="")
     parser.add_argument("--db", default=None)
+    parser.add_argument("--skip-archive", action="store_true")
     args = parser.parse_args()
 
     import sys
@@ -52,7 +53,8 @@ def main() -> int:
     ]
     if args.request_rate is not None:
         cmd += ["--request-rate", str(args.request_rate)]
-    subprocess.run(cmd, check=True)
+    if not args.skip_archive:
+        subprocess.run(cmd, check=True)
     out_dir = ROOT / "data/benchmark/rtx3090" / args.run_id
     metadata_path = out_dir / "metadata.yaml"
     import yaml
