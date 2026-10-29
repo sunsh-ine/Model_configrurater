@@ -1,0 +1,128 @@
+{
+  "validation": {
+    "accepted": true,
+    "raw_file": "/home/ssa/AI_Infer/model_configurater/llm-capacity-pricing/data/benchmark/rtx3090/aj-e1c6-seed4/requests.jsonl",
+    "identity": {
+      "model_name": "Qwen/Qwen3-8B",
+      "model_revision": "local-sha256:852c69a83071",
+      "weight_precision": "bf16",
+      "kv_precision": "bf16",
+      "hardware_model": "NVIDIA GeForce RTX 3090",
+      "deployment_gpu_count": 1,
+      "framework": "vllm",
+      "framework_version": "0.11.0",
+      "tp_size": 1,
+      "dp_size": 1,
+      "pp_size": 1,
+      "dataset_name": "random",
+      "configured_max_concurrency": 6,
+      "arrival_mode": "fixed_concurrency",
+      "request_rate_rps": null,
+      "input_len": 2048,
+      "output_len": 256
+    },
+    "identity_sha256": "5993f20817a9313bf5c6d50ae555786ded07ee5bbeceebb158c9f079697d4f57",
+    "errors": [],
+    "warnings": [],
+    "raw_sha256": "a9752c808dcddc3b40d8342e2cf6991e2f95442f552af2df3a084bd385f61e8a",
+    "declared_sha256": "a9752c808dcddc3b40d8342e2cf6991e2f95442f552af2df3a084bd385f61e8a",
+    "digests": {
+      "raw_sha256": "a9752c808dcddc3b40d8342e2cf6991e2f95442f552af2df3a084bd385f61e8a",
+      "identity_sha256": "5993f20817a9313bf5c6d50ae555786ded07ee5bbeceebb158c9f079697d4f57",
+      "config_sha256": null,
+      "environment_sha256": "53da801096990e392713d5910388ab0f8dad52bf5fc3402666f0815901d02dbf",
+      "metric_definitions_sha256": "6921d9028394376610c2b51f96187324471a23fa5f6b81e8569bf5e718f40a5c"
+    },
+    "source_verification": {
+      "declared_source_kind": "internal_measurement",
+      "verified_source_kind": "internal_measurement",
+      "verification_method": "registered_controlled_run",
+      "attestation_id": "att-aj-e1c6-seed4",
+      "verified": true,
+      "verified_for_calibration": true,
+      "reason": "匹配登记的受控执行记录"
+    },
+    "declared_source_kind": "internal_measurement",
+    "verified_source_kind": "internal_measurement",
+    "recomputed": {
+      "num_requests": 500,
+      "success_count": 500,
+      "failure_count": 0,
+      "cancelled_count": 0,
+      "ttft_p99_ms": "1370.0837306678295",
+      "tpot_p99_ms": "35.48761108780608549019607843",
+      "e2e_p99_ms": "9744.108363986015",
+      "output_throughput_tok_s": "166.4686143752499168524317795",
+      "input_throughput_tok_s": "1331.748915001999334819454236",
+      "duration_s": "768.9137107338756",
+      "window_source": "declared_measurement_window",
+      "window_coverage": "verified",
+      "total_output_tokens": "128000",
+      "metric_definitions": {
+        "ttft_p99_ms": "m.latency.ttft.p99",
+        "tpot_p99_ms": "m.latency.tpot.p99",
+        "output_throughput_tok_s": "m.throughput.cluster.output"
+      },
+      "metric_samples": {
+        "ttft": 500,
+        "tpot": 500,
+        "e2e": 500,
+        "success": 500
+      },
+      "metric_coverage": {
+        "ttft": "1",
+        "tpot": "1",
+        "e2e": "1"
+      },
+      "metric_completeness": "complete"
+    },
+    "import_consistency": {
+      "consistent": true,
+      "errors": [],
+      "throughput_compared": true
+    },
+    "imported": {
+      "record_id": "rtx3090:aj-e1c6-seed4",
+      "evidence_id": "rtx3090:aj-e1c6-seed4",
+      "framework": "vllm",
+      "server_framework": "vllm",
+      "benchmark_client": "openai-compatible-stream-client/v1",
+      "performance_source_kind": "internal_measurement",
+      "num_requests": 500,
+      "success_count": 500,
+      "ttft_p99_ms": "1370.0837306678295",
+      "tpot_p99_ms": "35.48761108780608549019607843",
+      "output_throughput_tok_s": "166.4686143752499168524317795"
+    },
+    "qualification": {
+      "ingest_accepted": true,
+      "sla_evaluable": true,
+      "sla_reasons": [],
+      "success_rate": "1",
+      "reliability_status": "pass",
+      "observed_sla_result": "pass",
+      "calibration_usable": false,
+      "calibration_reason": "未提供预测，未执行校准",
+      "production_commitment_allowed": false
+    }
+  },
+  "import": {
+    "file": "/home/ssa/AI_Infer/model_configurater/llm-capacity-pricing/data/benchmark/rtx3090/aj-e1c6-seed4/requests.jsonl",
+    "kind": "sglang",
+    "run_count": 1,
+    "run_ids": [
+      "rtx3090:aj-e1c6-seed4"
+    ],
+    "data_trust": [
+      "unknown"
+    ],
+    "load_profile_kind": [
+      "fixed_length_standard"
+    ],
+    "trust_note": "measured：可作为 SLA 判定依据（仍需匹配检查）"
+  },
+  "data_trust_before_attest": [
+    "unknown"
+  ],
+  "note": "运行已入库；来源须先由 attest_rtx3090_run.py 登记，再由 attest-run 升级为 measured_internal。"
+}

@@ -203,6 +203,7 @@ def _target_facts(
         "dp_size": candidate.dp_size,
         "framework": adv.framework,
         "framework_version": adv.framework_version,
+        "runtime_config_sha256": adv.runtime_config_sha256,
         "configured_concurrency": request.workload.concurrency,
         "input_len_target": request.workload.input_len,
         "output_len_target": request.workload.output_len,
@@ -316,6 +317,7 @@ def evaluate_plan(
                         "model_revision": request.advanced.model_revision,
                         "framework": request.advanced.framework,
                         "framework_version": request.advanced.framework_version,
+                        "runtime_config_sha256": request.advanced.runtime_config_sha256,
                     },
                 )
             except Exception as exc:  # noqa: BLE001

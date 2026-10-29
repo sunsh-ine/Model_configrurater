@@ -134,6 +134,8 @@ class BenchmarkRecord(BaseModel):
 
     # ---- 溯源与质量 -----------------------------------------------------
     format_version: str | None = None
+    #: AJ0：影响性能的完整运行配置哈希（服务端参数/并行/精度/客户端口径）
+    runtime_config_sha256: str | None = None
     raw_metrics: dict[str, Any] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
     quality_flags: list[str] = Field(default_factory=list)

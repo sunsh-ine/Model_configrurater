@@ -1,0 +1,150 @@
+{
+  "phase": "AJ",
+  "baseline": "d32fe5b",
+  "generated_at": "2026-10-28T05:21:00+00:00",
+  "environment": {
+    "host": "10.0.102.61",
+    "gpu": "NVIDIA GeForce RTX 3090 24GB",
+    "driver": "570.124.04",
+    "cuda": "12.8",
+    "python": "3.10.12",
+    "framework": "vllm 0.11.0",
+    "torch": "2.8.0+cu128",
+    "transformers": "4.57.1",
+    "model": "Qwen/Qwen3-8B",
+    "precision": "bf16",
+    "runtime_config_sha256": "cb8719a6aef3cbfd8ae6062e6ff6d9a7a6d12e7a043d0c7a21887d7a50c594c4"
+  },
+  "formal_runs": {
+    "ai_c8_legacy": {
+      "runs": 5,
+      "requests_per_run": 500,
+      "success": "5/5",
+      "config_bound": false,
+      "status": "legacy_unbound",
+      "note": "AI 阶段正式运行，归档时没有 runtime_config_sha256；只作延迟参考"
+    },
+    "aj_c6_preregistered": {
+      "manifest": "data/benchmark/experiments/aj-formal-c6.json",
+      "runs": 5,
+      "requests_per_run": 500,
+      "success": "4/5",
+      "failed_run": "aj-e1c6-seed1",
+      "failed_requests": 1,
+      "reliability_status": "fail",
+      "observed_sla_result": "unknown",
+      "tpot_p99_ms_range": ["34.91", "35.49"],
+      "margin_10pct": true,
+      "margin_5pct": true,
+      "eligible_as_capacity": false
+    },
+    "aj_c8_replication": {
+      "runs": 5,
+      "requests_per_run": 500,
+      "success": "5/5",
+      "config_bound": true,
+      "ttft_p99_ms_range": ["1788.37", "1831.80"],
+      "tpot_p99_ms_range": ["38.63", "39.39"],
+      "output_tps_range": ["197.25", "198.55"],
+      "margin_10pct": false,
+      "margin_5pct": false,
+      "reliability_status": "pass",
+      "observed_sla_result": "pass"
+    },
+    "aj_poisson_065_window_observation": {
+      "run_id": "aj-a5-r065-500",
+      "requests": 500,
+      "success": "500/500",
+      "actual_arrival_rps": "0.646",
+      "completed_rps": "0.646",
+      "ttft_p99_ms": "1396.479",
+      "tpot_p99_ms": "39.120",
+      "sla_goodput_rps": "0.644",
+      "steady_state": "observed_stable_in_window",
+      "queue_status": "unobserved"
+    }
+  },
+  "capacity_conclusion": {
+    "max_output_tps": "198.550",
+    "max_output_tps_run": "aj-e1c8-seed3",
+    "max_sla_goodput_rps": "0.776",
+    "max_verified_fixed_concurrency": 8,
+    "margin_10pct_candidates": [],
+    "margin_5pct_candidates": [],
+    "max_steady_open_rate_rps": null,
+    "max_steady_open_note": "0.65 req/s 只有 1 次 500 请求窗口，未达 5 次正式重复，仅作窗口观察",
+    "recommended_mode": "fixed_concurrency",
+    "recommended_value": 8,
+    "reason": "正式固定并发满足 SLA，但无内部裕量",
+    "separate_conclusions": [
+      "最大吞吐",
+      "最大 SLA Goodput",
+      "有内部裕量的可验证容量",
+      "Poisson 窗口稳态"
+    ]
+  },
+  "qualification_layers": {
+    "ingest_accepted": "独立",
+    "sla_evaluable": "仅代表延迟指标可判定",
+    "reliability_status": "任一次失败即为 fail",
+    "observed_sla_result": "可靠性失败或不可判定时为 unknown",
+    "calibration_usable": false,
+    "calibration_reason": "AISimulate 无 rtx3090 系统，校准保持 unknown",
+    "production_commitment_allowed": false
+  },
+  "scenario_e": {
+    "request_id": "aj-scenario-e-rtx3090",
+    "candidate_id": "qwen3-8b__nvidia-rtx-3090-24gb__tp1_dp1_bf16",
+    "plan_status": "partial",
+    "plan_status_reason": "成本与报价资格未配置，不是性能失败",
+    "match_level": "exact_match",
+    "sla_status": "observed_pass",
+    "rank_bucket": "verified_sla_met",
+    "ttft_p99_ms": "1831.801",
+    "tpot_p99_ms": "39.388",
+    "output_throughput_tok_s": "197.255",
+    "evidence_run_ids": [
+      "rtx3090:aj-e1c8-seed1",
+      "rtx3090:aj-e1c8-seed2",
+      "rtx3090:aj-e1c8-seed3",
+      "rtx3090:aj-e1c8-seed4",
+      "rtx3090:aj-e1c8-seed5"
+    ],
+    "quote_publishable": false
+  },
+  "regression": {
+    "pytest": "1218 passed, 1 skipped",
+    "verify_all": "66/66",
+    "coverage_matrix": {
+      "evidence_total": 309,
+      "simulated_native_runs": 100,
+      "simulated_scan_runs": 159,
+      "real_benchmark_runs": 16,
+      "real_benchmark_workpoints": 3
+    }
+  },
+  "artifacts": [
+    "docs/aj_capacity_scan.md",
+    "docs/aj_capacity_scan.json",
+    "docs/aj_sla_margin_analysis.md",
+    "docs/aj_open_arrival_stability.md",
+    "docs/aj_performance_bottlenecks.md",
+    "docs/aj_experiment_audit.json",
+    "docs/aj_capacity_recommendation.md",
+    "docs/aj_capacity_recommendation.json",
+    "docs/aj_customer_scenario_e.md",
+    "docs/aj_scenario_e/",
+    "docs/aj_phase_validation.md",
+    "docs/aj_runtime_execution_check.json",
+    "docs/performance_coverage.md"
+  ],
+  "open_gaps": [
+    "C8 无内部裕量，长期稳定性未验证",
+    "C6 的 1/500 失败未复现，无法判定偶发或系统性",
+    "Poisson 0.65 只是有限窗口稳态",
+    "没有服务端队列时间序列，queue_status=unobserved",
+    "多卡 TP/DP、PD 分离、SGLang 未验证",
+    "AISimulate 无 RTX 3090，真实校准 unknown",
+    "无已确认 RTX 3090 成本，报价不可发布"
+  ]
+}

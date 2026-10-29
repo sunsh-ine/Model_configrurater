@@ -40,6 +40,27 @@
 正式点：E1 C8，每个 seed 500 完成请求，5 个独立 seed；不删除失败 seed。
 exploratory 点使用较少请求，只用于能力/瓶颈判断，不作为正式 SLA 证据。
 
+## 3.1 客户端与服务端口径隔离（AJ0.4）
+
+* AI/AJ 正式数据使用 `scripts/benchmark_client.py`（OpenAI 兼容流式客户端）；
+* vLLM `bench serve --save-detailed` 是另一套客户端，其 TTFT/ITL 统计口径不同；
+* 两者**不得**在未核对口径的情况下混合比较或合并成一个容量结论；
+* metadata 分别记录 `benchmark_client` 与 `framework`（服务端框架）。
+
+## 3.2 冻结运行配置（AJ0.1）
+
+每条 AJ 运行记录 `runtime_config_sha256`，覆盖服务端版本、dtype/KV 精度、
+max-model-len、max-num-seqs、gpu-memory-utilization、CUDA Graph/enforce-eager、
+prefix cache、chunked prefill 与客户端统计口径。同一工作点的运行必须使用相同哈希；
+历史 AI 数据不能回填未记录的配置，保持 `unknown`。
+
+AJ 正式重复：
+
+* C6（`aj-formal-c6` 预注册）：5 个 seed × 500 请求，其中 1 次 499/500；
+  延迟有内部裕量，但可靠性不通过，不作为容量；
+* C8（冻结配置复现）：5 个 seed × 500 请求全部成功，作为本轮推荐容量；
+* AI 阶段 5 次 C8 运行未绑定配置哈希，标记 `legacy_unbound`，只作延迟参考。
+
 ## 4. 已确认限制
 
 * 8192 输入需要 `max-model-len >= 8448`（256 输出预留）；8192 输入下 C2

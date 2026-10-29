@@ -521,12 +521,49 @@ def run_import_pipeline(
         sla_reasons.append("无法验证测量窗口覆盖全部成功请求（缺到达时间）")
     if (recomputed.get("success_count") or 0) < 30:
         sla_reasons.append("成功请求少于 30")
+    total_requests = recomputed.get("num_requests") or 0
+    success_count = recomputed.get("success_count") or 0
+    success_rate = (
+        Decimal(success_count) / Decimal(total_requests)
+        if total_requests
+        else None
+    )
+    reliability_status = (
+        "pass"
+        if total_requests and success_count == total_requests
+        else "fail"
+        if total_requests
+        else "unknown"
+    )
+    sla_thresholds = meta.get("sla") or {}
+    ttft_limit = dec(sla_thresholds.get("ttft_p99_ms_max"))
+    tpot_limit = dec(sla_thresholds.get("tpot_p99_ms_max"))
+    observed_sla_result = "unknown"
+    if (
+        not sla_reasons
+        and reliability_status == "pass"
+        and ttft_limit is not None
+        and tpot_limit is not None
+    ):
+        ttft_value = dec(recomputed.get("ttft_p99_ms"))
+        tpot_value = dec(recomputed.get("tpot_p99_ms"))
+        if ttft_value is not None and tpot_value is not None:
+            observed_sla_result = (
+                "pass"
+                if ttft_value <= ttft_limit and tpot_value <= tpot_limit
+                else "fail"
+            )
     qualification = {
         "ingest_accepted": True,
+        # 时延指标是否具备统计资格（不含可靠性/客户承诺）
         "sla_evaluable": not sla_reasons,
         "sla_reasons": sla_reasons,
+        "success_rate": str(success_rate) if success_rate is not None else None,
+        "reliability_status": reliability_status,
+        "observed_sla_result": observed_sla_result,
         "calibration_usable": False,
         "calibration_reason": "未提供预测，未执行校准",
+        "production_commitment_allowed": False,
     }
     report["qualification"] = qualification
 

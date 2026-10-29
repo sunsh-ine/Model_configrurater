@@ -300,6 +300,7 @@ def build_decision_evidence(result: PlanResult) -> dict[str, Any]:
         "min_cost_best": min_cost_measured or (ref(min_cost) if cost_ok else None),
         "candidates": [_candidate_entry(c, simulation) for c in result.candidates],
         "simulation_candidates": simulation_candidates,
+        "capacity": result.capacity_evidence if getattr(result, "capacity_evidence", None) else None,
         "evidence": evidence,
         "blockers": [
             {

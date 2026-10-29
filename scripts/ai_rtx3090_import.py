@@ -23,12 +23,18 @@ def main() -> int:
     parser.add_argument("--requests", required=True)
     parser.add_argument("--summary", required=True)
     parser.add_argument("--environment", required=True)
+    parser.add_argument(
+        "--runtime-config",
+        default="data/benchmark/rtx3090/runtime_config.json",
+    )
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--input-len", type=int, required=True)
     parser.add_argument("--output-len", type=int, required=True)
     parser.add_argument("--concurrency", type=int, required=True)
     parser.add_argument("--request-rate", type=float, default=None)
     parser.add_argument("--seed", type=int, required=True)
+    parser.add_argument("--sla-ttft", type=float, default=None)
+    parser.add_argument("--sla-tpot", type=float, default=None)
     parser.add_argument("--server-log", required=True)
     parser.add_argument("--server-args", default="")
     parser.add_argument("--db", default=None)
@@ -43,6 +49,7 @@ def main() -> int:
         "--requests", args.requests,
         "--summary", args.summary,
         "--environment", args.environment,
+        "--runtime-config", args.runtime_config,
         "--run-id", args.run_id,
         "--input-len", str(args.input_len),
         "--output-len", str(args.output_len),
@@ -51,6 +58,10 @@ def main() -> int:
         "--server-log", args.server_log,
         "--server-args", args.server_args,
     ]
+    if args.sla_ttft is not None:
+        cmd += ["--sla-ttft", str(args.sla_ttft)]
+    if args.sla_tpot is not None:
+        cmd += ["--sla-tpot", str(args.sla_tpot)]
     if args.request_rate is not None:
         cmd += ["--request-rate", str(args.request_rate)]
     if not args.skip_archive:

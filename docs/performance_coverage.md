@@ -247,7 +247,7 @@
 - 按级别：static_only=0；simulated_scan_only=159；simulated_native_p99=100；measured_benchmark=0
 - 工作点总数：147
 - SLA 可用工作点：79
-- 真实 GPU Benchmark 运行数：5；真实工作点数：1
+- 真实 GPU Benchmark 运行数：16；真实工作点数：3
 - 仅参考记录：50
 - 阻塞的归档运行：0
 - 阻塞的候选回放：0（同一运行内其它成功候选仍可用）

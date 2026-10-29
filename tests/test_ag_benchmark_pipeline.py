@@ -42,6 +42,8 @@ def test_pipeline_accepts_fixture_and_cross_checks_import():
     assert result["import_consistency"]["consistent"] is True
     assert result["imported"]["success_count"] == 96
     assert result["identity_sha256"] == METADATA["frozen_identity_sha256"]
+    assert result["qualification"]["reliability_status"] == "fail"
+    assert result["qualification"]["observed_sla_result"] == "unknown"
 
 
 def test_tampered_raw_file_is_rejected(tmp_path):

@@ -179,6 +179,7 @@ class BenchmarkSignature(BaseModel):
 
     # ---- 指标口径 ----
     metric_definition_ids: list[str] = Field(default_factory=list)
+    runtime_config_sha256: str | None = None
     metric_side: MetricSide = "unknown"
     statistics_window: str | None = None
     sample_size: int | None = None
@@ -213,6 +214,8 @@ class TargetRequirement(BaseModel):
 
     framework: str | None = None
     framework_version: str | None = None
+    #: 冻结运行配置哈希；缺失表示无法确认两次运行使用同一服务端配置
+    runtime_config_sha256: str | None = None
 
     workload: WorkloadSignature = Field(default_factory=WorkloadSignature)
 
@@ -355,6 +358,8 @@ class PerformanceProfile(BaseModel):
 
     # ---- 口径 ----
     metric_definition_ids: list[str] = Field(default_factory=list)
+    #: AJ0：同一工作点内必须一致的运行配置哈希；历史数据缺失保持 unknown
+    runtime_config_sha256: str | None = None
     metric_side: MetricSide = "client"
     statistics_window: str | None = None
 

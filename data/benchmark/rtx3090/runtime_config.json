@@ -1,0 +1,26 @@
+{
+  "server": {
+    "framework": "vllm",
+    "framework_version": "0.11.0",
+    "dtype": "bfloat16",
+    "kv_cache_dtype": "auto",
+    "quantization": null,
+    "max_model_len": 8448,
+    "gpu_memory_utilization": 0.9,
+    "max_num_seqs": 8,
+    "enforce_eager": true,
+    "cuda_graph": false,
+    "chunked_prefill": true,
+    "prefix_caching": true,
+    "attention_backend": "unknown"
+  },
+  "client": {
+    "tool": "openai-compatible-stream-client/v1",
+    "streaming": true,
+    "metric_side": "client",
+    "event_start": "request send",
+    "event_first_token": "first streamed content token",
+    "event_last_token": "request completion",
+    "tpot": "(e2e - ttft)/(output_tokens-1); not ITL pool"
+  }
+}

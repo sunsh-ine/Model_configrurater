@@ -141,6 +141,8 @@ class PlanAdvanced(BaseModel):
     model_revision: str | None = None
     framework: str | None = None
     framework_version: str | None = None
+    #: AJ0：目标运行配置哈希（可选；缺失时运行配置匹配记为 unverified）
+    runtime_config_sha256: str | None = None
 
     @field_validator("tp_sizes", "dp_sizes")
     @classmethod
@@ -442,6 +444,8 @@ class PlanResult(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
     #: AH3/AH5：统一决策证据结构（CLI / Agent / UI / Markdown 共用）
     decision_evidence: dict[str, Any] = Field(default_factory=dict)
+    #: AJ6：真实容量证据（固定并发/Poisson 分开；由应用层附加）
+    capacity_evidence: dict[str, Any] = Field(default_factory=dict)
 
     summary: dict[str, Any] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)

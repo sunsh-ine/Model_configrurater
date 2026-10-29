@@ -86,6 +86,7 @@ def rank_deployments(
             model_revision=identity.get("model_revision"),  # type: ignore[arg-type]
             framework=identity.get("framework"),  # type: ignore[arg-type]
             framework_version=identity.get("framework_version"),  # type: ignore[arg-type]
+            runtime_config_sha256=identity.get("runtime_config_sha256"),  # type: ignore[arg-type]
             hardware_model=_hardware_name(candidate),
             gpu_count=candidate.gpu_count,
             tp_size=candidate.tp_size,

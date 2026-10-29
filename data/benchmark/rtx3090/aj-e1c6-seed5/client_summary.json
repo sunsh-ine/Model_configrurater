@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-10-28T03:43:25+00:00",
+  "base_url": "http://127.0.0.1:18000",
+  "model": "Qwen/Qwen3-8B",
+  "input_len_requested": 2048,
+  "output_len_requested": 256,
+  "num_requests": 500,
+  "concurrency": 6,
+  "request_rate": null,
+  "seed": 5,
+  "measurement_window_ms": {
+    "start_ms": 0.0,
+    "end_ms": 767078.609496355
+  },
+  "success_count": 500,
+  "failure_count": 0,
+  "elapsed_s": 767.078609496355
+}

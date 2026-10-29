@@ -1,0 +1,92 @@
+format_version: sglang-bench-serving-jsonl/v1.per_request
+evidence_id: rtx3090:aj-a2-c10
+record_id: rtx3090:aj-a2-c10
+model_id: qwen3-8b
+model_name: Qwen/Qwen3-8B
+model_revision: local-sha256:852c69a83071
+weight_precision: bf16
+kv_precision: bf16
+hardware_id: nvidia-rtx-3090-24gb
+hardware_model: NVIDIA GeForce RTX 3090
+deployment_gpu_count: 1
+framework: vllm
+framework_version: 0.11.0
+tp_size: 1
+dp_size: 1
+pp_size: 1
+dataset_name: random
+configured_max_concurrency: 10
+arrival_mode: fixed_concurrency
+request_rate_rps: null
+input_len: 2048
+output_len: 256
+num_requests: 50
+performance_source_kind: internal_measurement
+benchmark_client: openai-compatible-stream-client/v1
+client_events:
+  start: request send
+  first_token: first streamed content token
+  last_token: request completion
+  tpot: (e2e - ttft)/(output_tokens-1); not ITL pool
+metric_definitions:
+  ttft_p99_ms: m.latency.ttft.p99
+  tpot_p99_ms: m.latency.tpot.p99
+  output_throughput_tok_s: m.throughput.cluster.output
+measurement_window_ms:
+  start_ms: 0.0
+  end_ms: 70511.63376867771
+sla:
+  ttft_p99_ms_max: 6000.0
+  tpot_p99_ms_max: 40.0
+runtime_config:
+  server:
+    framework: vllm
+    framework_version: 0.11.0
+    dtype: bfloat16
+    kv_cache_dtype: auto
+    quantization: null
+    max_model_len: 8448
+    gpu_memory_utilization: 0.9
+    max_num_seqs: 8
+    enforce_eager: true
+    cuda_graph: false
+    chunked_prefill: true
+    prefix_caching: true
+    attention_backend: unknown
+  client:
+    tool: openai-compatible-stream-client/v1
+    streaming: true
+    metric_side: client
+    event_start: request send
+    event_first_token: first streamed content token
+    event_last_token: request completion
+    tpot: (e2e - ttft)/(output_tokens-1); not ITL pool
+runtime_config_sha256: cb8719a6aef3cbfd8ae6062e6ff6d9a7a6d12e7a043d0c7a21887d7a50c594c4
+environment:
+  gpu_name: NVIDIA GeForce RTX 3090
+  gpu_count: 1
+  memory_mib: 24576
+  compute_capability: '8.6'
+  driver_version: 570.124.04
+  cuda_version: '12.8'
+  os: Ubuntu 22.04.4 LTS
+  cpu_model: Intel(R) Xeon(R) Gold 6330 CPU @ 2.00GHz
+  host_memory_gib: 15
+  python: 3.10.12
+  framework: vllm
+  framework_version: 0.11.0
+  torch: 2.8.0+cu128
+  transformers: 4.57.1
+  model_path: /user-storage/b20251021174752115jsiyqm/Qwen3-8B
+  model_files_sha256: 852c69a83071fabb9ee7d72b393ff03bf5649faacb8da5f262957c8c2f5142ff
+  model_precision: bf16
+  kv_precision: bf16
+  server_args: vllm 0.11.0 max-model-len=8448 max-num-seqs=8 enforce-eager
+  server_log_sha256: null
+evidence:
+  source_file: requests.jsonl
+  source_sha256: e59911939f52989fe65649e7181340254df0ece546aba5f5457ed1bc34105d58
+  collected_at: '2026-10-28T01:56:43+00:00'
+  operator: compute01-controlled-run
+frozen_identity_sha256: 2de7e9e51123d710f76d0e86554b32d1aaef9674bde8ca41ef24b8dcd95ce680
+client_summary_sha256: 0b344c20904c53295eb4593033af3086da5882ff5f94cf063d6f98bffa3c7856

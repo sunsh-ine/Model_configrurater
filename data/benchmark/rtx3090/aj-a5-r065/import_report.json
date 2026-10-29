@@ -1,0 +1,113 @@
+{
+  "validation": {
+    "accepted": true,
+    "raw_file": "/home/ssa/AI_Infer/model_configurater/llm-capacity-pricing/data/benchmark/rtx3090/aj-a5-r065/requests.jsonl",
+    "identity": {
+      "model_name": "Qwen/Qwen3-8B",
+      "model_revision": "local-sha256:852c69a83071",
+      "weight_precision": "bf16",
+      "kv_precision": "bf16",
+      "hardware_model": "NVIDIA GeForce RTX 3090",
+      "deployment_gpu_count": 1,
+      "framework": "vllm",
+      "framework_version": "0.11.0",
+      "tp_size": 1,
+      "dp_size": 1,
+      "pp_size": 1,
+      "dataset_name": "random",
+      "configured_max_concurrency": 8,
+      "arrival_mode": "poisson",
+      "request_rate_rps": 0.65,
+      "input_len": 2048,
+      "output_len": 256
+    },
+    "identity_sha256": "c239e27de97f6926003478c65281736c89bed6565c472cf67b8fd48718ddba0d",
+    "errors": [],
+    "warnings": [
+      "来源未认证：按 unverified_upload 处理，不产生实测身份"
+    ],
+    "raw_sha256": "96c51037e77c0f577cbf228c43b5e458c7191918796cd7140733884a080ec1e8",
+    "declared_sha256": "96c51037e77c0f577cbf228c43b5e458c7191918796cd7140733884a080ec1e8",
+    "digests": {
+      "raw_sha256": "96c51037e77c0f577cbf228c43b5e458c7191918796cd7140733884a080ec1e8",
+      "identity_sha256": "c239e27de97f6926003478c65281736c89bed6565c472cf67b8fd48718ddba0d",
+      "config_sha256": null,
+      "environment_sha256": "5b5627785262c61074db1bec41efae9fa333715bb042093c5513738573547a1d",
+      "metric_definitions_sha256": "6921d9028394376610c2b51f96187324471a23fa5f6b81e8569bf5e718f40a5c"
+    },
+    "source_verification": {
+      "declared_source_kind": "internal_measurement",
+      "verified_source_kind": "unverified_upload",
+      "verification_method": "none",
+      "attestation_id": null,
+      "verified": false,
+      "verified_for_calibration": false,
+      "reason": "缺少登记在册的受控执行记录，不能授予内部实测身份"
+    },
+    "declared_source_kind": "internal_measurement",
+    "verified_source_kind": "unverified_upload",
+    "recomputed": {
+      "num_requests": 100,
+      "success_count": 100,
+      "failure_count": 0,
+      "cancelled_count": 0,
+      "ttft_p99_ms": "1383.9293289929628",
+      "tpot_p99_ms": "38.87773868353927647058823529",
+      "e2e_p99_ms": "10708.17162282765",
+      "output_throughput_tok_s": "166.6082877081186274429961068",
+      "input_throughput_tok_s": "1332.866301664949019543968855",
+      "duration_s": "153.6538209002465",
+      "window_source": "declared_measurement_window",
+      "window_coverage": "verified",
+      "total_output_tokens": "25600",
+      "metric_definitions": {
+        "ttft_p99_ms": "m.latency.ttft.p99",
+        "tpot_p99_ms": "m.latency.tpot.p99",
+        "output_throughput_tok_s": "m.throughput.cluster.output"
+      },
+      "metric_samples": {
+        "ttft": 100,
+        "tpot": 100,
+        "e2e": 100,
+        "success": 100
+      },
+      "metric_coverage": {
+        "ttft": "1",
+        "tpot": "1",
+        "e2e": "1"
+      },
+      "metric_completeness": "complete"
+    },
+    "import_consistency": {
+      "consistent": true,
+      "errors": [],
+      "throughput_compared": true
+    },
+    "imported": {
+      "record_id": "rtx3090:aj-a5-r065",
+      "evidence_id": "rtx3090:aj-a5-r065",
+      "framework": "vllm",
+      "server_framework": "vllm",
+      "benchmark_client": "openai-compatible-stream-client/v1",
+      "performance_source_kind": "unverified_upload",
+      "num_requests": 100,
+      "success_count": 100,
+      "ttft_p99_ms": "1383.9293289929628",
+      "tpot_p99_ms": "38.87773868353927647058823529",
+      "output_throughput_tok_s": "166.6082877081186274429961068"
+    },
+    "qualification": {
+      "ingest_accepted": true,
+      "sla_evaluable": false,
+      "sla_reasons": [
+        "来源未认证为 internal_measurement"
+      ],
+      "success_rate": "1",
+      "reliability_status": "pass",
+      "observed_sla_result": "unknown",
+      "calibration_usable": false,
+      "calibration_reason": "未提供预测，未执行校准",
+      "production_commitment_allowed": false
+    }
+  }
+}

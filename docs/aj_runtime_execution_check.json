@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "checked_at": "2026-10-28T14:10:00+08:00",
+  "server_log": "/user-storage/ai-bench/server/vllm_aj.log",
+  "server_log_sha256_in_metadata": "见每个 AJ 运行的 environment.server_log_sha256",
+  "runtime_config_sha256": "cb8719a6aef3cbfd8ae6062e6ff6d9a7a6d12e7a043d0c7a21887d7a50c594c4",
+  "verified": {
+    "framework_version": {"declared": "0.11.0", "observed": "0.11.0"},
+    "dtype": {"declared": "bfloat16", "observed": "bfloat16"},
+    "max_model_len": {"declared": 8448, "observed": 8448},
+    "max_num_seqs": {"declared": 8, "observed": 8},
+    "enforce_eager": {"declared": true, "observed": true},
+    "prefix_caching": {"declared": true, "observed": true},
+    "chunked_prefill": {"declared": true, "observed": true},
+    "kv_cache_dtype": {"declared": "auto", "observed": "auto"}
+  },
+  "default_inferred": {
+    "gpu_memory_utilization": {
+      "declared": 0.9,
+      "basis": "vllm 0.11.0 default; not listed as non-default in server log"
+    }
+  },
+  "unverified": ["attention_backend"],
+  "mismatches": [],
+  "notes": [
+    "服务端日志中的 non-default args 与 V1 engine config 用于核对冻结配置是否实际生效。",
+    "gpu_memory_utilization=0.9 与 vLLM 0.11 默认值一致且未出现在 non-default args 中，按默认值推断（不等于日志显式核对）。",
+    "attention_backend 的配置值为 unknown，日志显示使用 Flash Attention，但未升级为已验证配置。",
+    "后续归档由 scripts/archive_rtx3090_client_run.py 强制执行同一检查，任一可观测字段不一致即拒绝归档。"
+  ]
+}

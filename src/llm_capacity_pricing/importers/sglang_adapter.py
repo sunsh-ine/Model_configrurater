@@ -345,6 +345,7 @@ def _parse(
             dataset_name=metadata.get("dataset_name"),
             verification_status=metadata.get("verification_status", "partial_evidence"),
             format_version=fmt,
+            runtime_config_sha256=metadata.get("runtime_config_sha256"),
             metric_definitions=metrics_defs,
             raw_metrics={"source_file": p.name, "raw_sha256": raw_sha, **raw_payload},
             quality_flags=[

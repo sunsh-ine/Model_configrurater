@@ -56,6 +56,17 @@ def main() -> int:
         errors.append("环境哈希与 run manifest 不一致")
     if (metadata.get("evidence") or {}).get("source_sha256") != manifest["raw_sha256"]:
         errors.append("metadata 声明的原始哈希与 run manifest 不一致")
+    summary_sha = None
+    summary_path = run_dir / "client_summary.json"
+    if summary_path.is_file():
+        summary_sha = sha256_file(summary_path)
+        declared_summary = metadata.get("client_summary_sha256")
+        # 旧归档没有 summary 哈希；只有声明了才做绑定校验，避免无法重新登记历史运行
+        if declared_summary is not None:
+            if declared_summary != summary_sha:
+                errors.append("client summary 哈希与 metadata 不一致")
+            if manifest.get("client_summary_sha256") != summary_sha:
+                errors.append("client summary 哈希与 run manifest 不一致")
     if errors:
         raise SystemExit("；".join(errors))
     registry_path = ROOT / "data/benchmark/source_attestations.json"
@@ -73,6 +84,12 @@ def main() -> int:
             "raw_sha256": manifest["raw_sha256"],
             "identity_sha256": manifest["identity_sha256"],
             "environment_sha256": manifest["environment_sha256"],
+            "runtime_config_sha256": manifest.get("runtime_config_sha256"),
+            "client_summary_sha256": (
+                summary_sha
+                if metadata.get("client_summary_sha256") is not None
+                else None
+            ),
             "verified_by": args.verified_by,
             "verified_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "environment": metadata["environment"],

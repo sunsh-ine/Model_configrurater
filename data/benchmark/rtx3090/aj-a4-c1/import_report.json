@@ -1,0 +1,115 @@
+{
+  "validation": {
+    "accepted": true,
+    "raw_file": "/home/ssa/AI_Infer/model_configurater/llm-capacity-pricing/data/benchmark/rtx3090/aj-a4-c1/requests.jsonl",
+    "identity": {
+      "model_name": "Qwen/Qwen3-8B",
+      "model_revision": "local-sha256:852c69a83071",
+      "weight_precision": "bf16",
+      "kv_precision": "bf16",
+      "hardware_model": "NVIDIA GeForce RTX 3090",
+      "deployment_gpu_count": 1,
+      "framework": "vllm",
+      "framework_version": "0.11.0",
+      "tp_size": 1,
+      "dp_size": 1,
+      "pp_size": 1,
+      "dataset_name": "random",
+      "configured_max_concurrency": 1,
+      "arrival_mode": "fixed_concurrency",
+      "request_rate_rps": null,
+      "input_len": 8192,
+      "output_len": 256
+    },
+    "identity_sha256": "bb408839cfac14a7b1ac4e939ee4b2cb98649c33c90bd2f72ac4c4f51efd62a4",
+    "errors": [],
+    "warnings": [
+      "来源未认证：按 unverified_upload 处理，不产生实测身份"
+    ],
+    "raw_sha256": "3a24fe04b74a78299c588a984f768843fec06a9ddac5a927617664384e80af97",
+    "declared_sha256": "3a24fe04b74a78299c588a984f768843fec06a9ddac5a927617664384e80af97",
+    "digests": {
+      "raw_sha256": "3a24fe04b74a78299c588a984f768843fec06a9ddac5a927617664384e80af97",
+      "identity_sha256": "bb408839cfac14a7b1ac4e939ee4b2cb98649c33c90bd2f72ac4c4f51efd62a4",
+      "config_sha256": null,
+      "environment_sha256": "5b5627785262c61074db1bec41efae9fa333715bb042093c5513738573547a1d",
+      "metric_definitions_sha256": "6921d9028394376610c2b51f96187324471a23fa5f6b81e8569bf5e718f40a5c"
+    },
+    "source_verification": {
+      "declared_source_kind": "internal_measurement",
+      "verified_source_kind": "unverified_upload",
+      "verification_method": "none",
+      "attestation_id": null,
+      "verified": false,
+      "verified_for_calibration": false,
+      "reason": "缺少登记在册的受控执行记录，不能授予内部实测身份"
+    },
+    "declared_source_kind": "internal_measurement",
+    "verified_source_kind": "unverified_upload",
+    "recomputed": {
+      "num_requests": 20,
+      "success_count": 20,
+      "failure_count": 0,
+      "cancelled_count": 0,
+      "ttft_p99_ms": "2061.8357323110104",
+      "tpot_p99_ms": "25.43478434284528078431372549",
+      "e2e_p99_ms": "8547.705739736557",
+      "output_throughput_tok_s": "30.97996660553876335085005980",
+      "input_throughput_tok_s": "991.3589313772404272272019136",
+      "duration_s": "165.26809293217957",
+      "window_source": "declared_measurement_window",
+      "window_coverage": "verified",
+      "total_output_tokens": "5120",
+      "metric_definitions": {
+        "ttft_p99_ms": "m.latency.ttft.p99",
+        "tpot_p99_ms": "m.latency.tpot.p99",
+        "output_throughput_tok_s": "m.throughput.cluster.output"
+      },
+      "metric_samples": {
+        "ttft": 20,
+        "tpot": 20,
+        "e2e": 20,
+        "success": 20
+      },
+      "metric_coverage": {
+        "ttft": "1",
+        "tpot": "1",
+        "e2e": "1"
+      },
+      "metric_completeness": "complete"
+    },
+    "import_consistency": {
+      "consistent": true,
+      "errors": [],
+      "throughput_compared": true
+    },
+    "imported": {
+      "record_id": "rtx3090:aj-a4-c1",
+      "evidence_id": "rtx3090:aj-a4-c1",
+      "framework": "vllm",
+      "server_framework": "vllm",
+      "benchmark_client": "openai-compatible-stream-client/v1",
+      "performance_source_kind": "unverified_upload",
+      "num_requests": 20,
+      "success_count": 20,
+      "ttft_p99_ms": "2061.8357323110104",
+      "tpot_p99_ms": "25.43478434284528078431372549",
+      "output_throughput_tok_s": "30.97996660553876335085005980"
+    },
+    "qualification": {
+      "ingest_accepted": true,
+      "sla_evaluable": false,
+      "sla_reasons": [
+        "来源未认证为 internal_measurement",
+        "TTFT/TPOT 有效样本少于 30",
+        "成功请求少于 30"
+      ],
+      "success_rate": "1",
+      "reliability_status": "pass",
+      "observed_sla_result": "unknown",
+      "calibration_usable": false,
+      "calibration_reason": "未提供预测，未执行校准",
+      "production_commitment_allowed": false
+    }
+  }
+}

@@ -73,6 +73,23 @@ def _attestation_matches(
         return False
     if attestation.get("environment_sha256") != environment_sha256:
         return False
+    attested_runtime = attestation.get("runtime_config_sha256")
+    current_runtime = metadata.get("runtime_config_sha256")
+    # 配置哈希必须与登记时完全一致；旧登记没有该字段时，元数据也不得事后补一个
+    if attested_runtime != current_runtime:
+        return False
+    config_payload = metadata.get("runtime_config")
+    if current_runtime is not None:
+        if config_payload is None:
+            return False
+        if _canonical_sha(config_payload) != current_runtime:
+            return False
+    attested_summary = attestation.get("client_summary_sha256")
+    current_summary = metadata.get("client_summary_sha256")
+    if attested_summary != current_summary:
+        return False
+    if current_summary is not None and not _is_sha256(current_summary):
+        return False
     manifest_file = attestation.get("run_manifest_file")
     manifest_sha = attestation.get("run_manifest_sha256")
     if not manifest_file or not _is_sha256(manifest_sha):
@@ -105,6 +122,10 @@ def _attestation_matches(
         None,
         metadata.get("framework_version"),
     ):
+        return False
+    if run_manifest.get("runtime_config_sha256") != current_runtime:
+        return False
+    if run_manifest.get("client_summary_sha256") != current_summary:
         return False
     return (
         attestation.get("declared_source_kind") == declared

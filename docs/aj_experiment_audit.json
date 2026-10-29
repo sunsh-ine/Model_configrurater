@@ -1,0 +1,68 @@
+{
+  "experiment_id": "aj-formal-c6",
+  "expected_runs": 5,
+  "workpoints": [
+    {
+      "workpoint_id": "wp-c6",
+      "expected_seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "found_seeds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "valid_seeds": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "missing_seeds": [],
+      "incomplete_seeds": [
+        1
+      ],
+      "duplicate_seeds": {},
+      "completeness": "incomplete",
+      "runs": [
+        {
+          "run_id": "aj-e1c6-seed1",
+          "seed": 1,
+          "requests": 500,
+          "success": 499
+        },
+        {
+          "run_id": "aj-e1c6-seed2",
+          "seed": 2,
+          "requests": 500,
+          "success": 500
+        },
+        {
+          "run_id": "aj-e1c6-seed3",
+          "seed": 3,
+          "requests": 500,
+          "success": 500
+        },
+        {
+          "run_id": "aj-e1c6-seed4",
+          "seed": 4,
+          "requests": 500,
+          "success": 500
+        },
+        {
+          "run_id": "aj-e1c6-seed5",
+          "seed": 5,
+          "requests": 500,
+          "success": 500
+        }
+      ],
+      "excluded_runs": []
+    }
+  ]
+}

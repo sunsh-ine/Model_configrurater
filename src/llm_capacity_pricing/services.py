@@ -2662,6 +2662,7 @@ def _target_from_facts(facts: dict[str, Any]) -> Any:
         dp_size=facts.get("dp_size"),
         framework=facts.get("framework"),
         framework_version=facts.get("framework_version"),
+        runtime_config_sha256=facts.get("runtime_config_sha256"),
         workload=WorkloadSignature(
             input_len_target=facts.get("input_len_target"),
             output_len_target=facts.get("output_len_target"),
@@ -2687,6 +2688,7 @@ def _identity_from_facts(facts: dict[str, Any]) -> dict[str, Any]:
         "dp_size",
         "framework",
         "framework_version",
+        "runtime_config_sha256",
         "input_len_target",
         "output_len_target",
         "dataset_name",

@@ -218,6 +218,7 @@ def signature_from_record(record: BenchmarkRecord) -> BenchmarkSignature:
             success_count=record.success_count,
         ),
         metric_definition_ids=metric_ids,
+        runtime_config_sha256=record.runtime_config_sha256,
         metric_side="client",
         sample_size=record.num_requests,
         data_trust=trust,
@@ -258,6 +259,7 @@ def signature_from_numeric_candidate(c: SglangNumericCandidate) -> BenchmarkSign
             duration_s=c.metrics.get("duration_s"),
         ),
         metric_definition_ids=metric_ids,
+        runtime_config_sha256=None,
         metric_side="client",
         sample_size=c.num_prompts,
         # 厂商/框架官方公开发布的实测数据
@@ -291,6 +293,7 @@ def signature_from_official_candidate(c: OfficialBenchmarkCandidate) -> Benchmar
             request_rate_rps=c.request_rate_rps,
         ),
         metric_definition_ids=metric_ids,
+        runtime_config_sha256=None,
         metric_side="client",
         data_trust="measured_vendor_published",
     )
@@ -391,6 +394,19 @@ def match(target: TargetRequirement, sig: BenchmarkSignature) -> BenchmarkMatchR
     # ---- 4. 并行配置 -----------------------------------------------------
     _compare(target.tp_size, sig.tp_size, "tp_size", differences, reasons)
     _compare(target.dp_size, sig.dp_size, "dp_size", differences, reasons)
+    # 配置哈希是 AJ 新增维度：历史证据/目标两边都没记录时不算"未确认"，
+    # 否则会把所有旧证据一起降级。只有一方声明、或双方不同，才影响结论。
+    target_sha_absent = is_absent(target.runtime_config_sha256)
+    sig_sha_absent = is_absent(sig.runtime_config_sha256)
+    if target_sha_absent and sig_sha_absent:
+        pass
+    elif target_sha_absent or sig_sha_absent:
+        unverified.append("runtime_config_sha256_unverified")
+    elif target.runtime_config_sha256 != sig.runtime_config_sha256:
+        reasons.append(
+            "runtime_config_sha256_mismatch:"
+            f"{target.runtime_config_sha256}!={sig.runtime_config_sha256}"
+        )
 
     # ---- 5. 框架 ---------------------------------------------------------
     framework_same = _compare(

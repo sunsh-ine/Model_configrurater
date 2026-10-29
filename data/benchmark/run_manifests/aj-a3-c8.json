@@ -1,0 +1,15 @@
+{
+  "run_id": "aj-a3-c8",
+  "raw_sha256": "8936490fb8d5ab3752fd1716337b668b6fe9b8a52d51d34b98bd0e97380527a3",
+  "identity_sha256": "2bded7f3288deb4caac51830a6cb082b16afb60266369a023c61e23c6ca92ea7",
+  "environment_sha256": "5b5627785262c61074db1bec41efae9fa333715bb042093c5513738573547a1d",
+  "runtime_config_sha256": "cb8719a6aef3cbfd8ae6062e6ff6d9a7a6d12e7a043d0c7a21887d7a50c594c4",
+  "model_name": "Qwen/Qwen3-8B",
+  "model_revision": "local-sha256:852c69a83071",
+  "framework": "vllm",
+  "framework_version": "0.11.0",
+  "gpu_name": "NVIDIA GeForce RTX 3090",
+  "driver_version": "570.124.04",
+  "server_args": "vllm 0.11.0 max-model-len=8448 max-num-seqs=8 enforce-eager",
+  "client_summary_sha256": "0610a9afaca4291583f6fefa158de79cbfccc4a214fe3600c8de41ed5b594b47"
+}
